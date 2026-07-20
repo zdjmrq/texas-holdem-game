@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>德州扑克</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="bg-layer">
+        <span class="bg-ornament n1">♠</span>
+        <span class="bg-ornament n2">♥</span>
+        <span class="bg-ornament n3">♦</span>
+        <span class="bg-ornament n4">♣</span>
+        <span class="bg-ornament n5">♠</span>
+        <span class="bg-ornament n6">♥</span>
+        <span class="bg-ornament n7">♦</span>
+        <span class="bg-ornament n8">♣</span>
+        <span class="bg-ornament n9">♠</span>
+        <span class="bg-ornament n10">♥</span>
+        <span class="bg-ornament n11">♦</span>
+        <span class="bg-ornament n12">♣</span>
+        <span class="bg-ornament n13">♠</span>
+        <span class="bg-ornament n14">♥</span>
+        <span class="bg-ornament n15">♦</span>
+        <span class="bg-ornament n16">♣</span>
+        <span class="bg-ornament n17">♠</span>
+        <span class="bg-ornament n18">♥</span>
+        <span class="bg-ornament n19">🃏</span>
+        <span class="bg-ornament n20">✦</span>
+    </div>
+
+    <div id="app">
+        <div class="header">
+            <h1>♠ <span>Texas</span> Hold'em ♥</h1>
+            <div class="header-info">
+                <span>🎴 手牌 #<span class="hand-count" id="handCount">0</span></span>
+                <span class="blinds-info">
+                    <span>SB: <span id="sbDisplay">40</span></span>
+                    <span>BB: <span id="bbDisplay">80</span></span>
+                </span>
+                <span class="music-controls">
+                    <button class="music-btn" id="musicBtn" onclick="toggleMusic()" title="切换背景音乐">🎵 音乐关</button>
+                    <button class="music-btn skip-btn" id="skipBtn" onclick="skipSong()" title="下一首">⏭️</button>
+                    <span class="vol-control">
+                        <label for="volSlider" style="font-size:11px;color:#888;">🔊</label>
+                        <input type="range" id="volSlider" min="0" max="100" value="30"
+                               oninput="setVolume(this.value)" style="width:60px;accent-color:#e94560;cursor:pointer;">
+                    </span>
+                </span>
+            </div>
+            <div class="header-actions">
+                <button class="header-btn" id="refreshBtn" onclick="doRefresh()" title="重新连接/刷新牌局">🔄</button>
+                <button class="header-btn home-btn" id="homeBtn" onclick="goHome()" title="返回主页">🏠</button>
+                <button class="header-btn fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreen()" title="全屏">⛶ 全屏</button>
+            </div>
+        </div>
+
+        <div class="game-status" id="gameStatus">点击「开始游戏」开始德州扑克对局！</div>
+
+        <div class="table-container" id="tableContainer">
+            <div class="table-felt"></div>
+            <div class="table-decor d1">♠</div>
+            <div class="table-decor d2">♥</div>
+            <div class="table-decor d3">♦</div>
+            <div class="betting-round-label" id="bettingRoundLabel"></div>
+
+            <div class="players-layout" id="aiPlayersContainer"></div>
+
+            <div class="community-area" id="communityArea">
+                <div class="community-placeholder">翻牌</div>
+                <div class="community-placeholder">翻牌</div>
+                <div class="community-placeholder">翻牌</div>
+                <div class="community-placeholder">转牌</div>
+                <div class="community-placeholder">河牌</div>
+            </div>
+
+            <div class="pot-display" id="potDisplay">底池: $0</div>
+
+            <div class="start-screen" id="startScreen">
+                <div class="card-icons">♠ ♥ ♦ ♣</div>
+                <h2 id="startTitle">Texas Hold'em</h2>
+                <p id="startSubtitle">与具备真人思维的人工智能对手进行德州扑克对决</p>
+                <p style="font-size:13px; color:#888;">每位AI只能看到自己的牌 — 绝不作弊！</p>
+                <br>
+                <div class="player-count-selector" id="playerCountSelector">
+                    <label>选择人数</label>
+                    <div class="count-options">
+                        <button class="count-btn" data-count="2">2 人</button>
+                        <button class="count-btn" data-count="6">6 人</button>
+                        <button class="count-btn" data-count="7">7 人</button>
+                        <button class="count-btn" data-count="8">8 人</button>
+                        <button class="count-btn" data-count="9">9 人</button>
+                        <button class="count-btn selected" data-count="10">10 人</button>
+                    </div>
+                </div>
+                <br>
+                <div class="mode-selector" id="modeSelector">
+                    <label>游戏模式</label>
+                    <div class="mode-options">
+                        <button class="mode-btn selected" data-mode="standard" onclick="selectGameMode('standard')">♠ 标准德州</button>
+                        <button class="mode-btn" data-mode="shortdeck" onclick="selectGameMode('shortdeck')">♦ 短牌 6+</button>
+                    </div>
+                </div>
+                <div class="play-mode-selector" style="margin-top:10px;">
+                    <label>游玩方式</label>
+                    <div class="mode-options">
+                        <button class="play-btn selected" data-play="local" onclick="selectPlayMode('local')">🎮 本地游戏</button>
+                        <button class="play-btn" data-play="online" onclick="selectPlayMode('online')">🌐 联网游戏</button>
+                    </div>
+                </div>
+
+                <div id="localOptions">
+                    <div class="difficulty-selector" style="margin-top:10px;">
+                        <label>AI 难度</label>
+                        <div class="mode-options">
+                            <button class="diff-btn selected" data-diff="normal" onclick="selectDifficulty('normal')">🎯 普通</button>
+                            <button class="diff-btn" data-diff="elite" onclick="selectDifficulty('elite')">🧠 精英</button>
+                        </div>
+                    </div>
+                    <br>
+                    <button class="action-btn btn-start" id="startGameBtn" onclick="startNewGame()">🏆 开始游戏</button>
+                </div>
+
+                <div id="onlinePanel" style="display:none;margin-top:12px;width:100%;max-width:400px;">
+                    <div id="connectPanel">
+                        <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+                            <input id="serverAddress" value="ws://localhost:3000" placeholder="服务器地址" style="flex:1;min-width:140px;padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:#fff;font-size:13px;outline:none;">
+                            <input id="playerNameInput" value="" placeholder="输入你的昵称" maxlength="8" style="width:80px;padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:#fff;font-size:13px;outline:none;">
+                            <button class="action-btn" style="padding:8px 16px;font-size:13px;" onclick="doConnect()">🔗 连接</button>
+                        </div>
+                    </div>
+                    <div id="roomLobby" style="display:none;">
+                        <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:12px;margin-bottom:8px;">
+                            <div style="font-size:12px;color:#888;margin-bottom:4px;">📋 房间号</div>
+                            <div style="font-size:32px;font-weight:bold;color:#ffd700;letter-spacing:6px;" id="roomCodeDisplay">——</div>
+                        </div>
+                        <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:12px;margin-bottom:8px;">
+                            <div style="font-size:12px;color:#888;margin-bottom:6px;">👥 玩家列表</div>
+                            <div id="playerList" style="font-size:14px;text-align:left;"></div>
+                        </div>
+                        <div id="createRoomForm">
+                            <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;align-items:center;">
+                                <select id="roomMaxPlayers" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:#fff;font-size:13px;">
+                                    <option value="2">2人</option><option value="3">3人</option><option value="4" selected>4人</option>
+                                    <option value="5">5人</option><option value="6">6人</option><option value="7">7人</option><option value="8">8人</option>
+                                </select>
+                                <label style="font-size:12px;color:#888;"><input type="checkbox" id="roomShortDeck"> 短牌</label>
+                                <label style="font-size:12px;color:#888;"><input type="checkbox" id="roomEliteAI"> 精英AI</label>
+                                <button class="action-btn" style="padding:6px 14px;font-size:12px;" onclick="doCreateRoom()">🏠 创建房间</button>
+                            </div>
+                        </div>
+                        <div id="joinRoomForm">
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                <input id="joinRoomCode" placeholder="输入房间号" maxlength="4" style="flex:1;min-width:100px;padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:#fff;font-size:16px;text-align:center;letter-spacing:4px;font-weight:bold;text-transform:uppercase;outline:none;">
+                                <button class="action-btn" style="padding:8px 16px;font-size:13px;" onclick="doJoinRoom()">🚪 加入</button>
+                            </div>
+                        </div>
+                        <div id="roomActions" style="display:none;margin-top:8px;">
+                            <button class="action-btn btn-start" style="font-size:15px;padding:10px 30px;" id="startGameBtnOnline" onclick="doStartGame()">🏆 开始游戏</button>
+                            <div style="margin-top:6px;font-size:13px;color:#888;" id="waitingMsg">等待房主开始游戏...</div>
+                        </div>
+                        <div style="display:flex;gap:6px;margin-top:10px;justify-content:center;">
+                            <button class="action-btn btn-fold" style="padding:6px 14px;font-size:11px;" onclick="doLeaveRoom()">🚪 离开房间</button>
+                            <button class="action-btn btn-fold" style="padding:6px 14px;font-size:11px;" onclick="doDisconnect()">🔌 断开</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="bustedInfo" style="display:none; margin-top:12px; padding:10px; border-radius:8px; background:rgba(233,69,96,0.15); border:1px solid rgba(233,69,96,0.3);">
+                    <span style="color:#e94560;">💔 你已输光所有筹码！重新开始吧</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottom-panel" id="bottomPanel" style="display:none;">
+            <div class="human-area" id="humanArea">
+                <div class="human-pos-badges" id="humanPosBadges" style="display:none;margin-bottom:4px;"></div>
+                <div class="human-card-area">
+                    <div class="human-cards" id="humanCards">
+                        <div class="card card-back" id="humanCard1"></div>
+                        <div class="card card-back" id="humanCard2"></div>
+                    </div>
+                    <div class="human-label">我的手牌</div>
+                </div>
+                <div class="human-stack-info">
+                    <span class="label">本局下注</span>
+                    <span class="amount" id="humanRoundBet" style="color:#ff9800;font-size:14px;">$0</span>
+                    <span class="label" style="margin-top:2px;">筹码</span>
+                    <span class="amount" id="humanStack">$1,000</span>
+                </div>
+                <div class="actions-container" id="actionsContainer">
+                    <button class="action-btn btn-fold" id="btnFold" disabled onclick="doAction('fold')">弃牌</button>
+                    <button class="action-btn btn-check" id="btnCheck" disabled onclick="doAction('check')">过牌</button>
+                    <button class="action-btn btn-call" id="btnCall" disabled onclick="doAction('call')">跟注</button>
+                    <button class="action-btn btn-raise" id="btnRaise" disabled onclick="showRaiseSlider()">加注</button>
+                    <button class="action-btn btn-allin" id="btnAllin" disabled onclick="doAction('allin')">全下</button>
+                </div>
+                <div class="action-explain" id="actionExplain"></div>
+                <div class="raise-slider-container" id="raiseSlider">
+                    <input type="range" id="raiseRange" min="80" max="1000" value="120" step="10" oninput="updateRaiseDisplay()">
+                    <span class="raise-amount-display" id="raiseAmountDisplay">加注到 $60</span>
+                    <div style="display:flex;gap:6px;margin-top:4px;">
+                        <button class="action-btn btn-raise" style="padding:6px 16px;font-size:12px;" onclick="confirmRaise()">✅ 加注</button>
+                        <button class="action-btn btn-fold" style="padding:6px 16px;font-size:12px;" onclick="hideRaiseSlider()">取消</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="probability-panel" id="probPanel">
+                <div class="prob-panel-title" id="probToggle" onclick="toggleProbPanel()" style="cursor:pointer;user-select:none;">
+                    📊 胜率分析 <span id="probToggleIcon" style="font-size:11px;color:#666;">▼</span>
+                </div>
+                <div class="prob-content collapsed" id="probContent">
+                    <div class="probability-bars" id="probBars">
+                        <div class="prob-bar">
+                            <span class="bar-label">胜率</span>
+                            <div class="bar-track"><div class="bar-fill win" id="probWinBar" style="width:0%"></div></div>
+                            <span class="bar-value win" id="probWinValue">0%</span>
+                        </div>
+                        <div class="prob-bar">
+                            <span class="bar-label">平局</span>
+                            <div class="bar-track"><div class="bar-fill tie" id="probTieBar" style="width:0%"></div></div>
+                            <span class="bar-value tie" id="probTieValue">0%</span>
+                        </div>
+                        <div class="prob-bar">
+                            <span class="bar-label">输率</span>
+                            <div class="bar-track"><div class="bar-fill lose" id="probLoseBar" style="width:0%"></div></div>
+                            <span class="bar-value lose" id="probLoseValue">0%</span>
+                        </div>
+                    </div>
+                    <div class="hand-analysis" id="handAnalysis">
+                        <h4>🃏 当前手牌</h4>
+                        <div class="hand-current" id="currentHandName">—</div>
+                        <h4 style="margin-top:8px;">可击败的牌型</h4>
+                        <div class="hand-beats" id="handBeatsContainer"></div>
+                        <div class="outs-section" id="outsSection" style="display:none;">
+                            <h4>🎯 补牌分析</h4>
+                            <div class="outs-list" id="outsList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="showdownModal">
+        <div class="modal-content" id="modalContent">
+            <div class="modal-drag-handle" id="modalDragHandle">⠿ 拖拽移动</div>
+            <div class="modal-title" id="modalTitle">🏆 摊牌</div>
+            <div class="modal-winner" id="modalWinner">
+                <span class="winner-name" id="winnerName">玩家</span> 赢得
+                <span style="color:#ffd700;" id="winnerAmount">$0</span>
+                <br>牌型: <span class="winning-hand" id="winningHandName">高牌</span>
+            </div>
+            <div class="modal-results" id="modalResults"></div>
+            <button class="modal-btn" onclick="closeModalAndContinue()">下一手 →</button>
+        </div>
+    </div>
+
+    <script src="js/debug.js"></script>
+    <script src="js/cards.js"></script>
+    <script src="js/probability.js"></script>
+    <script src="js/ai.js"></script>
+    <script src="js/ai-enhanced.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/shortdeck.js"></script>
+    <script src="js/network.js"></script>
+
+    <div class="rules-container" id="rulesContainer">
+        <button class="rules-toggle" id="rulesToggle" onclick="toggleRules()">📜 查看德州扑克规则</button>
+        <div class="rules-content" id="rulesContent">
+            <h3>♠ 德州扑克 规则说明 ♥</h3>
+            <h4>🎯 游戏目标</h4>
+            <p>每位玩家获得2张底牌，桌面发出5张公共牌。玩家用自己的2张底牌 + 5张公共牌中的任意7选5，组合成最佳的五张牌型。牌型最大的玩家赢得底池。</p>
+            <h4>🏷️ 位置与盲注</h4>
+            <ul>
+                <li><strong>庄家 (D, Dealer)</strong> — 位置标记，每局顺时针移动。翻牌后最后行动，位置优势最大。</li>
+                <li><strong>小盲 (SB)</strong> — 庄家左边第一位，每局强制下注小盲金额。</li>
+                <li><strong>大盲 (BB)</strong> — 庄家左边第二位，每局强制下注大盲金额，翻牌前最后行动。</li>
+            </ul>
+            <h4>🔄 游戏流程</h4>
+            <ol>
+                <li><strong>发底牌</strong> — 每人获得2张只有自己可见的底牌。</li>
+                <li><strong>翻牌前</strong> — UTG位开始行动，顺时针轮流。</li>
+                <li><strong>翻牌</strong> — 发出3张公共牌。</li>
+                <li><strong>转牌</strong> — 发出第4张公共牌。</li>
+                <li><strong>河牌</strong> — 发出第5张公共牌。</li>
+                <li><strong>摊牌</strong> — 剩余玩家亮牌比大小。</li>
+            </ol>
+            <h4>🎮 行动选项</h4>
+            <ul>
+                <li><strong>弃牌 (Fold)</strong> — 放弃本局。快捷键: F</li>
+                <li><strong>过牌 (Check)</strong> — 无需加注时选择过牌。快捷键: C</li>
+                <li><strong>跟注 (Call)</strong> — 支付与当前注额相同的筹码。快捷键: C</li>
+                <li><strong>加注 (Raise)</strong> — 提高当前注额。快捷键: R</li>
+                <li><strong>全下 (All-in)</strong> — 将所有筹码推入底池。快捷键: A</li>
+            </ul>
+            <h4>🃏 牌型大小</h4>
+            <p>1. 皇家同花顺 2. 同花顺 3. 四条 4. 葫芦 5. 同花 6. 顺子 7. 三条 8. 两对 9. 一对 10. 高牌</p>
+            <p style="font-size:12px;color:#888;margin-top:4px;">点数: A > K > Q > J > 10 > 9 > 8 > 7 > 6 > 5 > 4 > 3 > 2</p>
+            <div class="sd-rules-section" style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);">
+                <h3>♦ 短牌 (6+ Hold'em) 规则说明</h3>
+                <h4>🎴 牌数</h4>
+                <p>去掉所有 2、3、4、5，共 <strong>36张牌</strong>。</p>
+                <h4>🏆 牌型区别</h4>
+                <p>短牌中：同花 > 葫芦，顺子 > 三条</p>
+                <p style="font-size:12px;color:#ff9800;">核心区别：同花更稀有，葫芦更容易出。</p>
+                <p>A可以充当5，组成最小顺子：A-6-7-8-9</p>
+                <h4>💰 前注制</h4>
+                <p>每局每人下1倍前注，庄家下2倍前注。无大小盲注。</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/ui.js"></script>
+</body>
+</html>
