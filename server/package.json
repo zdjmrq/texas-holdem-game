@@ -1,0 +1,12 @@
+{
+  "name": "texas-holdem-server",
+  "version": "1.0.0",
+  "description": "德州扑克游戏服务器 — WebSocket",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
