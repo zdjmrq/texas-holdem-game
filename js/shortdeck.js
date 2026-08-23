@@ -1254,12 +1254,16 @@ class ShortDeckGame {
     // ── 检查牌局结束 ──
 
     checkHandEnd() {
+        // An outer action loop can observe the hand once more after settlement.
+        // Do not announce the already-cleared pot a second time.
+        if (this.phase === 'idle') return true;
         const ih = this.getPlayersInHand();
         if (ih.length <= 1) { this.endHand(ih.length === 1 ? ih[0] : null); return true; }
         return false;
     }
 
     endHand(winner) {
+        if (this.phase === 'idle') return;
         this.refundUncalledBet();
         const settledPot = this.pot;
         if (winner) {

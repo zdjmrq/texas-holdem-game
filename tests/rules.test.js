@@ -141,6 +141,40 @@ test('a unique uncalled wager is returned before a fold pot is awarded', () => {
     assert.equal(players[0].stack + players[1].stack, 2000);
 });
 
+test('a local fold win is settled and announced only once', () => {
+    for (const Game of [browser.PokerGame, browser.ShortDeckGame]) {
+        const game = new Game({
+            startingStack:1000, smallBlind:40, bigBlind:80,
+            ante:40, minBet:80
+        });
+        const hero = {
+            name:'You', stack:900, holeCards:[], chipsInPot:100,
+            folded:false, isAllIn:false, hasActed:true, isHuman:true,
+            lastAction:null
+        };
+        const villain = {
+            name:'AI', stack:900, holeCards:[], chipsInPot:100,
+            folded:true, isAllIn:false, hasActed:true, isHuman:false,
+            lastAction:null, aiRef:{ reset() {} }
+        };
+        game.players = [hero, villain];
+        game.humanPlayer = hero;
+        game.aiPlayers = [villain];
+        game.phase = 'flop';
+        game.pot = 200;
+        game.roundBets = { 0:100, 1:100 };
+
+        const announcedPots = [];
+        game.onHandEnd = result => announcedPots.push(result.pot);
+
+        assert.equal(game.checkHandEnd(), true);
+        assert.equal(game.checkHandEnd(), true);
+        assert.deepEqual(announcedPots, [200]);
+        assert.equal(hero.stack, 1100);
+        assert.equal(game.pot, 0);
+    }
+});
+
 test('AI respects real stack/raise bounds and executes a remembered check-raise plan', () => {
     const ai = new browser.AIPlayer('Test', browser.AI_STYLES.SOLID, 50, 1);
     ai.holeCards = [new browser.Card('A','spades'), new browser.Card('A','hearts')];

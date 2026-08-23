@@ -1027,6 +1027,9 @@ class PokerGame {
 
     /** Check if hand should end */
     checkHandEnd() {
+        // An outer action loop can observe the hand once more after settlement.
+        // Do not announce the already-cleared pot a second time.
+        if (this.phase === 'idle') return true;
         const inHand = this.getPlayersInHand();
         if (inHand.length <= 1) {
             this.endHand(inHand.length === 1 ? inHand[0] : null);
@@ -1037,6 +1040,7 @@ class PokerGame {
 
     /** End hand with a winner */
     endHand(winner) {
+        if (this.phase === 'idle') return;
         this.refundUncalledBet();
         const settledPot = this.pot;
         if (winner) {
