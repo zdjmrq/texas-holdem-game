@@ -28,9 +28,13 @@ let selectedSmallBlind = 40;
 let selectedBigBlind = 80;
 let humanCardsHidden = false;
 let humanCardsAnimating = false;
+let humanDealAnimationToken = 0;
 let lastOnlineHoleCardsKey = '';
 let lastOnlineHandMarker = null;
 let lastShownOnlineResultHandId = null;
+let onlineProbabilityResult = null;
+let onlineOutsResult = null;
+let onlineProbabilityKey = '';
 
 const APP_SETTINGS_KEY = 'texas-holdem-settings-v1';
 const AI_SPEED_LEVELS = [
@@ -89,6 +93,27 @@ function restoreSavedInputs() {
         }
         if (nameInput && typeof saved.playerName === 'string') nameInput.value = saved.playerName.slice(0, 8);
     } catch (_) {}
+}
+
+async function syncLocalServerEndpoint() {
+    if (!window.windowControls?.getLocalServerUrl) return;
+    try {
+        const localUrl = await window.windowControls.getLocalServerUrl();
+        if (!/^ws:\/\/127\.0\.0\.1:\d+$/.test(localUrl || '')) return;
+        const serverInput = document.getElementById('serverAddress');
+        if (serverInput) {
+            let isLocalAddress = false;
+            try {
+                const parsed = new URL(serverInput.value);
+                isLocalAddress = ['localhost','127.0.0.1'].includes(parsed.hostname);
+            } catch (_) {}
+            if (isLocalAddress) serverInput.value = localUrl;
+        }
+        const hint = document.getElementById('localServerHint');
+        if (hint) hint.textContent = `本机服务会随应用自动启动 · 当前地址 ${localUrl}`;
+    } catch (error) {
+        console.warn('Could not read the local server address:', error);
+    }
 }
 
 const communityAnimationState = {
@@ -202,6 +227,9 @@ function resetOnlinePresentationState() {
     lastOnlineHoleCardsKey = '';
     lastOnlineHandMarker = null;
     lastShownOnlineResultHandId = null;
+    onlineProbabilityResult = null;
+    onlineOutsResult = null;
+    onlineProbabilityKey = '';
     resetCommunityCardAnimation('online');
     resetHumanCardsVisibility();
 }
@@ -263,12 +291,13 @@ function doConnect() {
     onDisconnected = info => {
         if (playMode !== 'online') return;
         if (info && info.willReconnect) {
+            const waitSeconds = Math.max(1, Math.ceil((Number(info.reconnectDelay) || 0) / 1000));
             ['btnFold','btnCheck','btnCall','btnRaise','btnAllin'].forEach(id => {
                 const button = document.getElementById(id);
                 if (button) button.disabled = true;
             });
-            document.getElementById('actionExplain').textContent = '🔄 连接中断，正在恢复原座位...';
-            showNetworkError('🔄 连接中断，正在自动恢复...');
+            document.getElementById('actionExplain').textContent = `🔄 连接中断，约 ${waitSeconds} 秒后恢复原座位...`;
+            showNetworkError(`🔄 连接中断，约 ${waitSeconds} 秒后自动重连...`);
             return;
         }
         resetOnlinePresentationState();
@@ -384,10 +413,76 @@ function doConnect() {
 // 联网游戏渲染（服务端状态 → UI）
 // ============================================================
 
+function getAnalysisContext() {
+    if (playMode === 'online') {
+        const state = network.gameState;
+        if (!state) return null;
+        const me = (state.players || []).find(player => player.id === network.playerId);
+        const roomConfig = state.roomConfig || state.config || {};
+        return {
+            playerCards:state.yourCards || [],
+            communityCards:state.communityCards || [],
+            folded:!!me?.folded,
+            phase:state.phase,
+            isShortDeck:!!(state.isShortDeck || roomConfig.isShortDeck),
+            probabilityResult:onlineProbabilityResult,
+            outsResult:onlineOutsResult
+        };
+    }
+    if (!game || !game.humanPlayer) return null;
+    return {
+        playerCards:game.humanPlayer.holeCards || [],
+        communityCards:game.communityCards || [],
+        folded:!!game.humanPlayer.folded,
+        phase:game.phase,
+        isShortDeck:game instanceof ShortDeckGame,
+        probabilityResult:game.probabilityResult,
+        outsResult:typeof game.getOuts === 'function' ? game.getOuts() : null
+    };
+}
+
+function requestOnlineProbability(state) {
+    const cards = state.yourCards || [];
+    const communityCards = state.communityCards || [];
+    const me = (state.players || []).find(player => player.id === network.playerId);
+    if (cards.length !== 2 || me?.folded || state.phase === 'idle') {
+        onlineProbabilityResult = null;
+        onlineOutsResult = null;
+        onlineProbabilityKey = '';
+        return;
+    }
+    const numOpponents = Math.max(1, (state.players || []).filter(player =>
+        player.id !== network.playerId && !player.folded && player.stack + (player.chipsInPot || 0) >= 0).length);
+    const config = state.roomConfig || state.config || {};
+    const options = {
+        playerCards:cards,
+        communityCards,
+        numOpponents,
+        isShortDeck:!!(state.isShortDeck || config.isShortDeck)
+    };
+    const key = probabilityService.makeKey(options);
+    if (key === onlineProbabilityKey) return;
+    onlineProbabilityKey = key;
+    onlineProbabilityResult = null;
+    onlineOutsResult = null;
+    updateProbability();
+    probabilityService.calculate(options).then(result => {
+        if (playMode !== 'online' || key !== onlineProbabilityKey) return;
+        onlineProbabilityResult = result;
+        onlineOutsResult = result.outs || null;
+        updateProbability();
+        updateHandAnalysis();
+        updateOuts();
+    }).catch(error => {
+        if (key === onlineProbabilityKey) console.error('Online probability error:', error);
+    });
+}
+
 /** 主渲染入口：根据服务端 game_state 渲染整个牌桌 */
 function renderOnlineGame(msg) {
     if (playMode !== 'online' || !msg || !msg.phase) return;
     if (network.roomCode && msg.roomCode && msg.roomCode !== network.roomCode) return;
+    if (typeof bgMusic !== 'undefined') bgMusic.setGamePhase(msg.phase);
 
     applyRoomConfigFromServer(msg);
     updateOnlineBlindDisplay(msg);
@@ -398,7 +493,8 @@ function renderOnlineGame(msg) {
     const isNewMarker = marker !== null && marker !== lastOnlineHandMarker;
     const looksLikeNewHand = msg.phase === 'preflop' && (msg.communityCards || []).length === 0 &&
         (isNewMarker || (holeKey && lastOnlineHoleCardsKey && holeKey !== lastOnlineHoleCardsKey));
-    if (isNewMarker || looksLikeNewHand) {
+    const shouldAnimateHoleCards = isNewMarker || looksLikeNewHand;
+    if (shouldAnimateHoleCards) {
         resetHumanCardsVisibility();
         resetCommunityCardAnimation('online');
     }
@@ -448,15 +544,20 @@ function renderOnlineGame(msg) {
     renderOnlineCommunityCards(msg.communityCards || []);
 
     // 玩家手牌
-    if (msg.yourCards && msg.yourCards.length === 2) {
+    if (msg.yourCards && msg.yourCards.length === 2 && !humanCardsAnimating) {
         renderCard('humanCard1', msg.yourCards[0], !humanCardsHidden);
         renderCard('humanCard2', msg.yourCards[1], !humanCardsHidden);
         syncHumanCardsControl();
-    } else {
+    } else if (!humanCardsAnimating) {
         renderCard('humanCard1', null, false);
         renderCard('humanCard2', null, false);
         syncHumanCardsControl();
     }
+    if (shouldAnimateHoleCards && msg.yourCards?.length === 2) animateHumanCardsDeal();
+    requestOnlineProbability(msg);
+    updateProbability();
+    updateHandAnalysis();
+    updateOuts();
 
     // 筹码 & 下注（含 all-in 场景：用 chipsInPot 显示总下注）
     var myFullInfo = (msg.players || []).find(function(p) { return p.id === network.playerId; });
@@ -1130,6 +1231,7 @@ function updateStartScreenMode() {
 /** Attach all UI callbacks to a game instance */
 function setupGameCallbacks(g) {
     g.onUpdate = function() {
+        if (typeof bgMusic !== 'undefined') bgMusic.setGamePhase(g.phase);
         renderUI();
         updateActionButtons();
         updateProbability();
@@ -1244,7 +1346,7 @@ function renderUI() {
         document.getElementById('humanRoundBet').textContent = '$' + (game.humanPlayer.chipsInPot || 0).toLocaleString();
 
         // Human cards
-        if (game.humanPlayer.holeCards && game.humanPlayer.holeCards.length === 2) {
+        if (game.humanPlayer.holeCards && game.humanPlayer.holeCards.length === 2 && !humanCardsAnimating) {
             renderCard('humanCard1', game.humanPlayer.holeCards[0], !humanCardsHidden);
             renderCard('humanCard2', game.humanPlayer.holeCards[1], !humanCardsHidden);
             syncHumanCardsControl();
@@ -1326,6 +1428,7 @@ function renderCurrentHumanCards() {
 }
 
 function resetHumanCardsVisibility() {
+    humanDealAnimationToken++;
     humanCardsHidden = false;
     humanCardsAnimating = false;
     const container = document.getElementById('humanCards');
@@ -1333,19 +1436,57 @@ function resetHumanCardsVisibility() {
     renderCurrentHumanCards();
 }
 
+function playHumanCardsFlip(token, renderAtMidpoint, onComplete) {
+    const container = document.getElementById('humanCards');
+    if (!container || token !== humanDealAnimationToken) return;
+    container.classList.remove('flipping');
+    void container.offsetWidth;
+    container.classList.add('flipping');
+    setTimeout(() => {
+        if (token === humanDealAnimationToken) renderAtMidpoint();
+    }, 175);
+    setTimeout(() => {
+        if (token !== humanDealAnimationToken) return;
+        container.classList.remove('flipping');
+        humanCardsAnimating = false;
+        if (onComplete) onComplete();
+    }, 420);
+}
+
+function animateHumanCardsDeal() {
+    const cards = getCurrentHumanCards();
+    const container = document.getElementById('humanCards');
+    if (!container || cards.length !== 2) return;
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const token = ++humanDealAnimationToken;
+    humanCardsHidden = false;
+    if (reduceMotion) {
+        humanCardsAnimating = false;
+        renderCurrentHumanCards();
+        return;
+    }
+    humanCardsAnimating = true;
+    renderCard('humanCard1', null, false);
+    renderCard('humanCard2', null, false);
+    container.classList.remove('flipping');
+    syncHumanCardsControl();
+    setTimeout(() => {
+        playHumanCardsFlip(token, () => {
+            renderCard('humanCard1', cards[0], true);
+            renderCard('humanCard2', cards[1], true);
+        }, renderCurrentHumanCards);
+    }, 260);
+}
+
 function toggleHumanCardsVisibility() {
     const container = document.getElementById('humanCards');
     if (!container || humanCardsAnimating || getCurrentHumanCards().length !== 2) return;
+    const token = ++humanDealAnimationToken;
     humanCardsAnimating = true;
-    container.classList.add('flipping');
-    setTimeout(function() {
+    playHumanCardsFlip(token, () => {
         humanCardsHidden = !humanCardsHidden;
         renderCurrentHumanCards();
-    }, 175);
-    setTimeout(function() {
-        container.classList.remove('flipping');
-        humanCardsAnimating = false;
-    }, 420);
+    });
 }
 
 function handleHumanCardsKey(event) {
@@ -1682,9 +1823,19 @@ function updateActionButtons() {
 }
 
 function updateProbability() {
-    if (!game.probabilityResult) return;
-
-    const result = game.probabilityResult;
+    const context = getAnalysisContext();
+    const result = context?.probabilityResult;
+    if (!result) {
+        for (const id of ['probWinBar','probTieBar','probLoseBar']) {
+            const bar = document.getElementById(id);
+            if (bar) bar.style.width = '0%';
+        }
+        for (const id of ['probWinValue','probTieValue','probLoseValue']) {
+            const value = document.getElementById(id);
+            if (value) value.textContent = context?.playerCards?.length === 2 ? '计算中' : '0%';
+        }
+        return;
+    }
     const winPct = (result.winProb * 100).toFixed(1);
     const tiePct = (result.tieProb * 100).toFixed(1);
     const losePct = (result.loseProb * 100).toFixed(1);
@@ -1698,32 +1849,33 @@ function updateProbability() {
 }
 
 function updateHandAnalysis() {
-    if (!game.humanPlayer || game.humanPlayer.folded || game.phase === 'idle') {
+    const context = getAnalysisContext();
+    if (!context || context.folded || context.phase === 'idle') {
         document.getElementById('currentHandName').textContent = '—';
         document.getElementById('handBeatsContainer').innerHTML = '';
         return;
     }
 
-    const allCards = [...game.humanPlayer.holeCards, ...game.communityCards];
+    const allCards = [...context.playerCards, ...context.communityCards];
     if (allCards.length < 5) {
         document.getElementById('currentHandName').textContent =
             allCards.length + ' 张牌 (还需 ' + (5 - allCards.length) + ' 张公共牌)';
+        document.getElementById('handBeatsContainer').innerHTML = '';
         return;
     }
 
-    const hand = game instanceof ShortDeckGame ? evaluateSDHand(allCards) : evaluateHand(allCards);
+    const hand = PokerProbabilityCore.evaluate(allCards, context.isShortDeck);
     if (!hand) return;
 
     // Current hand
-    const handWithCards = hand.name;
-    document.getElementById('currentHandName').textContent = handWithCards + ' (' + hand.score + ')';
+    document.getElementById('currentHandName').textContent = hand.name;
 
     // What it beats
     const beatsContainer = document.getElementById('handBeatsContainer');
     beatsContainer.innerHTML = '';
 
     // Determine hand type names based on game mode
-    const typeNames = (game instanceof ShortDeckGame) ? SD_HAND_TYPE_NAMES : HAND_TYPE_NAMES;
+    const typeNames = context.isShortDeck ? SD_HAND_TYPE_NAMES : HAND_TYPE_NAMES;
     const allHandTypes = Object.values(typeNames);
     const currentRank = hand.rank;
 
@@ -1738,15 +1890,17 @@ function updateHandAnalysis() {
 function updateOuts() {
     const outsSection = document.getElementById('outsSection');
     const outsList = document.getElementById('outsList');
+    const context = getAnalysisContext();
 
-    if (!game.humanPlayer || game.humanPlayer.folded || game.communityCards.length >= 5) {
+    if (!context || context.folded || context.communityCards.length < 3 || context.communityCards.length >= 5) {
         outsSection.style.display = 'none';
         return;
     }
 
-    const outs = game.getOuts();
+    const outs = context.outsResult;
     if (!outs || !outs.byHandType) {
-        outsSection.style.display = 'none';
+        outsSection.style.display = 'block';
+        outsList.innerHTML = '<span style="color:#888;font-size:11px;">正在计算改善牌...</span>';
         return;
     }
 
@@ -1766,7 +1920,7 @@ function updateOuts() {
     }
 
     // Sort by hand rank (highest improvement first)
-    const outTypeNames = game instanceof ShortDeckGame ? SD_HAND_TYPE_NAMES : HAND_TYPE_NAMES;
+    const outTypeNames = context.isShortDeck ? SD_HAND_TYPE_NAMES : HAND_TYPE_NAMES;
     const rankOrder = Object.values(outTypeNames);
     typeEntries.sort((a, b) => rankOrder.indexOf(b[0]) - rankOrder.indexOf(a[0]));
 
@@ -1774,7 +1928,10 @@ function updateOuts() {
         if (data.cards.length === 0) continue;
         const group = document.createElement('div');
         group.style.cssText = 'font-size:11px;color:#aaa;margin-bottom:4px;';
-        group.innerHTML = `<span style="color:#ffd700;">${handName}</span>: ${data.count} 张补牌`;
+        const quality = data.strongCount > 0
+            ? `<span style="color:#79d89a;">强提升 ${data.strongCount}</span>`
+            : `<span style="color:#aaa;">踢脚改善 ${data.thinCount}</span>`;
+        group.innerHTML = `<span style="color:#ffd700;">${handName}</span>: ${data.count} 张 · ${quality}`;
 
         const cardsContainer = document.createElement('div');
         cardsContainer.style.cssText = 'display:flex;flex-wrap:wrap;gap:2px;margin-top:2px;';
@@ -1799,6 +1956,12 @@ function updateOuts() {
 
         group.appendChild(cardsContainer);
         outsList.appendChild(group);
+    }
+    if (outs.note) {
+        const note = document.createElement('div');
+        note.style.cssText = 'font-size:10px;color:#777;line-height:1.35;margin-top:5px;';
+        note.textContent = outs.note;
+        outsList.appendChild(note);
     }
 }
 
@@ -2511,6 +2674,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.documentElement.classList.toggle('electron-shell', !!window.windowControls);
     loadAppSettings();
     restoreSavedInputs();
+    syncLocalServerEndpoint();
 
     // Add keyboard hint
     const hints = document.createElement('div');
@@ -2537,7 +2701,7 @@ document.addEventListener('DOMContentLoaded', function() {
     syncGameSettingsUI();
     const volumeSlider = document.getElementById('volSlider');
     if (volumeSlider) volumeSlider.value = selectedMusicVolume;
-    if (typeof bgMusic !== 'undefined') bgMusic.setVolume((selectedMusicVolume / 100) * 0.1);
+    if (typeof bgMusic !== 'undefined') bgMusic.setVolume(musicVolumeFromSlider(selectedMusicVolume));
     updateMusicButton(false);
 
     ['serverAddress', 'playerNameInput'].forEach(id => {
@@ -2579,15 +2743,28 @@ function toggleProbPanel() {
 
 let musicStarted = false;
 
-function updateMusicButton(playing) {
+function musicVolumeFromSlider(value) {
+    return Math.max(0, Math.min(.72, (Number(value) || 0) / 100 * .72));
+}
+
+function updateMusicButton(playing, state = playing ? 'playing' : 'off') {
     const btn = document.getElementById('musicBtn');
     if (!btn) return;
     const trackName = bgMusic && typeof bgMusic.getCurrentPatternName === 'function'
         ? bgMusic.getCurrentPatternName() : '牌桌音乐';
-    btn.textContent = playing ? `🎵 ${trackName}` : '🎵 音乐关';
-    btn.title = playing ? `正在播放：${trackName}` : '播放背景音乐';
+    if (state === 'loading') btn.textContent = `⏳ 正在加载 ${trackName}`;
+    else if (state === 'error') btn.textContent = '⚠️ 音乐加载失败';
+    else btn.textContent = playing ? `🎵 ${trackName}` : '🎵 音乐关';
+    btn.title = state === 'loading' ? `正在准备：${trackName}`
+        : playing ? `正在播放：${trackName}` : '播放背景音乐';
+    btn.dataset.playbackState = state;
     btn.classList.toggle('music-on', playing);
 }
+
+document.addEventListener('poker-music-state', event => {
+    const state = event.detail?.state || 'off';
+    updateMusicButton(state !== 'off' && state !== 'error', state);
+});
 
 function toggleMusic() {
     try {
@@ -2597,9 +2774,9 @@ function toggleMusic() {
         const playing = bgMusic.toggle();
         musicStarted = true;
         musicPreference = playing ? 'on' : 'off';
-        updateMusicButton(playing);
+        updateMusicButton(playing, playing ? 'loading' : 'off');
         const slider = document.getElementById('volSlider');
-        if (slider) slider.value = (bgMusic.volume / 0.1) * 100;
+        if (slider) slider.value = selectedMusicVolume;
         saveAppSettings();
     } catch (e) {
         console.log('Music toggle unavailable:', e);
@@ -2608,7 +2785,7 @@ function toggleMusic() {
 
 function setVolume(val) {
     selectedMusicVolume = Math.max(0, Math.min(100, parseInt(val) || 0));
-    const v = (selectedMusicVolume / 100) * 0.1;
+    const v = musicVolumeFromSlider(selectedMusicVolume);
     bgMusic.setVolume(v);
     saveAppSettings();
 }
@@ -2618,20 +2795,10 @@ function skipSong() {
         if (!bgMusic.initialized || !bgMusic.ctx) {
             bgMusic.init();
         }
-        bgMusic.randomizeKey();
         musicStarted = true;
         musicPreference = 'on';
-        if (bgMusic.isPlaying) {
-            bgMusic.stop(120);
-            setTimeout(() => {
-                bgMusic.start();
-                updateMusicButton(true);
-            }, 170);
-        } else {
-            bgMusic.start();
-            bgMusic.isPlaying = true;
-            updateMusicButton(true);
-        }
+        bgMusic.next();
+        updateMusicButton(true, 'loading');
         saveAppSettings();
     } catch (e) {
         console.log('Skip song unavailable:', e);
@@ -2648,20 +2815,22 @@ function setupMusicAutoStart(g) {
             musicStarted = true;
             if (musicPreference === 'off') {
                 updateMusicButton(false);
-                return orig();
-            }
-            try {
-                bgMusic.init();
-                bgMusic.setVolume((selectedMusicVolume / 100) * 0.1);
-                bgMusic.start();
-                updateMusicButton(true);
-                const slider = document.getElementById('volSlider');
-                if (slider) slider.value = (bgMusic.volume / 0.1) * 100;
-            } catch (e) {
-                console.log('Audio unavailable (expected on file://):', e);
+            } else {
+                try {
+                    bgMusic.init();
+                    bgMusic.setVolume(musicVolumeFromSlider(selectedMusicVolume));
+                    bgMusic.start();
+                    updateMusicButton(true, 'loading');
+                    const slider = document.getElementById('volSlider');
+                    if (slider) slider.value = selectedMusicVolume;
+                } catch (e) {
+                    console.log('Audio unavailable (expected on file://):', e);
+                }
             }
         }
-        return orig();
+        const result = orig();
+        if (g.humanPlayer?.holeCards?.length === 2) animateHumanCardsDeal();
+        return result;
     };
 }
 

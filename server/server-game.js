@@ -2,6 +2,7 @@
 
 const { createDeck, shuffle, evaluateHand, VALUES } = require('./poker-rules');
 const { AIPlayer, AI_STYLES } = require('../js/ai');
+const PokerGameRules = require('../js/game-rules-core');
 
 const AI_NAMES = ['Alex', 'Blake', 'Casey', 'Drew', 'Emma', 'Finn', 'Grace', 'Hayes', 'Ivy', 'Jade'];
 const AI_AVATARS = ['😎', '🤠', '🕶️', '🎩', '👑', '🦊', '🐺', '🦅', '🐯', '🐉'];
@@ -37,6 +38,7 @@ class ServerPokerGame {
         this.flopHadAggression = false;
         this.handId = 0;
         this.turnId = 0;
+        this.actionsThisRound = 0;
         this.lastHandResult = null;
         this.playersDealtLastHand = [];
         this.onChange = null;
@@ -103,6 +105,7 @@ class ServerPokerGame {
         this.lastHandResult = null;
         this.handId++;
         this.turnId = 0;
+        this.actionsThisRound = 0;
         this.phase = 'preflop';
         this.preflopRaiseCount = 0;
         this.preflopAggressor = -1;
@@ -308,15 +311,23 @@ class ServerPokerGame {
             if (this.phase === 'preflop') this.preflopAggressor = idx;
             if (this.phase === 'flop') this.flopHadAggression = true;
         }
-        this.notifyAIsOfAction(idx, resolvedAction, {
+        const additionalPaid = Math.max(0, Number(player.lastAction?.amount) || 0);
+        const raiseTo = Math.max(0, this.roundBets[idx] || 0);
+        this.notifyAIsOfAction(idx, resolvedAction, PokerGameRules.buildActionMeta({
+            callCost: toCall,
             toCallBefore: toCall,
-            amount: Math.max(0, Number(player.lastAction?.amount) || 0),
-            betFraction: Math.max(0, Number(player.lastAction?.amount) || 0) /
-                Math.max(this.minimumBet, potBefore + toCall),
+            additionalPaid,
+            amount: additionalPaid,
+            raiseTo,
+            currentBetBefore,
+            potBefore,
+            potAfter: this.pot,
+            minimumBet:this.minimumBet,
             aggressive,
             preflopRaiseCountBefore,
             faced3bet: this.phase === 'preflop' && toCall > 0 && preflopRaiseCountBefore >= 2
-        });
+        }));
+        this.actionsThisRound++;
 
         this.advanceAfterAction();
         return { ok: true };
@@ -369,17 +380,17 @@ class ServerPokerGame {
     }
 
     refundUncalled() {
-        const entries = this.players.map((player, idx) => ({ player, idx, amount: this.roundBets[idx] || 0 }))
-            .sort((a, b) => b.amount - a.amount);
-        if (entries.length < 2 || entries[0].amount === entries[1].amount) return 0;
-        const top = entries[0];
-        const refund = top.amount - entries[1].amount;
-        top.player.stack += refund;
-        top.player.chipsInPot -= refund;
+        const uncalled = PokerGameRules.findUncalledRefund(this.roundBets);
+        if (!uncalled) return 0;
+        const player = this.players[uncalled.index];
+        if (!player) return 0;
+        const refund = uncalled.refund;
+        player.stack += refund;
+        player.chipsInPot -= refund;
         this.pot -= refund;
-        this.roundBets[top.idx] -= refund;
-        top.player.roundBet = this.roundBets[top.idx];
-        if (top.player.stack > 0) top.player.isAllIn = false;
+        this.roundBets[uncalled.index] -= refund;
+        player.roundBet = this.roundBets[uncalled.index];
+        if (player.stack > 0) player.isAllIn = false;
         const liveBets = this.inHand().map(player => this.roundBets[this.players.indexOf(player)] || 0);
         this.currentBet = liveBets.length ? Math.max(...liveBets) : 0;
         return refund;
@@ -420,6 +431,7 @@ class ServerPokerGame {
         this.currentBet = 0;
         this.lastRaise = this.minimumBet;
         this.hasFullBetThisRound = false;
+        this.actionsThisRound = 0;
         for (const player of this.players) player.roundBet = 0;
 
         if (this.phase === 'preflop') {
@@ -440,19 +452,7 @@ class ServerPokerGame {
 
     calculateSidePots() {
         const eligiblePlayers = this.inHand();
-        const levels = [...new Set(this.players.map(p => p.chipsInPot || 0).filter(Boolean))].sort((a, b) => a - b);
-        const pots = [];
-        let previous = 0;
-        for (const level of levels) {
-            const contributors = this.players.filter(player => (player.chipsInPot || 0) >= level);
-            const eligible = eligiblePlayers.filter(player => (player.chipsInPot || 0) >= level);
-            const amount = (level - previous) * contributors.length;
-            if (amount > 0 && eligible.length) pots.push({ amount, eligible });
-            previous = level;
-        }
-        const accounted = pots.reduce((sum, item) => sum + item.amount, 0);
-        if (this.pot > accounted && pots.length) pots[0].amount += this.pot - accounted;
-        return pots;
+        return PokerGameRules.calculateSidePots(this.players, this.pot, eligiblePlayers);
     }
 
     orderLeftOfDealer(players) {
@@ -566,30 +566,6 @@ class ServerPokerGame {
     emitChange() { if (this.onChange) this.onChange(); }
 }
 
-function estimateEquity(game, idx, simulations = 120) {
-    const hero = game.players[idx];
-    const opponents = game.inHand().filter(player => player !== hero).length;
-    const knownKeys = new Set([...hero.holeCards, ...game.communityCards].map(c => `${c.rank}-${c.suit}`));
-    const source = createDeck(game.isShortDeck).filter(c => !knownKeys.has(`${c.rank}-${c.suit}`));
-    let equity = 0;
-    for (let run = 0; run < simulations; run++) {
-        const deck = shuffle(source.slice(), game.random);
-        let cursor = 0;
-        const board = game.communityCards.map(cloneCard);
-        while (board.length < 5) board.push(deck[cursor++]);
-        const heroHand = evaluateHand([...hero.holeCards, ...board], game.isShortDeck);
-        let beaten = false;
-        let ties = 0;
-        for (let opponent = 0; opponent < opponents; opponent++) {
-            const hand = evaluateHand([deck[cursor++], deck[cursor++], ...board], game.isShortDeck);
-            if (hand.score > heroHand.score) { beaten = true; break; }
-            if (hand.score === heroHand.score) ties++;
-        }
-        if (!beaten) equity += 1 / (ties + 1);
-    }
-    return equity / simulations;
-}
-
 function chooseServerAiAction(game, idx) {
     const legal = game.legalActions(idx);
     if (!legal.actions.length) return null;
@@ -609,8 +585,8 @@ function chooseServerAiAction(game, idx) {
     ai.isShortDeck = game.isShortDeck;
     return ai.decide({
         handId: game.handId,
-        decisionId: `${game.phase}:${game.turnId}:${idx}`,
-        seed: `online-${game.isShortDeck ? 'shortdeck' : 'standard'}:${game.handId}`,
+        decisionId: PokerGameRules.decisionIdentity(game.isShortDeck ? 'shortdeck' : 'standard', game.phase, game.actionsThisRound, idx),
+        seed: `poker-table:${game.isShortDeck ? 'shortdeck' : 'standard'}`,
         variant: game.isShortDeck ? 'shortdeck' : 'standard',
         communityCards: game.communityCards,
         pot: game.pot,
@@ -667,4 +643,4 @@ function createServerAi(seatId, startingStack) {
     };
 }
 
-module.exports = { ServerPokerGame, chooseServerAiAction, estimateEquity, createServerAi };
+module.exports = { ServerPokerGame, chooseServerAiAction, createServerAi };

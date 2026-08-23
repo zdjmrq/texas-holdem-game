@@ -298,6 +298,8 @@ function getPreflopStrength(c1,c2,posCat,config) {
 // AIPlayer CLASS — Fast hybrid decision engine
 // ═══════════════════════════════════════════════════════════════
 
+let AI_WORKER_SEQUENCE = 0;
+
 class AIPlayer {
     constructor(name, style, stack=20000, index=0) {
         this.name=name; this.style=style; this.config=STYLE_CONFIGS[style];
@@ -318,6 +320,7 @@ class AIPlayer {
             profile: this.config
         }) : null;
         this.lastDecisionTrace = null;
+        this.workerKey = `ai-${++AI_WORKER_SEQUENCE}-${index}-${name}`;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -805,12 +808,55 @@ class AIPlayer {
             this.sharedBrain.seatId = this.position;
             this.sharedBrain.observeAction({ seatId:seatIdx, action, street, handId, meta });
         }
+        if (typeof aiWorkerService !== 'undefined' && aiWorkerService) {
+            aiWorkerService.observe(this.workerKey, {
+                name:this.name, style:this.style, seatId:this.position, profile:this.config
+            }, { seatId:seatIdx, action, street, handId, meta });
+        }
+    }
+
+    /** Local desktop games use the same brain in a worker to protect animation frames. */
+    async decideAsync(gameState = {}) {
+        if (!this.sharedBrain || typeof aiWorkerService === 'undefined' || !aiWorkerService) {
+            return this.decide(gameState);
+        }
+        const ownBet = Math.max(0, Number(gameState.yourBet) || 0);
+        const stack = Math.max(0, Number(gameState.stack ?? this.stack) || 0);
+        const context = {
+            ...gameState,
+            variant:gameState.variant || (this.isShortDeck ? 'shortdeck' : 'standard'),
+            heroSeat:gameState.currentPlayerIndex ?? this.position,
+            holeCards:this.holeCards,
+            heroRoundBet:ownBet,
+            heroStack:stack
+        };
+        const meta = {
+            name:this.name,
+            style:this.style,
+            seatId:gameState.currentPlayerIndex ?? this.position,
+            profile:this.config
+        };
+        try {
+            this.hasActed = true;
+            const result = await aiWorkerService.decide(this.workerKey, meta, context);
+            this.stack = stack;
+            this.lastDecisionTrace = result.trace || null;
+            return this._legalize(result, gameState);
+        } catch (error) {
+            console.warn(`${this.name} AI worker fallback:`, error.message || error);
+            return this._decideShared(gameState);
+        }
     }
 
     recordShowdown(seatIdx, info = {}) {
         if (!this.sharedBrain) return;
         this.sharedBrain.seatId = this.position;
         this.sharedBrain.observeShowdown(seatIdx, info);
+        if (typeof aiWorkerService !== 'undefined' && aiWorkerService) {
+            aiWorkerService.showdown(this.workerKey, {
+                name:this.name, style:this.style, seatId:this.position, profile:this.config
+            }, seatIdx, info);
+        }
     }
 
     reset() {
@@ -923,7 +969,6 @@ class AIPlayer {
 function createAIPlayers(count, startingStack = 20000) {
     const players=[];
     const styles=[...Object.values(AI_STYLES)];
-    for (let i=styles.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[styles[i],styles[j]]=[styles[j],styles[i]];}
     for (let i=0;i<count;i++) {
         const style=styles[i%styles.length];
         const stack=Math.max(1, Math.floor(Number(startingStack) || 20000));

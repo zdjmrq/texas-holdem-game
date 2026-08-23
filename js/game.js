@@ -58,6 +58,7 @@ class PokerGame {
 
         // Probability results
         this.probabilityResult = null;
+        this.outsResult = null;
 
         // Total pacing budget per AI action; configurable from the start screen.
         this.aiDelay = 1800;
@@ -179,6 +180,7 @@ class PokerGame {
         this.flopCbetResolved = false;
         this.hasFullBetThisRound = false;
         this.probabilityResult = null;
+        this.outsResult = null;
 
         // Reset AI internal state at start of each hand
         for (const p of this.aiPlayers) {
@@ -412,20 +414,16 @@ class PokerGame {
 
     /** Return a unique unmatched top wager before advancing the street. */
     refundUncalledBet() {
-        const entries = this.players.map((player, index) => ({
-            player,
-            index,
-            amount: Math.max(0, this.roundBets[index] || 0)
-        })).sort((a, b) => b.amount - a.amount);
-        if (entries.length < 2 || entries[0].amount === entries[1].amount) return 0;
-
-        const top = entries[0];
-        const refund = top.amount - entries[1].amount;
-        top.player.stack += refund;
-        top.player.chipsInPot -= refund;
+        const uncalled = PokerGameRules.findUncalledRefund(this.roundBets);
+        if (!uncalled) return 0;
+        const player = this.players[uncalled.index];
+        if (!player) return 0;
+        const refund = uncalled.refund;
+        player.stack += refund;
+        player.chipsInPot -= refund;
         this.pot -= refund;
-        this.roundBets[top.index] -= refund;
-        if (top.player.isAllIn && top.player.stack > 0) top.player.isAllIn = false;
+        this.roundBets[uncalled.index] -= refund;
+        if (player.isAllIn && player.stack > 0) player.isAllIn = false;
 
         const liveBets = this.getPlayersInHand().map(p => this.roundBets[this.players.indexOf(p)] || 0);
         this.currentBet = liveBets.length ? Math.max(...liveBets) : 0;
@@ -673,18 +671,25 @@ class PokerGame {
         if (this.phase === 'flop' && playerIndex === this.preflopAggressor && !this.flopCbetResolved) {
             this.flopCbetResolved = true;
         }
-        const actionMeta = {
+        const additionalPaid = Math.max(0, Number(player.lastAction?.amount) || 0);
+        const raiseTo = Math.max(0, this.roundBets[playerIndex] || 0);
+        const actionMeta = PokerGameRules.buildActionMeta({
+            callCost: toCall,
             toCallBefore: toCall,
-            amount: Math.max(0, Number(player.lastAction?.amount) || 0),
-            betFraction: Math.max(0, Number(player.lastAction?.amount) || 0) /
-                Math.max(this.bigBlind, potBefore + toCall),
+            additionalPaid,
+            amount: additionalPaid,
+            raiseTo,
+            currentBetBefore,
+            potBefore,
+            potAfter: this.pot,
+            minimumBet:this.bigBlind,
             aggressive: raisedCurrentBet,
             isCbetOpportunity,
             facedCbet: this.phase === 'flop' && toCall > 0 &&
                 lastAggressorBefore === this.preflopAggressor && lastAggressorStreetBefore === 'flop',
             faced3bet: this.phase === 'preflop' && toCall > 0 && preflopRaiseCountBefore >= 2,
             preflopRaiseCountBefore
-        };
+        });
 
         // Notify AI players about this action for opponent modeling
         this.notifyAIsOfAction(playerIndex, resolvedAction, actionMeta);
@@ -762,8 +767,8 @@ class PokerGame {
 
             const gameState = {
                 handId: this.handGeneration,
-                decisionId: `${this.phase}:${this.actionsThisRound}:${idx}`,
-                seed: `local-standard:${this.handGeneration}`,
+                decisionId: PokerGameRules.decisionIdentity('standard', this.phase, this.actionsThisRound, idx),
+                seed: 'poker-table:standard',
                 variant: 'standard',
                 communityCards: this.communityCards,
                 pot: this.pot,
@@ -815,7 +820,9 @@ class PokerGame {
             await new Promise(resolve => setTimeout(resolve, revealDelay));
             if (this.handGeneration !== currentGen) return;
 
-            const decision = ai.decide(gameState);
+            const decision = typeof ai.decideAsync === 'function'
+                ? await ai.decideAsync(gameState)
+                : ai.decide(gameState);
             this.executeAction(idx, decision.action, decision.amount);
 
             this.isProcessing = false;
@@ -992,57 +999,33 @@ class PokerGame {
 
     /** Calculate win probability for the human player */
     calculateProbability() {
-        if (!this.humanPlayer || this.humanPlayer.folded) return;
-
+        if (!this.humanPlayer || this.humanPlayer.folded || this.humanPlayer.holeCards.length !== 2) return;
         const communityCards = [...this.communityCards];
-        const numOpponents = this.getPlayersInHand().filter(p => !p.isHuman).length;
-
-        if (this.phase === 'preflop' && communityCards.length === 0) {
-            // Simple pre-flop evaluation
-            const cards = this.humanPlayer.holeCards;
-            const c1 = cards[0];
-            const c2 = cards[1];
-
-            let strength = 0;
-            if (c1.rank === c2.rank) {
-                const v = c1.value;
-                strength = v >= 10 ? 0.75 : v >= 7 ? 0.58 : v >= 5 ? 0.45 : 0.38;
-            } else {
-                const high = Math.max(c1.value, c2.value);
-                const low = Math.min(c1.value, c2.value);
-                const suited = c1.suit === c2.suit;
-                const gap = high - low;
-
-                if (high === 14 && low >= 12) strength = 0.72;
-                else if (high === 14 && low >= 11) strength = 0.65;
-                else if (high >= 12 && low >= 11) strength = 0.58;
-                else if (high >= 12 && suited) strength = 0.40;
-                else if (high >= 14) strength = 0.35;
-                else if (suited && gap <= 2) strength = 0.32;
-                else strength = 0.25;
-            }
-
-            this.probabilityResult = {
-                winProb: strength,
-                tieProb: 0.05,
-                loseProb: 1 - strength - 0.05
-            };
-            return;
-        }
-
-        // Use the calculator
-        try {
-            const result = ProbabilityCalculator.calculateWinProb(
-                this.humanPlayer.holeCards,
-                communityCards,
-                Math.max(1, numOpponents),
-                communityCards.length >= 3 ? 2000 : 1500
-            );
+        const numOpponents = Math.max(1, this.getPlayersInHand().filter(p => !p.isHuman).length);
+        const generation = this.handGeneration;
+        const phase = this.phase;
+        const requestKey = probabilityService.makeKey({
+            playerCards:this.humanPlayer.holeCards,
+            communityCards,
+            numOpponents,
+            isShortDeck:false
+        });
+        this.probabilityRequestKey = requestKey;
+        probabilityService.calculate({
+            playerCards:this.humanPlayer.holeCards,
+            communityCards,
+            numOpponents,
+            isShortDeck:false
+        }).then(result => {
+            if (generation !== this.handGeneration || phase !== this.phase || requestKey !== this.probabilityRequestKey) return;
             this.probabilityResult = result;
-        } catch (e) {
-            console.error('Probability calc error:', e);
-            this.probabilityResult = { winProb: 0.5, tieProb: 0.05, loseProb: 0.45 };
-        }
+            this.outsResult = result.outs || null;
+            if (this.onUpdate) this.onUpdate();
+        }).catch(error => {
+            if (generation === this.handGeneration && requestKey === this.probabilityRequestKey) {
+                console.error('Probability calc error:', error);
+            }
+        });
     }
 
     /** Check if hand should end */
@@ -1094,25 +1077,7 @@ class PokerGame {
     /** Calculate main/side pots from every contribution, including folded chips. */
     calculateSidePots() {
         const inHand = this.getPlayersInHand();
-        if (inHand.length <= 1) return [{ amount: this.pot, eligible: [...inHand] }];
-
-        const levels = [...new Set(this.players.map(p => Math.max(0, p.chipsInPot || 0)).filter(Boolean))]
-            .sort((a, b) => a - b);
-        const pots = [];
-        let previous = 0;
-        for (const level of levels) {
-            const contributors = this.players.filter(p => (p.chipsInPot || 0) >= level);
-            const eligible = inHand.filter(p => (p.chipsInPot || 0) >= level);
-            const amount = (level - previous) * contributors.length;
-            if (amount > 0 && eligible.length > 0) pots.push({ amount, eligible });
-            previous = level;
-        }
-
-        // Contributions are the source of truth. Keep a defensive reconciliation
-        // for legacy saves whose pot field may differ by a chip.
-        const accounted = pots.reduce((sum, pot) => sum + pot.amount, 0);
-        if (this.pot > accounted && pots.length) pots[0].amount += this.pot - accounted;
-        return pots;
+        return PokerGameRules.calculateSidePots(this.players, this.pot, inHand);
     }
 
     /** Odd chips go clockwise to the first winning seat left of the button. */
@@ -1287,15 +1252,10 @@ class PokerGame {
 
     /** Get outs (cards that improve the player's hand) */
     getOuts() {
-        if (!this.humanPlayer || this.humanPlayer.folded || this.communityCards.length >= 5) {
+        if (!this.humanPlayer || this.humanPlayer.folded || this.communityCards.length < 3 || this.communityCards.length >= 5) {
             return null;
         }
-
-        return ProbabilityCalculator.findOuts(
-            this.humanPlayer.holeCards,
-            this.communityCards,
-            this.getPlayersInHand().filter(p => !p.isHuman).length
-        );
+        return this.outsResult;
     }
 
     /** Get available actions for the human player */

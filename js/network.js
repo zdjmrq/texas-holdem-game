@@ -23,6 +23,7 @@ let network = {
     lastHandId: 0,
     pendingAction: null,
     reconnectTimer: null,
+    reconnectAttempts: 0,
     shouldReconnect: false
 };
 
@@ -76,6 +77,8 @@ function connectToServer(url, options = {}) {
     }
 
     if (network.reconnectTimer) clearTimeout(network.reconnectTimer);
+    network.reconnectTimer = null;
+    if (!options.reconnecting) network.reconnectAttempts = 0;
     const previous = network.ws;
     const generation = ++network.connectionGeneration;
     if (previous) {
@@ -110,11 +113,16 @@ function connectToServer(url, options = {}) {
         network.connected = false;
         network.ws = null;
         const canResume = network.shouldReconnect && !!network.resumeToken && !!network.roomCode && event.code !== 1000;
-        onDisconnected({ willReconnect: canResume, code: event.code });
+        const reconnectDelay = canResume
+            ? Math.min(10000, 650 * (2 ** Math.min(network.reconnectAttempts, 4))) + Math.floor(Math.random() * 350)
+            : 0;
+        onDisconnected({ willReconnect: canResume, code: event.code, reconnectDelay });
         if (canResume) {
+            network.reconnectAttempts++;
             network.reconnectTimer = setTimeout(() => {
+                network.reconnectTimer = null;
                 connectToServer(network.serverUrl, { reconnecting: true, resume: true, autoReconnect: true });
-            }, 800);
+            }, reconnectDelay);
         }
     };
 
@@ -133,6 +141,7 @@ function disconnect(options = {}) {
     network.shouldReconnect = false;
     if (network.reconnectTimer) clearTimeout(network.reconnectTimer);
     network.reconnectTimer = null;
+    network.reconnectAttempts = 0;
     const socket = network.ws;
     ++network.connectionGeneration;
     network.ws = null;
@@ -254,6 +263,7 @@ function handleMessage(msg) {
             break;
         case 'room_created':
         case 'room_joined': {
+            network.reconnectAttempts = 0;
             network.roomCode = String(msg.roomCode);
             network.playerId = msg.playerId;
             network.seatId = msg.seatId;
@@ -289,6 +299,7 @@ function handleMessage(msg) {
             break;
         case 'game_state': {
             if (!network.inRoom) return;
+            network.reconnectAttempts = 0;
             const version = Number(msg.stateVersion);
             const handId = Number(msg.handId);
             if (Number.isFinite(version) && version <= network.lastStateVersion && network.gameState) return;

@@ -11,6 +11,13 @@ const BLIND_LEVELS = [[10,20], [20,40], [40,80], [50,100], [100,200], [200,400]]
 function token(bytes = 18) { return crypto.randomBytes(bytes).toString('base64url'); }
 function playerId() { return crypto.randomUUID(); }
 
+function boundedNumber(value, fallback, minimum, maximum, integer = false) {
+    const parsed = Number(value);
+    const safe = Number.isFinite(parsed) ? parsed : fallback;
+    const bounded = Math.max(minimum, Math.min(maximum, safe));
+    return integer ? Math.floor(bounded) : bounded;
+}
+
 function normalizeName(value) {
     const clean = String(value || '玩家').normalize('NFKC').replace(/[\u0000-\u001f\u007f]/g, '').trim();
     return [...(clean || '玩家')].slice(0, 8).join('');
@@ -46,25 +53,58 @@ class PokerRoomServer {
     constructor(options = {}) {
         this.host = options.host || '127.0.0.1';
         this.port = Number.isFinite(Number(options.port)) ? Number(options.port) : 3000;
-        this.aiDelay = Math.max(0, Number(options.aiDelay ?? 450));
-        this.disconnectGraceMs = Math.max(100, Number(options.disconnectGraceMs ?? 1800));
+        this.aiDelay = boundedNumber(options.aiDelay, 450, 0, 10000);
+        this.disconnectGraceMs = boundedNumber(options.disconnectGraceMs, 1800, 100, 60000);
+        this.maxRooms = boundedNumber(options.maxRooms ?? process.env.POKER_MAX_ROOMS, 3, 1, 5, true);
+        this.maxConnections = boundedNumber(options.maxConnections ?? process.env.POKER_MAX_CONNECTIONS, 24, 4, 100, true);
+        this.maxConnectionsPerIp = boundedNumber(options.maxConnectionsPerIp ?? process.env.POKER_MAX_CONNECTIONS_PER_IP, 20, 2, 30, true);
+        this.rateWindowMs = boundedNumber(options.rateWindowMs, 10000, 1000, 60000);
+        this.maxMessagesPerWindow = boundedNumber(options.maxMessagesPerWindow, 80, 20, 500, true);
+        this.trustProxy = options.trustProxy ?? process.env.POKER_TRUST_PROXY === '1';
+        const configuredOrigins = options.allowedOrigins ?? process.env.POKER_ALLOWED_ORIGINS ?? '';
+        this.allowedOrigins = new Set(String(configuredOrigins).split(',').map(value => value.trim()).filter(Boolean));
         this.random = options.random || Math.random;
         this.rooms = new Map();
         this.sessions = new Map();
         this.connections = new Map();
         this.wss = null;
         this.heartbeat = null;
+        this.aiQueue = [];
+        this.aiBusy = false;
+    }
+
+    originAllowed(origin) {
+        if (!origin || origin === 'null' || origin.startsWith('file://')) return true;
+        if (this.allowedOrigins.has(origin)) return true;
+        try {
+            const host = new URL(origin).hostname;
+            return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+        } catch (_) { return false; }
+    }
+
+    clientIp(request) {
+        if (this.trustProxy) {
+            const forwarded = String(request?.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
+            if (forwarded) return forwarded;
+        }
+        return request?.socket?.remoteAddress || 'unknown';
     }
 
     start() {
         if (this.wss) return Promise.resolve(this);
         return new Promise((resolve, reject) => {
-            const wss = new WebSocketServer({ host: this.host, port: this.port, maxPayload: 16 * 1024 });
+            const wss = new WebSocketServer({
+                host: this.host,
+                port: this.port,
+                maxPayload:16 * 1024,
+                perMessageDeflate:false,
+                verifyClient:info => this.originAllowed(info.origin)
+            });
             this.wss = wss;
             const onError = error => { wss.removeListener('listening', onListening); reject(error); };
             const onListening = () => {
                 wss.removeListener('error', onError);
-                wss.on('connection', ws => this.onConnection(ws));
+                wss.on('connection', (ws, request) => this.onConnection(ws, request));
                 wss.on('error', error => console.error('[poker-server]', error.message));
                 this.heartbeat = setInterval(() => this.pingConnections(), 15000);
                 this.heartbeat.unref?.();
@@ -79,6 +119,8 @@ class PokerRoomServer {
 
     async close() {
         if (this.heartbeat) clearInterval(this.heartbeat);
+        this.aiQueue.length = 0;
+        this.aiBusy = false;
         for (const room of this.rooms.values()) {
             if (room.aiTimer) clearTimeout(room.aiTimer);
             if (room.cleanupTimer) clearTimeout(room.cleanupTimer);
@@ -103,12 +145,36 @@ class PokerRoomServer {
         }
     }
 
-    onConnection(ws) {
-        const meta = { alive: true, roomCode: null, playerId: null, sessionToken: null };
+    onConnection(ws, request) {
+        const ip = this.clientIp(request);
+        const fromIp = [...this.connections.values()].filter(meta => meta.ip === ip).length;
+        if (this.connections.size >= this.maxConnections || fromIp >= this.maxConnectionsPerIp) {
+            ws.close(1013, 'server capacity reached');
+            return;
+        }
+        const meta = {
+            alive:true,
+            roomCode:null,
+            playerId:null,
+            sessionToken:null,
+            ip,
+            rateStartedAt:Date.now(),
+            messageCount:0
+        };
         this.connections.set(ws, meta);
         ws.on('pong', () => { meta.alive = true; });
         ws.on('message', data => {
             if (data.length > 16 * 1024) { ws.close(1009, 'message too large'); return; }
+            const now = Date.now();
+            if (now - meta.rateStartedAt >= this.rateWindowMs) {
+                meta.rateStartedAt = now;
+                meta.messageCount = 0;
+            }
+            meta.messageCount++;
+            if (meta.messageCount > this.maxMessagesPerWindow) {
+                ws.close(1008, 'message rate exceeded');
+                return;
+            }
             let message;
             try { message = JSON.parse(data.toString('utf8')); }
             catch (_) { this.error(ws, '消息格式无效'); return; }
@@ -116,7 +182,12 @@ class PokerRoomServer {
         });
         ws.on('close', () => this.onDisconnect(ws, false));
         ws.on('error', () => {});
-        safeSend(ws, { type: 'hello', serverName: '本地德州扑克服务', protocolVersion: PROTOCOL_VERSION });
+        safeSend(ws, {
+            type:'hello',
+            serverId:'texas-holdem-game',
+            serverName:'德州扑克服务',
+            protocolVersion:PROTOCOL_VERSION
+        });
     }
 
     handle(ws, message) {
@@ -136,7 +207,7 @@ class PokerRoomServer {
 
     createRoom(ws, message) {
         const free = ['1','2','3','4','5'].find(code => !this.rooms.has(code));
-        if (!free) return this.error(ws, '本地房间已满', message.requestId);
+        if (!free || this.rooms.size >= this.maxRooms) return this.error(ws, `房间已满（最多 ${this.maxRooms} 个）`, message.requestId);
         this.joinRoom(ws, { ...message, type: 'join_room', roomCode: free });
     }
 
@@ -148,6 +219,9 @@ class PokerRoomServer {
         let room = this.rooms.get(code);
         const created = !room;
         if (!room) {
+            if (this.rooms.size >= this.maxRooms) {
+                return this.error(ws, `房间已满（最多 ${this.maxRooms} 个）`, message.requestId, 'ROOM_LIMIT');
+            }
             room = {
                 code,
                 config: sanitizeConfig(message),
@@ -408,10 +482,32 @@ class PokerRoomServer {
         if (!game || game.phase === 'idle' || !player || player.isHuman) return;
         const handId = game.handId, turnId = game.turnId;
         room.aiTimer = setTimeout(() => {
-            if (room.game !== game || game.handId !== handId || game.turnId !== turnId || game.currentPlayerIdx !== idx) return;
-            const decision = chooseServerAiAction(game, idx);
-            if (decision) game.act(idx, decision.action, decision.amount);
+            room.aiTimer = null;
+            this.enqueueAi(() => {
+                if (room.game !== game || game.handId !== handId || game.turnId !== turnId || game.currentPlayerIdx !== idx) return;
+                const decision = chooseServerAiAction(game, idx);
+                if (decision) game.act(idx, decision.action, decision.amount);
+            });
         }, this.aiDelay);
+    }
+
+    enqueueAi(job) {
+        this.aiQueue.push(job);
+        this.drainAiQueue();
+    }
+
+    drainAiQueue() {
+        if (this.aiBusy || !this.aiQueue.length) return;
+        this.aiBusy = true;
+        const job = this.aiQueue.shift();
+        setImmediate(() => {
+            try { job(); }
+            catch (error) { console.error('[poker-server] AI decision failed:', error.message); }
+            finally {
+                this.aiBusy = false;
+                this.drainAiQueue();
+            }
+        });
     }
 
     broadcastGame(room) {

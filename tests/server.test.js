@@ -5,16 +5,27 @@ const assert = require('node:assert/strict');
 const { WebSocket } = require('ws');
 const { startLocalPokerServer } = require('../server/local-server');
 
+test('default per-IP capacity fits a full ten-seat room plus reconnects', async () => {
+    const server = await startLocalPokerServer({ port:0, host:'127.0.0.1' });
+    try {
+        assert.equal(server.maxConnectionsPerIp, 20);
+        assert.ok(server.maxConnections >= 20);
+    } finally {
+        await server.close();
+    }
+});
+
 class TestClient {
-    constructor(url) {
+    constructor(url, options) {
         this.url = url;
+        this.options = options;
         this.ws = null;
         this.messages = [];
         this.waiters = new Set();
     }
 
     async connect() {
-        this.ws = new WebSocket(this.url);
+        this.ws = new WebSocket(this.url, this.options);
         this.ws.on('message', raw => {
             const message = JSON.parse(raw.toString('utf8'));
             this.messages.push(message);
@@ -84,6 +95,16 @@ class TestClient {
         if (!this.ws || this.ws.readyState >= WebSocket.CLOSING) return;
         this.ws.close(1000, 'test complete');
     }
+}
+
+function waitForClose(ws, timeout = 2000) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('Timed out waiting for socket close')), timeout);
+        ws.once('close', (code, reason) => {
+            clearTimeout(timer);
+            resolve({ code, reason:reason.toString('utf8') });
+        });
+    });
 }
 
 function joinPayload(roomCode, name, extra = {}) {
@@ -295,4 +316,61 @@ test('local server keeps two clients authoritative, private, resumable and synch
     assert.equal(shortState.isShortDeck, true);
     assert.equal(shortState.yourCards.length, 2);
     assert.ok(shortState.players.every(item => !Object.hasOwn(item, 'holeCards')));
+});
+
+test('public room limits and message throttling reject excess load cleanly', async t => {
+    const server = await startLocalPokerServer({
+        port:0, host:'127.0.0.1', maxRooms:1, maxConnections:8,
+        maxConnectionsPerIp:8, maxMessagesPerWindow:20, rateWindowMs:10000
+    });
+    const url = `ws://127.0.0.1:${server.address().port}`;
+    const clients = [];
+    t.after(async () => {
+        for (const client of clients) client.close();
+        await server.close();
+    });
+
+    const first = await new TestClient(url).connect();
+    const second = await new TestClient(url).connect();
+    clients.push(first, second);
+    let mark = first.mark();
+    first.send(joinPayload('1', 'RoomOne'));
+    await first.waitAfter(mark, message => message.type === 'room_created');
+
+    mark = second.mark();
+    second.send({ ...joinPayload('', 'RoomTwo'), type:'create_room', requestId:'room-limit' });
+    const roomError = await second.waitAfter(mark,
+        message => message.type === 'error' && message.requestId === 'room-limit');
+    assert.match(roomError.message, /最多 1 个/);
+
+    mark = second.mark();
+    second.send(joinPayload('2', 'DirectJoin'));
+    const directJoinError = await second.waitAfter(mark,
+        message => message.type === 'error' && message.requestId === 'join-DirectJoin');
+    assert.equal(directJoinError.code, 'ROOM_LIMIT');
+
+    const closing = waitForClose(second.ws);
+    for (let index = 0; index < 21; index++) second.send({ type:'unknown', requestId:`flood-${index}` });
+    const throttled = await closing;
+    assert.equal(throttled.code, 1008);
+    assert.match(throttled.reason, /rate/);
+});
+
+test('public server rejects disallowed browser origins before accepting a socket', async t => {
+    const server = await startLocalPokerServer({ port:0, host:'127.0.0.1', allowedOrigins:'https://cards.example' });
+    const url = `ws://127.0.0.1:${server.address().port}`;
+    t.after(() => server.close());
+
+    const rejected = new WebSocket(url, { origin:'https://untrusted.example' });
+    const rejection = await new Promise(resolve => {
+        rejected.once('unexpected-response', (_request, response) => {
+            response.resume();
+            resolve(response.statusCode);
+        });
+        rejected.once('error', () => resolve(403));
+    });
+    assert.ok(rejection >= 400);
+
+    const allowed = await new TestClient(url, { origin:'https://cards.example' }).connect();
+    allowed.close();
 });

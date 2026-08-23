@@ -633,10 +633,6 @@ body {
     animation: humanCardFlip 0.36s ease-in-out both;
 }
 
-.human-cards.flipping .card:nth-child(2) {
-    animation-delay: 35ms;
-}
-
 @keyframes humanCardFlip {
     0% { transform: rotateY(0deg); }
     49% { transform: rotateY(88deg); }

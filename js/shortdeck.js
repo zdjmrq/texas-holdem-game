@@ -265,89 +265,21 @@ function getSDBeatableHands(currentHand) {
 
 class SDProbability {
     static calculateWinProb(playerCards, communityCards, numOpponents = 3, numSim = 2000) {
-        const known = [...playerCards, ...communityCards];
-        const deck = new ShortDeckDeck();
-        deck.removeCards(known);
-        const total = 36;
-        const unknown = total - known.length;
-        const rem = 5 - communityCards.length;
-
-        if (rem === 0 && unknown <= 12) return this.enumerate(playerCards, communityCards, deck, numOpponents);
-        return this.monteCarlo(playerCards, communityCards, deck, numOpponents, numSim, rem);
-    }
-
-    static monteCarlo(playerCards, communityCards, deck, opponents, sims, rem) {
-        let w = 0, t = 0, l = 0, equity = 0;
-        const cards = deck.cards;
-        for (let s = 0; s < sims; s++) {
-            cards.sort(() => Math.random() - 0.5);
-            let idx = 0;
-            const com = [...communityCards];
-            for (let i = 0; i < rem; i++) com.push(cards[idx++]);
-            const ph = evaluateSDHand([...playerCards, ...com]);
-            let best = -1;
-            const scores = [];
-            for (let o = 0; o < opponents; o++) {
-                const oh = evaluateSDHand([cards[idx++], cards[idx++], ...com]);
-                if (oh && oh.score > best) best = oh.score;
-                if (oh) scores.push(oh.score);
-            }
-            if (ph && ph.score > best) { w++; equity += 1; }
-            else if (ph && ph.score === best) {
-                t++;
-                equity += 1 / (scores.filter(score => score === ph.score).length + 1);
-            }
-            else l++;
-        }
-        return { winProb: w / sims, tieProb: t / sims, loseProb: l / sims, equityProb: equity / sims };
-    }
-
-    static enumerate(playerCards, communityCards, deck, opponents) {
-        let w = 0, t = 0, l = 0, equity = 0;
-        const rem = 5 - communityCards.length;
-        const combs = rem > 0 ? getCombinations(deck.cards, rem) : [[]];
-        for (const g of combs.slice(0, 5000)) {
-            const com = [...communityCards, ...g];
-            const ph = evaluateSDHand([...playerCards, ...com]);
-            const rest = deck.cards.filter(c => !g.includes(c));
-            const opps = opponents > 0 ? getCombinations(rest, 2) : [[]];
-            for (const og of opps.slice(0, 50)) {
-                const oh = evaluateSDHand([og[0], og[1], ...com]);
-                if (ph && oh && ph.score > oh.score) { w++; equity += 1; }
-                else if (ph && oh && ph.score === oh.score) { t++; equity += 0.5; }
-                else l++;
-            }
-        }
-        const tot = w + t + l;
-        return tot ? { winProb: w / tot, tieProb: t / tot, loseProb: l / tot, equityProb: equity / tot } :
-            { winProb: 0, tieProb: 0, loseProb: 0, equityProb: 0 };
+        return PokerProbabilityCore.calculate({
+            playerCards,
+            communityCards,
+            numOpponents,
+            simulations:numSim,
+            minSamples:numSim,
+            timeBudgetMs:2000,
+            seed:'diagnostic-short-deck',
+            isShortDeck:true
+        });
     }
 
     /** 找补牌 */
-    static findOuts(playerCards, communityCards, numOpponents = 3) {
-        const deck = new ShortDeckDeck();
-        deck.removeCards([...playerCards, ...communityCards]);
-        const rem = 5 - communityCards.length;
-        if (rem <= 0) return { outs: [], byHandType: {} };
-
-        const current = evaluateSDHand([...playerCards, ...communityCards]);
-        const baseRank = current ? current.rank : -1;
-        const baseScore = current ? current.score : 0;
-        const byType = {};
-
-        for (const card of deck.cards) {
-            const nh = evaluateSDHand([...playerCards, ...communityCards, card]);
-            if (!nh) continue;
-            const better = nh.rank > baseRank ||
-                (nh.rank === baseRank && nh.score > baseScore + 10 ** 4);
-            if (!better) continue;
-            if (!byType[nh.name]) byType[nh.name] = { cards: [], count: 0 };
-            byType[nh.name].cards.push(card);
-            byType[nh.name].count++;
-        }
-
-        return { outs: deck.cards, totalOuts: Object.values(byType)
-            .reduce((s, v) => s + v.count, 0), byHandType: byType };
+    static findOuts(playerCards, communityCards) {
+        return PokerProbabilityCore.findImprovements(playerCards, communityCards, true);
     }
 }
 
@@ -538,6 +470,7 @@ class ShortDeckGame {
         this.onAIAction = null;
 
         this.probabilityResult = null;
+        this.outsResult = null;
         this.aiDelay = 1800;
         this.isProcessing = false;
         this.humanStack = this.startingStack;
@@ -639,6 +572,7 @@ class ShortDeckGame {
         this.flopCbetResolved = false;
         this.hasFullBetThisRound = false;
         this.probabilityResult = null;
+        this.outsResult = null;
 
         if (this.numHands > 0) {
             this.dealerPosition = this.getNextActivePlayer(this.dealerPosition);
@@ -790,17 +724,16 @@ class ShortDeckGame {
     }
 
     refundUncalledBet() {
-        const entries = this.players.map((player, index) => ({
-            player, index, amount: Math.max(0, this.roundBets[index] || 0)
-        })).sort((a, b) => b.amount - a.amount);
-        if (entries.length < 2 || entries[0].amount === entries[1].amount) return 0;
-        const top = entries[0];
-        const refund = top.amount - entries[1].amount;
-        top.player.stack += refund;
-        top.player.chipsInPot -= refund;
+        const uncalled = PokerGameRules.findUncalledRefund(this.roundBets);
+        if (!uncalled) return 0;
+        const player = this.players[uncalled.index];
+        if (!player) return 0;
+        const refund = uncalled.refund;
+        player.stack += refund;
+        player.chipsInPot -= refund;
         this.pot -= refund;
-        this.roundBets[top.index] -= refund;
-        if (top.player.isAllIn && top.player.stack > 0) top.player.isAllIn = false;
+        this.roundBets[uncalled.index] -= refund;
+        if (player.isAllIn && player.stack > 0) player.isAllIn = false;
         const liveBets = this.getPlayersInHand().map(p => this.roundBets[this.players.indexOf(p)] || 0);
         this.currentBet = liveBets.length ? Math.max(...liveBets) : 0;
         return refund;
@@ -989,18 +922,25 @@ class ShortDeckGame {
         if (this.phase === 'flop' && playerIndex === this.preflopAggressor && !this.flopCbetResolved) {
             this.flopCbetResolved = true;
         }
-        this.notifyAIsOfAction(playerIndex, resolvedAction, {
+        const additionalPaid = Math.max(0, Number(player.lastAction?.amount) || 0);
+        const raiseTo = Math.max(0, this.roundBets[playerIndex] || 0);
+        this.notifyAIsOfAction(playerIndex, resolvedAction, PokerGameRules.buildActionMeta({
+            callCost: toCall,
             toCallBefore: toCall,
-            amount: Math.max(0, Number(player.lastAction?.amount) || 0),
-            betFraction: Math.max(0, Number(player.lastAction?.amount) || 0) /
-                Math.max(this.minBet, potBefore + toCall),
+            additionalPaid,
+            amount: additionalPaid,
+            raiseTo,
+            currentBetBefore,
+            potBefore,
+            potAfter: this.pot,
+            minimumBet:this.minBet,
             aggressive: raisedCurrentBet,
             isCbetOpportunity,
             facedCbet: this.phase === 'flop' && toCall > 0 &&
                 lastAggressorBefore === this.preflopAggressor && lastAggressorStreetBefore === 'flop',
             faced3bet: this.phase === 'preflop' && toCall > 0 && preflopRaiseCountBefore >= 2,
             preflopRaiseCountBefore
-        });
+        }));
     }
 
     notifyAIsOfAction(playerIndex, action, actionMeta = {}) {
@@ -1056,8 +996,8 @@ class ShortDeckGame {
             if (player.stack > 0 && (maxRaiseTo <= this.currentBet || canRaise)) legalActions.push('allin');
             const gameState = {
                 handId: this.handGeneration,
-                decisionId: `${this.phase}:${this.actionsThisRound}:${idx}`,
-                seed: `local-shortdeck:${this.handGeneration}`,
+                decisionId: PokerGameRules.decisionIdentity('shortdeck', this.phase, this.actionsThisRound, idx),
+                seed: 'poker-table:shortdeck',
                 variant: 'shortdeck',
                 communityCards: this.communityCards,
                 pot: this.pot,
@@ -1105,7 +1045,9 @@ class ShortDeckGame {
             await new Promise(r => setTimeout(r, Math.max(100, this.aiDelay * (0.14 + Math.random() * 0.05))));
             if (this.handGeneration !== gen) return;
 
-            const decision = ai.decide(gameState);
+            const decision = typeof ai.decideAsync === 'function'
+                ? await ai.decideAsync(gameState)
+                : ai.decide(gameState);
             this.executeAction(idx, decision.action, decision.amount);
             this.isProcessing = false;
 
@@ -1225,50 +1167,33 @@ class ShortDeckGame {
     // ── 概率计算 ──
 
     calculateProbability() {
-        if (!this.humanPlayer || this.humanPlayer.folded) return;
-
-        const community = [...this.communityCards];
-        const opponents = this.getPlayersInHand().filter(p => !p.isHuman).length;
-
-        if (this.phase === 'preflop' && community.length === 0) {
-            // 简化的翻前评估
-            const c1 = this.humanPlayer.holeCards[0];
-            const c2 = this.humanPlayer.holeCards[1];
-            let strength = 0;
-
-            if (c1.rank === c2.rank) {
-                const v = c1.value;
-                strength = v >= 12 ? 0.72 : v >= 10 ? 0.62 : v >= 8 ? 0.55 : 0.48;
-            } else {
-                const h = Math.max(c1.value, c2.value);
-                const l = Math.min(c1.value, c2.value);
-                const suited = c1.suit === c2.suit;
-                const gap = h - l;
-
-                if (h === 14 && l >= 12) strength = 0.68;
-                else if (h === 14 && l >= 11) strength = 0.58;
-                else if (h >= 12 && l >= 11) strength = 0.52;
-                else if (h >= 12 && suited) strength = 0.38;
-                else if (h >= 14) strength = 0.32;
-                else if (suited && gap <= 2) strength = 0.30;
-                else strength = 0.22;
+        if (!this.humanPlayer || this.humanPlayer.folded || this.humanPlayer.holeCards.length !== 2) return;
+        const communityCards = [...this.communityCards];
+        const numOpponents = Math.max(1, this.getPlayersInHand().filter(p => !p.isHuman).length);
+        const generation = this.handGeneration;
+        const phase = this.phase;
+        const requestKey = probabilityService.makeKey({
+            playerCards:this.humanPlayer.holeCards,
+            communityCards,
+            numOpponents,
+            isShortDeck:true
+        });
+        this.probabilityRequestKey = requestKey;
+        probabilityService.calculate({
+            playerCards:this.humanPlayer.holeCards,
+            communityCards,
+            numOpponents,
+            isShortDeck:true
+        }).then(result => {
+            if (generation !== this.handGeneration || phase !== this.phase || requestKey !== this.probabilityRequestKey) return;
+            this.probabilityResult = result;
+            this.outsResult = result.outs || null;
+            if (this.onUpdate) this.onUpdate();
+        }).catch(error => {
+            if (generation === this.handGeneration && requestKey === this.probabilityRequestKey) {
+                console.error('Short-deck probability error:', error);
             }
-
-            this.probabilityResult = { winProb: strength, tieProb: 0.05, loseProb: 1 - strength - 0.05 };
-            return;
-        }
-
-        try {
-            const r = SDProbability.calculateWinProb(
-                this.humanPlayer.holeCards, community,
-                Math.max(1, opponents),
-                community.length >= 3 ? 2000 : 1500
-            );
-            this.probabilityResult = r;
-        } catch (e) {
-            console.error('SD probability error:', e);
-            this.probabilityResult = { winProb: 0.5, tieProb: 0.05, loseProb: 0.45 };
-        }
+        });
     }
 
     // ── 检查牌局结束 ──
@@ -1306,22 +1231,7 @@ class ShortDeckGame {
 
     calculateSidePots() {
         const inHand = this.getPlayersInHand();
-        if (inHand.length <= 1) return [{ amount: this.pot, eligible: [...inHand] }];
-
-        const levels = [...new Set(this.players.map(p => Math.max(0, p.chipsInPot || 0)).filter(Boolean))]
-            .sort((a, b) => a - b);
-        const pots = [];
-        let previous = 0;
-        for (const level of levels) {
-            const contributors = this.players.filter(p => (p.chipsInPot || 0) >= level);
-            const eligible = inHand.filter(p => (p.chipsInPot || 0) >= level);
-            const amount = (level - previous) * contributors.length;
-            if (amount > 0 && eligible.length > 0) pots.push({ amount, eligible });
-            previous = level;
-        }
-        const accounted = pots.reduce((sum, pot) => sum + pot.amount, 0);
-        if (this.pot > accounted && pots.length) pots[0].amount += this.pot - accounted;
-        return pots;
+        return PokerGameRules.calculateSidePots(this.players, this.pot, inHand);
     }
 
     orderFromLeftOfDealer(players) {
@@ -1463,11 +1373,8 @@ class ShortDeckGame {
     }
 
     getOuts() {
-        if (!this.humanPlayer || this.humanPlayer.folded || this.communityCards.length >= 5) return null;
-        return SDProbability.findOuts(
-            this.humanPlayer.holeCards, this.communityCards,
-            this.getPlayersInHand().filter(p => !p.isHuman).length
-        );
+        if (!this.humanPlayer || this.humanPlayer.folded || this.communityCards.length < 3 || this.communityCards.length >= 5) return null;
+        return this.outsResult;
     }
 
     // ── 可用行动 ──

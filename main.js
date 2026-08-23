@@ -1,8 +1,57 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const { WebSocket } = require('ws');
 const { startLocalPokerServer } = require('./server/local-server');
 
 let localPokerServer = null;
+let localServerUrl = 'ws://127.0.0.1:3000';
+let mainWindow = null;
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) app.quit();
+
+app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+});
+
+function probePokerServer(url, timeoutMs = 900) {
+    return new Promise(resolve => {
+        let settled = false;
+        const finish = (valid, socket) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            try { socket?.close(); } catch (_) {}
+            resolve(valid);
+        };
+        let socket;
+        try { socket = new WebSocket(url, { handshakeTimeout:timeoutMs }); }
+        catch (_) { resolve(false); return; }
+        const timer = setTimeout(() => finish(false, socket), timeoutMs);
+        socket.on('message', data => {
+            try {
+                const hello = JSON.parse(data.toString('utf8'));
+                finish(hello.type === 'hello' && hello.serverId === 'texas-holdem-game' && hello.protocolVersion === 2, socket);
+            } catch (_) { finish(false, socket); }
+        });
+        socket.on('error', () => finish(false, socket));
+        socket.on('close', () => finish(false, socket));
+    });
+}
+
+async function ensureLocalServer() {
+    try {
+        localPokerServer = await startLocalPokerServer({ host:'127.0.0.1', port:3000 });
+    } catch (error) {
+        if (error?.code !== 'EADDRINUSE') throw error;
+        if (await probePokerServer(localServerUrl)) return;
+        localPokerServer = await startLocalPokerServer({ host:'127.0.0.1', port:0 });
+    }
+    const address = localPokerServer.address();
+    localServerUrl = `ws://127.0.0.1:${address.port}`;
+}
 
 function senderWindow(event) {
     return BrowserWindow.fromWebContents(event.sender);
@@ -17,18 +66,18 @@ ipcMain.handle('window:toggle-maximize', event => {
     else win.maximize();
     return win.isMaximized();
 });
+ipcMain.handle('server:get-local-url', () => localServerUrl);
 
 app.whenReady().then(async () => {
+    if (!hasSingleInstanceLock) return;
     try {
-        localPokerServer = await startLocalPokerServer({ host: '127.0.0.1', port: 3000 });
-        console.log('Local poker server listening on ws://127.0.0.1:3000');
+        await ensureLocalServer();
+        console.log(`Local poker server ready at ${localServerUrl}`);
     } catch (error) {
-        // A second app window or a separately launched test server may already
-        // own the port. The window can safely use that existing service.
-        if (error?.code !== 'EADDRINUSE') console.error('Local poker server failed:', error);
+        console.error('Local poker server failed:', error);
     }
 
-    const win = new BrowserWindow({
+    const win = mainWindow = new BrowserWindow({
         width: 1280,
         height: 860,
         minWidth: 900,
@@ -57,6 +106,7 @@ app.whenReady().then(async () => {
     win.webContents.on('will-navigate', event => event.preventDefault());
 
     win.on('closed', () => {
+        mainWindow = null;
         app.quit();
     });
 });

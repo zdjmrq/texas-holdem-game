@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
-    <title>德州扑克 v1.3.1</title>
+          content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
+    <title>德州扑克 v1.4.0</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -36,7 +36,7 @@
     <div id="app">
         <!-- Header -->
         <div class="header">
-            <h1>♠ <span>Texas</span> Hold'em ♥ <small class="app-version">v1.3.1</small></h1>
+            <h1>♠ <span>Texas</span> Hold'em ♥ <small class="app-version">v1.4.0</small></h1>
             <div class="header-info">
                 <span>🎴 手牌 #<span class="hand-count" id="handCount">0</span></span>
                 <span class="blinds-info">
@@ -44,23 +44,23 @@
                     <span>BB: <span id="bbDisplay">80</span></span>
                 </span>
                 <span class="music-controls">
-                    <button class="music-btn" id="musicBtn" onclick="toggleMusic()" title="切换背景音乐">🎵 音乐关</button>
-                    <button class="music-btn skip-btn" id="skipBtn" onclick="skipSong()" title="下一首">⏭️</button>
+                    <button class="music-btn" id="musicBtn" data-ui-action="toggle-music" title="切换背景音乐">🎵 音乐关</button>
+                    <button class="music-btn skip-btn" id="skipBtn" data-ui-action="skip-song" title="下一首">⏭️</button>
                     <span class="vol-control">
                         <label for="volSlider" style="font-size:11px;color:#888;">🔊</label>
                         <input type="range" id="volSlider" min="0" max="100" value="30"
-                               oninput="setVolume(this.value)" style="width:60px;accent-color:#e94560;cursor:pointer;">
+                               data-ui-input="volume" style="width:60px;accent-color:#e94560;cursor:pointer;">
                     </span>
                 </span>
             </div>
             <div class="header-actions">
-                <button class="header-btn" id="refreshBtn" onclick="doRefresh()" title="重新连接/刷新牌局">🔄</button>
-                <button class="header-btn home-btn" id="homeBtn" onclick="goHome()" title="返回主页">🏠</button>
-                <button class="header-btn fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreen()" title="全屏">⛶ 全屏</button>
+                <button class="header-btn" id="refreshBtn" data-ui-action="refresh" title="重新连接/刷新牌局">🔄</button>
+                <button class="header-btn home-btn" id="homeBtn" data-ui-action="home" title="返回主页">🏠</button>
+                <button class="header-btn fullscreen-btn" id="fullscreenBtn" data-ui-action="fullscreen" title="全屏">⛶ 全屏</button>
                 <span class="window-controls" aria-label="窗口控制">
-                    <button class="window-btn" onclick="minimizeAppWindow()" title="最小化" aria-label="最小化">—</button>
-                    <button class="window-btn" id="windowMaximizeBtn" onclick="toggleAppWindowMaximize()" title="最大化" aria-label="最大化">□</button>
-                    <button class="window-btn window-close-btn" onclick="closeAppWindow()" title="关闭" aria-label="关闭">×</button>
+                    <button class="window-btn" data-ui-action="window-minimize" title="最小化" aria-label="最小化">—</button>
+                    <button class="window-btn" id="windowMaximizeBtn" data-ui-action="window-maximize" title="最大化" aria-label="最大化">□</button>
+                    <button class="window-btn window-close-btn" data-ui-action="window-close" title="关闭" aria-label="关闭">×</button>
                 </span>
             </div>
         </div>
@@ -113,15 +113,15 @@
                 <div class="mode-selector" id="modeSelector">
                     <label>游戏模式</label>
                     <div class="mode-options">
-                        <button class="mode-btn selected" data-mode="standard" onclick="selectGameMode('standard')">♠ 标准德州</button>
-                        <button class="mode-btn" data-mode="shortdeck" onclick="selectGameMode('shortdeck')">♦ 短牌 6+</button>
+                        <button class="mode-btn selected" data-mode="standard" data-ui-action="select-game-mode">♠ 标准德州</button>
+                        <button class="mode-btn" data-mode="shortdeck" data-ui-action="select-game-mode">♦ 短牌 6+</button>
                     </div>
                 </div>
                 <div class="play-mode-selector" style="margin-top:10px;">
                     <label>游玩方式</label>
                     <div class="mode-options">
-                        <button class="play-btn selected" data-play="local" onclick="selectPlayMode('local')">🎮 本地游戏</button>
-                        <button class="play-btn" data-play="online" onclick="selectPlayMode('online')">🌐 联网游戏</button>
+                        <button class="play-btn selected" data-play="local" data-ui-action="select-play-mode">🎮 本地游戏</button>
+                        <button class="play-btn" data-play="online" data-ui-action="select-play-mode">🌐 联网游戏</button>
                     </div>
                 </div>
 
@@ -132,7 +132,7 @@
                             <output id="stackValue" for="stackSlider">$20,000</output>
                         </div>
                         <input type="range" id="stackSlider" min="0" max="4" step="1" value="2"
-                               aria-label="起始筹码档位" oninput="updateGameSetting('stack', this.value)">
+                               aria-label="起始筹码档位" data-ui-input="setting" data-setting="stack">
                         <div class="setting-ticks" aria-hidden="true">
                             <span>5千</span><span>1万</span><span>2万</span><span>5万</span><span>10万</span>
                         </div>
@@ -143,7 +143,7 @@
                             <output id="blindsValue" for="blindsSlider">$40 / $80</output>
                         </div>
                         <input type="range" id="blindsSlider" min="0" max="5" step="1" value="2"
-                               aria-label="盲注档位" oninput="updateGameSetting('blinds', this.value)">
+                               aria-label="盲注档位" data-ui-input="setting" data-setting="blinds">
                         <div class="setting-ticks blind-ticks" aria-hidden="true">
                             <span>10/20</span><span>20/40</span><span>40/80</span><span>50/100</span><span>100/200</span><span>200/400</span>
                         </div>
@@ -154,7 +154,7 @@
                             <output id="aiSpeedValue" for="aiSpeedSlider">标准</output>
                         </div>
                         <input type="range" id="aiSpeedSlider" min="0" max="2" step="1" value="1"
-                               aria-label="AI 行动速度档位" oninput="updateGameSetting('aiSpeed', this.value)">
+                               aria-label="AI 行动速度档位" data-ui-input="setting" data-setting="aiSpeed">
                         <div class="setting-ticks" aria-hidden="true">
                             <span>快速</span><span>标准</span><span>沉浸</span>
                         </div>
@@ -164,7 +164,7 @@
 
                 <!-- 本地模式选项 -->
                 <div id="localOptions">
-                    <button class="action-btn btn-start" id="startGameBtn" onclick="startNewGame()">🏆 开始游戏</button>
+                    <button class="action-btn btn-start" id="startGameBtn" data-ui-action="start-local-game">🏆 开始游戏</button>
                 </div>
 
                 <!-- 联网模式面板 -->
@@ -176,9 +176,9 @@
                                    style="flex:1;min-width:140px;padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:#fff;font-size:13px;outline:none;">
                             <input id="playerNameInput" value="" placeholder="输入你的昵称" maxlength="8"
                                    style="width:80px;padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:#fff;font-size:13px;outline:none;">
-                            <button class="action-btn" style="padding:8px 16px;font-size:13px;" onclick="doConnect()">🔗 连接</button>
+                            <button class="action-btn" style="padding:8px 16px;font-size:13px;" data-ui-action="connect">🔗 连接</button>
                         </div>
-                        <div class="local-server-hint">本机服务会随应用自动启动 · 默认地址 ws://localhost:3000</div>
+                        <div class="local-server-hint" id="localServerHint">本机服务会随应用自动启动 · 默认地址 ws://localhost:3000</div>
                     </div>
 
                     <!-- 房间大厅 -->
@@ -217,19 +217,19 @@
                                     <option value="4">4</option>
                                     <option value="5">5</option>
                                 </select>
-                                <button class="action-btn" style="padding:8px 16px;font-size:13px;" onclick="doJoinRoom()">🚪 进入房间</button>
+                                <button class="action-btn" style="padding:8px 16px;font-size:13px;" data-ui-action="join-room">🚪 进入房间</button>
                             </div>
                         </div>
 
                         <!-- 房间内操作 -->
                         <div id="roomActions" style="display:none;margin-top:8px;">
-                            <button class="action-btn btn-start" style="font-size:15px;padding:10px 30px;" id="startGameBtnOnline" onclick="doStartGame()">🏆 开始游戏</button>
+                            <button class="action-btn btn-start" style="font-size:15px;padding:10px 30px;" id="startGameBtnOnline" data-ui-action="start-online-game">🏆 开始游戏</button>
                             <div style="margin-top:6px;font-size:13px;color:#888;" id="waitingMsg">等待房主开始游戏...</div>
                         </div>
 
                         <div style="display:flex;gap:6px;margin-top:10px;justify-content:center;">
-                            <button class="action-btn btn-fold" style="padding:6px 14px;font-size:11px;" onclick="doLeaveRoom()">🚪 离开房间</button>
-                            <button class="action-btn btn-fold" style="padding:6px 14px;font-size:11px;" onclick="doDisconnect()">🔌 断开</button>
+                            <button class="action-btn btn-fold" style="padding:6px 14px;font-size:11px;" data-ui-action="leave-room">🚪 离开房间</button>
+                            <button class="action-btn btn-fold" style="padding:6px 14px;font-size:11px;" data-ui-action="disconnect">🔌 断开</button>
                         </div>
                     </div>
                 </div>
@@ -247,7 +247,7 @@
                 <div class="human-card-area">
                     <div class="human-cards" id="humanCards" role="button" tabindex="0"
                          aria-label="隐藏我的手牌" aria-pressed="false" title="点击将手牌翻到背面"
-                         onclick="toggleHumanCardsVisibility()" onkeydown="handleHumanCardsKey(event)">
+                         data-ui-action="toggle-human-cards" data-ui-key="human-cards">
                         <div class="card card-back" id="humanCard1"></div>
                         <div class="card card-back" id="humanCard2"></div>
                     </div>
@@ -260,27 +260,27 @@
                     <span class="amount" id="humanStack">$20,000</span>
                 </div>
                 <div class="actions-container" id="actionsContainer">
-                    <button class="action-btn btn-fold" id="btnFold" disabled onclick="doAction('fold')">弃牌</button>
-                    <button class="action-btn btn-check" id="btnCheck" disabled onclick="doAction('check')">过牌</button>
-                    <button class="action-btn btn-call" id="btnCall" disabled onclick="doAction('call')">跟注</button>
-                    <button class="action-btn btn-raise" id="btnRaise" disabled onclick="showRaiseSlider()">加注</button>
-                    <button class="action-btn btn-allin" id="btnAllin" disabled onclick="doAction('allin')">全下</button>
+                    <button class="action-btn btn-fold" id="btnFold" disabled data-ui-action="poker-action" data-poker-action="fold">弃牌</button>
+                    <button class="action-btn btn-check" id="btnCheck" disabled data-ui-action="poker-action" data-poker-action="check">过牌</button>
+                    <button class="action-btn btn-call" id="btnCall" disabled data-ui-action="poker-action" data-poker-action="call">跟注</button>
+                    <button class="action-btn btn-raise" id="btnRaise" disabled data-ui-action="show-raise">加注</button>
+                    <button class="action-btn btn-allin" id="btnAllin" disabled data-ui-action="poker-action" data-poker-action="allin">全下</button>
                 </div>
                 <div class="action-explain" id="actionExplain"></div>
                 <div class="raise-slider-container" id="raiseSlider">
                     <input type="range" id="raiseRange" min="80" max="1000" value="120" step="10"
-                           oninput="updateRaiseDisplay()">
+                           data-ui-input="raise">
                     <span class="raise-amount-display" id="raiseAmountDisplay">加注到 $60</span>
                     <div style="display:flex;gap:6px;margin-top:4px;">
-                        <button class="action-btn btn-raise" style="padding:6px 16px;font-size:12px;" onclick="confirmRaise()">✅ 加注</button>
-                        <button class="action-btn btn-fold" style="padding:6px 16px;font-size:12px;" onclick="hideRaiseSlider()">取消</button>
+                        <button class="action-btn btn-raise" style="padding:6px 16px;font-size:12px;" data-ui-action="confirm-raise">✅ 加注</button>
+                        <button class="action-btn btn-fold" style="padding:6px 16px;font-size:12px;" data-ui-action="hide-raise">取消</button>
                     </div>
                 </div>
             </div>
 
             <!-- Probability Panel -->
             <div class="probability-panel" id="probPanel">
-                <div class="prob-panel-title" id="probToggle" onclick="toggleProbPanel()" style="cursor:pointer;user-select:none;">
+                <div class="prob-panel-title" id="probToggle" data-ui-action="toggle-probability" style="cursor:pointer;user-select:none;">
                     📊 胜率分析 <span id="probToggleIcon" style="font-size:11px;color:#666;">▼</span>
                 </div>
                 <div class="prob-content collapsed" id="probContent">
@@ -313,7 +313,7 @@
                         <h4 style="margin-top:8px;">可击败的牌型</h4>
                         <div class="hand-beats" id="handBeatsContainer"></div>
                         <div class="outs-section" id="outsSection" style="display:none;">
-                            <h4>🎯 补牌分析</h4>
+                            <h4>🎯 改善牌分析</h4>
                             <div class="outs-list" id="outsList"></div>
                         </div>
                     </div>
@@ -334,14 +334,17 @@
                 <br>牌型: <span class="winning-hand" id="winningHandName">高牌</span>
             </div>
             <div class="modal-results" id="modalResults"></div>
-            <button class="modal-btn" onclick="closeModalAndContinue()">下一手 →</button>
+            <button class="modal-btn" data-ui-action="next-hand">下一手 →</button>
         </div>
     </div>
 
     <script src="js/debug.js"></script>
     <script src="js/cards.js"></script>
+    <script src="js/game-rules-core.js"></script>
+    <script src="js/probability-core.js"></script>
     <script src="js/probability.js"></script>
     <script src="js/ai-core.js"></script>
+    <script src="js/ai-worker-client.js"></script>
     <script src="js/ai.js"></script>
     <script src="js/game.js"></script>
     <script src="js/audio.js"></script>
@@ -352,7 +355,7 @@
          德州扑克规则说明
          ============================================================ -->
     <div class="rules-container" id="rulesContainer">
-        <button class="rules-toggle" id="rulesToggle" onclick="toggleRules()">
+        <button class="rules-toggle" id="rulesToggle" data-ui-action="toggle-rules">
             📜 查看德州扑克规则
         </button>
         <div class="rules-content" id="rulesContent">
@@ -470,5 +473,6 @@
     </div>
 
     <script src="js/ui.js"></script>
+    <script src="js/controls.js"></script>
 </body>
 </html>
