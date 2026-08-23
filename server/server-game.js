@@ -1,6 +1,7 @@
 'use strict';
 
 const { createDeck, shuffle, evaluateHand, VALUES } = require('./poker-rules');
+const { AIPlayer, AI_STYLES } = require('../js/ai');
 
 const AI_NAMES = ['Alex', 'Blake', 'Casey', 'Drew', 'Emma', 'Finn', 'Grace', 'Hayes', 'Ivy', 'Jade'];
 const AI_AVATARS = ['😎', '🤠', '🕶️', '🎩', '👑', '🦊', '🐺', '🦅', '🐯', '🐉'];
@@ -30,6 +31,10 @@ class ServerPokerGame {
         this.bbIdx = -1;
         this.currentPlayerIdx = -1;
         this.preflopRaiseCount = 0;
+        this.preflopAggressor = -1;
+        this.lastAggressor = -1;
+        this.lastAggressorStreet = null;
+        this.flopHadAggression = false;
         this.handId = 0;
         this.turnId = 0;
         this.lastHandResult = null;
@@ -100,6 +105,10 @@ class ServerPokerGame {
         this.turnId = 0;
         this.phase = 'preflop';
         this.preflopRaiseCount = 0;
+        this.preflopAggressor = -1;
+        this.lastAggressor = -1;
+        this.lastAggressorStreet = null;
+        this.flopHadAggression = false;
         this.lastRaise = this.minimumBet;
         this.hasFullBetThisRound = false;
 
@@ -223,6 +232,17 @@ class ServerPokerGame {
         };
     }
 
+    getHandPositionInfo(playerIndex) {
+        const seats = this.players.map((player, index) => player.dealtIn ? index : -1)
+            .filter(index => index >= 0)
+            .sort((a, b) => ((a - this.dealerPos + this.players.length) % this.players.length) -
+                ((b - this.dealerPos + this.players.length) % this.players.length));
+        return {
+            positionFromButton: Math.max(0, seats.indexOf(playerIndex)),
+            playerCount: Math.max(2, seats.length)
+        };
+    }
+
     act(idx, action, amount = 0) {
         const legal = this.legalActions(idx);
         action = String(action || '').toLowerCase();
@@ -230,6 +250,9 @@ class ServerPokerGame {
         const player = this.players[idx];
         const ownBet = this.roundBets[idx] || 0;
         const toCall = Math.max(0, this.currentBet - ownBet);
+        const potBefore = this.pot;
+        const currentBetBefore = this.currentBet;
+        const preflopRaiseCountBefore = this.preflopRaiseCount;
 
         if (action === 'fold') {
             player.folded = true;
@@ -277,8 +300,49 @@ class ServerPokerGame {
             this.recordAction(idx);
         }
 
+        const resolvedAction = player.lastAction?.action || action;
+        const aggressive = this.currentBet > currentBetBefore;
+        if (aggressive) {
+            this.lastAggressor = idx;
+            this.lastAggressorStreet = this.phase;
+            if (this.phase === 'preflop') this.preflopAggressor = idx;
+            if (this.phase === 'flop') this.flopHadAggression = true;
+        }
+        this.notifyAIsOfAction(idx, resolvedAction, {
+            toCallBefore: toCall,
+            amount: Math.max(0, Number(player.lastAction?.amount) || 0),
+            betFraction: Math.max(0, Number(player.lastAction?.amount) || 0) /
+                Math.max(this.minimumBet, potBefore + toCall),
+            aggressive,
+            preflopRaiseCountBefore,
+            faced3bet: this.phase === 'preflop' && toCall > 0 && preflopRaiseCountBefore >= 2
+        });
+
         this.advanceAfterAction();
         return { ok: true };
+    }
+
+    notifyAIsOfAction(actorIdx, action, meta = {}) {
+        for (let idx = 0; idx < this.players.length; idx++) {
+            if (idx === actorIdx) continue;
+            const ai = this.players[idx]?.aiRef;
+            if (!ai) continue;
+            ai.position = idx;
+            if (typeof ai.recordOpponentAction === 'function') {
+                ai.recordOpponentAction(actorIdx, action, this.phase, this.handId, meta);
+            }
+            if (typeof ai.updateOpponentRange === 'function') {
+                let rangeAction = action;
+                if (this.phase === 'preflop' && meta.aggressive) {
+                    if (meta.preflopRaiseCountBefore >= 2) rangeAction = '4bet';
+                    else if (meta.preflopRaiseCountBefore >= 1) rangeAction = '3bet';
+                    else rangeAction = 'raise';
+                } else if (this.phase === 'preflop' && action === 'call' && meta.preflopRaiseCountBefore >= 2) {
+                    rangeAction = 'call3bet';
+                }
+                ai.updateOpponentRange(actorIdx, rangeAction, false);
+            }
+        }
     }
 
     autoCloseNoDecision() {
@@ -426,6 +490,7 @@ class ServerPokerGame {
         }
         const winners = [...new Set(allWinners)];
         const strongest = [...evaluations.values()].sort((a, b) => b.score - a.score)[0];
+        this.notifyAIsOfShowdown(live, evaluations, winners);
         const settledPot = this.pot;
         this.lastHandResult = {
             reason: 'showdown',
@@ -441,6 +506,28 @@ class ServerPokerGame {
             }))
         };
         this.finishHand();
+    }
+
+    notifyAIsOfShowdown(live, evaluations, winners) {
+        const winnerSet = new Set(winners);
+        for (let observerIdx = 0; observerIdx < this.players.length; observerIdx++) {
+            const ai = this.players[observerIdx]?.aiRef;
+            if (!ai || typeof ai.recordShowdown !== 'function') continue;
+            ai.position = observerIdx;
+            for (const player of live) {
+                const seatIdx = this.players.indexOf(player);
+                const hand = evaluations.get(player);
+                const action = player.lastAction?.action;
+                const aggressive = action === 'raise' || action === 'allin';
+                const passive = action === 'check' || action === 'call';
+                ai.recordShowdown(seatIdx, {
+                    won:winnerSet.has(player),
+                    handRank:hand?.rank ?? 0,
+                    wasBluff:aggressive && !winnerSet.has(player) && (hand?.rank ?? 0) <= 2,
+                    wasTrap:passive && winnerSet.has(player) && (hand?.rank ?? 0) >= 4
+                });
+            }
+        }
     }
 
     finishByFold(winner) {
@@ -507,36 +594,59 @@ function chooseServerAiAction(game, idx) {
     const legal = game.legalActions(idx);
     if (!legal.actions.length) return null;
     const player = game.players[idx];
-    const toCall = legal.toCall;
-    const potOdds = toCall > 0 ? toCall / Math.max(1, game.pot + toCall) : 0;
-    const equity = estimateEquity(game, idx, game.phase === 'preflop' ? 90 : 140);
-    const stackBb = player.stack / Math.max(1, game.minimumBet);
-    const random = game.random();
-
-    if (stackBb <= 10 && legal.actions.includes('allin') && equity > 0.48 + Math.max(0, game.inHand().length - 2) * 0.035)
-        return { action: 'allin', amount: player.stack };
-    if (toCall > 0 && equity + 0.04 < potOdds) return { action: 'fold', amount: 0 };
-
-    if (legal.actions.includes('raise')) {
-        const valueThreshold = game.phase === 'preflop' ? 0.57 : 0.62;
-        const semiBluff = game.phase !== 'river' && equity > 0.34 && random < 0.12;
-        if (equity > valueThreshold || semiBluff) {
-            const potAfterCall = game.pot + toCall;
-            const fraction = equity > 0.78 ? 0.8 : game.phase === 'river' ? 0.65 : 0.55;
-            const target = Math.min(legal.maxRaiseTo,
-                Math.max(legal.minRaiseTo, (game.roundBets[idx] || 0) + toCall + Math.round(potAfterCall * fraction)));
-            if (target >= legal.maxRaiseTo) return { action: 'allin', amount: player.stack };
-            return { action: 'raise', amount: target };
-        }
-    }
-    if (toCall > 0) return toCall >= player.stack
-        ? { action: 'allin', amount: player.stack }
-        : { action: 'call', amount: toCall };
-    return { action: 'check', amount: 0 };
+    if (!player.aiRef) return null;
+    const ai = player.aiRef;
+    const active = game.inHand();
+    const position = game.getHandPositionInfo(idx);
+    const opponentStacks = active.filter(item => item !== player)
+        .map(item => item.stack + (game.roundBets[game.players.indexOf(item)] || 0));
+    ai.holeCards = player.holeCards;
+    ai.stack = player.stack;
+    ai.chipsInPot = player.chipsInPot;
+    ai.position = idx;
+    ai.numPlayers = position.playerCount;
+    ai.bigBlind = game.minimumBet;
+    ai.isShortDeck = game.isShortDeck;
+    return ai.decide({
+        handId: game.handId,
+        decisionId: `${game.phase}:${game.turnId}:${idx}`,
+        seed: `online-${game.isShortDeck ? 'shortdeck' : 'standard'}:${game.handId}`,
+        variant: game.isShortDeck ? 'shortdeck' : 'standard',
+        communityCards: game.communityCards,
+        pot: game.pot,
+        currentBet: game.currentBet,
+        toCall: legal.toCall,
+        yourBet: game.roundBets[idx] || 0,
+        stack: player.stack,
+        effectiveStack: Math.min(player.stack, Math.max(0, ...opponentStacks)),
+        numOpponentsActive: active.length - 1,
+        activeOpponentSeats: active.filter(item => item !== player).map(item => game.players.indexOf(item)),
+        playerCount: position.playerCount,
+        dealerPosition: game.dealerPos,
+        currentPlayerIndex: idx,
+        positionFromButton: position.positionFromButton,
+        legalActions: legal,
+        canCheck: legal.actions.includes('check'),
+        canRaise: legal.canRaise,
+        minRaiseTo: legal.minRaiseTo,
+        maxRaiseTo: legal.maxRaiseTo,
+        preflopRaiseCount: game.preflopRaiseCount,
+        isPreviousStreetAggressor: game.lastAggressor === idx &&
+            game.lastAggressorStreet === ({ flop:'preflop', turn:'flop', river:'turn' }[game.phase] || null),
+        isDelayedCBetCandidate: game.phase === 'turn' && game.preflopAggressor === idx && !game.flopHadAggression,
+        isSmallBlind: idx === game.sbIdx,
+        isBigBlind: idx === game.bbIdx,
+        bigBlind: game.minimumBet,
+        phase: game.phase,
+        timeBudgetMs: game.phase === 'river' || active.length >= 5 ? 150 : 80,
+        evaluateCards: (cards, variant) => evaluateHand(cards, variant === 'shortdeck')
+    });
 }
 
 function createServerAi(seatId, startingStack) {
     const offset = Math.max(0, seatId - 1) % AI_NAMES.length;
+    const styles = Object.values(AI_STYLES);
+    const aiRef = new AIPlayer(AI_NAMES[offset], styles[offset % styles.length], startingStack, seatId);
     return {
         id: `ai-${seatId}`,
         seatId,
@@ -552,7 +662,8 @@ function createServerAi(seatId, startingStack) {
         folded: false,
         isAllIn: false,
         dealtIn: false,
-        lastAction: null
+        lastAction: null,
+        aiRef
     };
 }
 

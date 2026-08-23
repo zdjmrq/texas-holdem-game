@@ -2186,7 +2186,7 @@ function updateModeUI() {
     // Update header title
     const title = document.querySelector('.header h1 span');
     if (title) {
-        title.textContent = isSD ? 'Short Deck' : 'Hold\'em';
+        title.textContent = isSD ? 'Short Deck' : 'Texas';
     }
 
     // Update blinds info display

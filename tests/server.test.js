@@ -241,14 +241,19 @@ test('local server keeps two clients authoritative, private, resumable and synch
     const migratedReadyMark = resumed.mark();
     resumed.send({ type:'ready_for_next', requestId:'ready-after-host-left', roomCode:'1', handId:2 });
     const thirdHand = await resumed.waitAfter(migratedReadyMark,
-        message => message.type === 'game_state' && message.handId === 3 && message.isYourTurn, 3500);
+        message => message.type === 'game_state' && message.handId === 3 &&
+            (message.isYourTurn || message.phase === 'idle'), 3500);
     assert.equal(thirdHand.players.filter(item => !item.isHuman).length, 1);
-    const migratedAction = thirdHand.legalActions.actions.includes('fold') ? 'fold' : 'check';
-    const migratedActionMark = resumed.mark();
-    resumed.send(actionFromState(thirdHand, 'action-after-host-change', migratedAction));
-    const migratedAck = await resumed.waitAfter(migratedActionMark,
-        message => message.type === 'action_ack' && message.requestId === 'action-after-host-change');
-    assert.equal(migratedAck.accepted, true);
+    if (thirdHand.phase !== 'idle') {
+        const migratedAction = thirdHand.legalActions.actions.includes('fold') ? 'fold' : 'check';
+        const migratedActionMark = resumed.mark();
+        resumed.send(actionFromState(thirdHand, 'action-after-host-change', migratedAction));
+        const migratedAck = await resumed.waitAfter(migratedActionMark,
+            message => message.type === 'action_ack' && message.requestId === 'action-after-host-change');
+        assert.equal(migratedAck.accepted, true);
+    } else {
+        assert.equal(thirdHand.lastHandResult?.reason, 'fold');
+    }
 
     // A current actor that does not return within the grace period is folded by
     // the server, so the other client is never left in a permanently stuck hand.

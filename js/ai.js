@@ -12,6 +12,12 @@
  * uses publicly observable actions only.
  */
 
+// Shared, environment-neutral strategy engine. The browser loads ai-core.js
+// immediately before this file; the room server requires the exact same file.
+const SHARED_AI_CORE = (typeof module !== 'undefined' && module.exports)
+    ? require('./ai-core')
+    : globalThis.PokerAICore;
+
 // ── Style definitions ──
 const AI_STYLES = { TAG:'TAG', LAG:'LAG', SOLID:'SOLID', MANIAC:'MANIAC', TAGFISH:'TAGFISH', CALLING:'CALLING_STATION' };
 const AI_NAMES = ['Alex','Blake','Casey','Drew','Emma','Finn','Grace','Hayes','Ivy','Jade'];
@@ -305,6 +311,13 @@ class AIPlayer {
         this._cachedEquity = null;
         this._cacheKey = '';
         this.streetPlan = null;
+        this.sharedBrain = SHARED_AI_CORE ? new SHARED_AI_CORE.UnifiedPokerAI({
+            name,
+            style,
+            seatId: index,
+            profile: this.config
+        }) : null;
+        this.lastDecisionTrace = null;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -312,6 +325,7 @@ class AIPlayer {
     // ═══════════════════════════════════════════════════════════
 
     decide(gameState) {
+        if (this.sharedBrain) return this._decideShared(gameState);
         this.hasActed = true;
         const { communityCards, pot, currentBet, toCall, numOpponentsActive, bigBlind } = gameState;
         if (bigBlind) this.bigBlind = bigBlind;
@@ -787,6 +801,16 @@ class AIPlayer {
         if (seatIdx===this.position) return;
         if (!this.playerModels[seatIdx]) this.playerModels[seatIdx]=new PlayerModel(seatIdx);
         this.playerModels[seatIdx].recordAction(action,street,handId,meta);
+        if (this.sharedBrain) {
+            this.sharedBrain.seatId = this.position;
+            this.sharedBrain.observeAction({ seatId:seatIdx, action, street, handId, meta });
+        }
+    }
+
+    recordShowdown(seatIdx, info = {}) {
+        if (!this.sharedBrain) return;
+        this.sharedBrain.seatId = this.position;
+        this.sharedBrain.observeShowdown(seatIdx, info);
     }
 
     reset() {
@@ -794,6 +818,53 @@ class AIPlayer {
         this.isAllIn=false; this.hasActed=false; this.lastAction=null;
         this.streetPlan=null;
         for (const r of Object.values(this.opponentRanges)) r.reset();
+    }
+
+    /** Normalize a table-controller state and execute the shared strategy. */
+    _decideShared(gameState = {}) {
+        this.hasActed = true;
+        this.sharedBrain.seatId = gameState.currentPlayerIndex ?? this.position;
+        const ownBet = Math.max(0, Number(gameState.yourBet) || 0);
+        const stack = Math.max(0, Number(gameState.stack ?? this.stack) || 0);
+        const toCall = Math.max(0, Number(gameState.toCall) || 0);
+        const canRaise = gameState.canRaise !== false;
+        const maxRaiseTo = Math.max(ownBet, Number(gameState.maxRaiseTo) || ownBet + stack);
+        const actions = Array.isArray(gameState.legalActions)
+            ? [...gameState.legalActions]
+            : (Array.isArray(gameState.legalActions?.actions) ? [...gameState.legalActions.actions] : []);
+        if (!actions.length) {
+            if (toCall > 0) actions.push('fold', 'call');
+            else actions.push('check');
+            if (canRaise && maxRaiseTo > Math.max(0, Number(gameState.currentBet) || 0)) actions.push('raise');
+            if (stack > 0 && (canRaise || ownBet + stack <= (Number(gameState.currentBet) || 0))) actions.push('allin');
+        }
+        let evaluator = gameState.evaluateCards;
+        if (typeof evaluator !== 'function') {
+            evaluator = (cards, variant) => {
+                if (variant === 'shortdeck' && typeof evaluateSDHand === 'function') return evaluateSDHand(cards);
+                if (typeof evaluateHand === 'function') return evaluateHand(cards);
+                throw new Error('No hand evaluator is available for shared AI');
+            };
+        }
+        const result = this.sharedBrain.decide({
+            ...gameState,
+            variant:gameState.variant || (this.isShortDeck ? 'shortdeck' : 'standard'),
+            heroSeat:gameState.currentPlayerIndex ?? this.position,
+            holeCards:this.holeCards,
+            heroRoundBet:ownBet,
+            heroStack:stack,
+            legalActions:{
+                actions,
+                toCall,
+                canRaise,
+                minRaiseTo:gameState.minRaiseTo,
+                maxRaiseTo
+            },
+            evaluateCards:evaluator
+        });
+        this.stack = stack;
+        this.lastDecisionTrace = result.trace;
+        return this._act(result.action, result.amount);
     }
 
     _act(action, amount) {
@@ -861,4 +932,19 @@ function createAIPlayers(count, startingStack = 20000) {
         players.push(p);
     }
     return players;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        AIPlayer,
+        AI_STYLES,
+        STYLE_CONFIGS,
+        AI_NAMES,
+        AI_AVATARS,
+        createAIPlayers,
+        PlayerModel,
+        OpponentRange,
+        analyzeBoardTexture,
+        getPositionCategoryFromButton
+    };
 }

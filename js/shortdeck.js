@@ -861,6 +861,7 @@ class ShortDeckGame {
         const a = action.toLowerCase();
         const contributed = this.roundBets[playerIndex] || 0;
         const toCall = Math.max(0, this.currentBet - contributed);
+        const potBefore = this.pot;
         const currentBetBefore = this.currentBet;
         const lastAggressorBefore = this.lastAggressor;
         const lastAggressorStreetBefore = this.lastAggressorStreet;
@@ -990,6 +991,9 @@ class ShortDeckGame {
         }
         this.notifyAIsOfAction(playerIndex, resolvedAction, {
             toCallBefore: toCall,
+            amount: Math.max(0, Number(player.lastAction?.amount) || 0),
+            betFraction: Math.max(0, Number(player.lastAction?.amount) || 0) /
+                Math.max(this.minBet, potBefore + toCall),
             aggressive: raisedCurrentBet,
             isCbetOpportunity,
             facedCbet: this.phase === 'flop' && toCall > 0 &&
@@ -1043,22 +1047,37 @@ class ShortDeckGame {
             const tablePosition = this.getHandPositionInfo(idx);
             const opponentStacks = active.filter(p => p !== player)
                 .map(p => p.stack + (this.roundBets[this.players.indexOf(p)] || 0));
+            const ownBet = this.roundBets[idx] || 0;
+            const toCall = Math.max(0, this.currentBet - ownBet);
+            const canRaise = this.canPlayerRaise(idx);
+            const maxRaiseTo = ownBet + player.stack;
+            const legalActions = toCall > 0 ? ['fold', 'call'] : ['check'];
+            if (player.stack > 0 && canRaise && maxRaiseTo >= this.getMinRaiseTo()) legalActions.push('raise');
+            if (player.stack > 0 && (maxRaiseTo <= this.currentBet || canRaise)) legalActions.push('allin');
             const gameState = {
+                handId: this.handGeneration,
+                decisionId: `${this.phase}:${this.actionsThisRound}:${idx}`,
+                seed: `local-shortdeck:${this.handGeneration}`,
+                variant: 'shortdeck',
                 communityCards: this.communityCards,
                 pot: this.pot,
                 currentBet: this.currentBet,
-                toCall: Math.max(0, this.currentBet - (this.roundBets[idx] || 0)),
-                yourBet: this.roundBets[idx] || 0,
+                toCall,
+                yourBet: ownBet,
                 stack: player.stack,
                 effectiveStack: Math.min(player.stack, Math.max(0, ...opponentStacks)),
                 numOpponentsActive: active.length - 1,
                 dealerPosition: this.dealerPosition,
                 currentPlayerIndex: idx,
+                activeOpponentSeats: active.filter(p => p !== player)
+                    .map(p => this.players.indexOf(p)),
+                playerCount: tablePosition.playerCount,
                 positionFromButton: tablePosition.positionFromButton,
-                canCheck: (this.roundBets[idx] || 0) >= this.currentBet,
-                canRaise: this.canPlayerRaise(idx),
+                legalActions,
+                canCheck: ownBet >= this.currentBet,
+                canRaise,
                 minRaiseTo: this.getMinRaiseTo(),
-                maxRaiseTo: (this.roundBets[idx] || 0) + player.stack,
+                maxRaiseTo,
                 preflopRaiseCount: this.preflopRaiseCount,
                 isPreviousStreetAggressor: this.lastAggressor === idx &&
                     this.lastAggressorStreet === ({ flop:'preflop', turn:'flop', river:'turn' }[this.phase] || null),
@@ -1068,7 +1087,8 @@ class ShortDeckGame {
                 isBigBlind: false,
                 bigBlind: this.minBet,
                 phase: this.phase,
-                isShortDeck: true
+                isShortDeck: true,
+                timeBudgetMs: this.phase === 'river' || active.length >= 5 ? 150 : 80
             };
 
             if (this.onAIThinking) this.onAIThinking(idx);
@@ -1383,6 +1403,8 @@ class ShortDeckGame {
         const bestResult = results.reduce((best, r) =>
             (!best || (r.hand && compareSDHands(r.hand, best.hand) > 0)) ? r : best, null);
 
+        this.notifyAIsOfShowdown(results, uniqueWinners);
+
         const settledPot = this.pot;
         if (this.onHandEnd) {
             this.onHandEnd({
@@ -1401,6 +1423,27 @@ class ShortDeckGame {
         this.numHands++;
         this.pot = 0;
         if (this.onUpdate) this.onUpdate();
+    }
+
+    notifyAIsOfShowdown(results, winners) {
+        const winnerSet = new Set(winners);
+        for (let observerIdx = 0; observerIdx < this.players.length; observerIdx++) {
+            const ai = this.players[observerIdx]?.aiRef;
+            if (!ai || typeof ai.recordShowdown !== 'function') continue;
+            ai.position = observerIdx;
+            for (const result of results) {
+                const seatIdx = this.players.indexOf(result.player);
+                const action = result.player.lastAction?.action;
+                const aggressive = action === 'raise' || action === 'allin';
+                const passive = action === 'check' || action === 'call';
+                ai.recordShowdown(seatIdx, {
+                    won:winnerSet.has(result.player),
+                    handRank:result.hand?.rank ?? 0,
+                    wasBluff:aggressive && !winnerSet.has(result.player) && (result.hand?.rank ?? 0) <= 2,
+                    wasTrap:passive && winnerSet.has(result.player) && (result.hand?.rank ?? 0) >= 4
+                });
+            }
+        }
     }
 
     // ── 手牌分析 ──

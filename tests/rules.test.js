@@ -28,7 +28,7 @@ function loadBrowserRules() {
         clearTimeout: () => {},
         performance: { now: () => 0 }
     });
-    for (const relative of ['js/cards.js', 'js/probability.js', 'js/ai.js', 'js/game.js', 'js/shortdeck.js']) {
+    for (const relative of ['js/cards.js', 'js/probability.js', 'js/ai-core.js', 'js/ai.js', 'js/game.js', 'js/shortdeck.js']) {
         const filename = path.join(__dirname, '..', relative);
         vm.runInContext(fs.readFileSync(filename, 'utf8'), context, { filename });
     }
@@ -207,19 +207,16 @@ test('AI respects real stack/raise bounds and executes a remembered check-raise 
 test('blind-position AI still evaluates postflop value bets', () => {
     const ai = new browser.AIPlayer('Blind', browser.AI_STYLES.SOLID, 1000, 1);
     ai.holeCards = [new browser.Card('A','spades'), new browser.Card('A','hearts')];
-    ai._estimateEquity = () => 0.95;
-    let reachedPostflopStrategy = false;
-    ai._applyHeuristics = candidates => {
-        reachedPostflopStrategy = true;
-        return candidates.find(candidate => candidate.action === 'raise');
-    };
     const decision = ai.decide({
+        handId:1, decisionId:1, seed:'blind-value-test',
         communityCards:[new browser.Card('A','clubs'), new browser.Card('7','diamonds'), new browser.Card('2','hearts')],
         pot:300, currentBet:0, toCall:0, yourBet:0, stack:1000, effectiveStack:1000,
-        numOpponentsActive:1, bigBlind:80, minRaiseTo:80, maxRaiseTo:1000,
+        numOpponentsActive:1, activeOpponentSeats:[2], legalActions:['check','raise','allin'],
+        bigBlind:80, minRaiseTo:80, maxRaiseTo:1000,
         canRaise:true, canCheck:true, isBigBlind:true, positionFromButton:1, phase:'flop'
     });
-    assert.equal(reachedPostflopStrategy, true);
+    assert.equal(ai.lastDecisionTrace.strategyVersion, 'unified-v1');
+    assert.ok(ai.lastDecisionTrace.equity.samples >= 96);
     assert.equal(decision.action, 'raise');
 });
 
