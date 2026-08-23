@@ -1,2 +1,6 @@
 node_modules/
-dist/
+release-output/
+.release-staging/
+*.log
+*.tmp
+app.asar.codex-new
