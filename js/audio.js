@@ -1,5 +1,5 @@
 /**
- * Six-track original poker soundtrack with gapless preloading and crossfades.
+ * Four-track poker soundtrack with gapless preloading and crossfades.
  * Game sound effects remain independent in ui.js.
  */
 class BackgroundMusic {
@@ -9,7 +9,7 @@ class BackgroundMusic {
         this.ctx = null; // Existing UI uses this as a readiness marker.
         this.activePlayer = 0;
         this.isPlaying = false;
-        // Masters are normalized for headroom; 30% in the UI should still be
+        // Masters are normalized for headroom; the UI percentage should still be
         // clearly audible instead of being multiplied down to near silence.
         this.volume = 0.216;
         this.phaseGain = 1;
@@ -17,13 +17,14 @@ class BackgroundMusic {
         this.currentPattern = 0;
         this.fadeFrame = 0;
         this.transitionToken = 0;
+        this.firstTrackReady = false;
+        this.playbackMode = 'sequential';
+        this.queuedPattern = null;
         this.patterns = [
-            { name:'牌桌之下', subtitle:'Beneath the Felt', src:'assets/music/01_Beneath_the_Felt.ogg', gain:1.00 },
-            { name:'读牌者', subtitle:'The Read', src:'assets/music/02_The_Read.ogg', gain:1.00 },
-            { name:'压力几何', subtitle:'Pressure Geometry', src:'assets/music/03_Pressure_Geometry.ogg', gain:1.00 },
-            { name:'河牌之前', subtitle:'Before the River', src:'assets/music/04_Before_the_River.ogg', gain:1.00 },
-            { name:'无声诈唬', subtitle:'The Silent Bluff', src:'assets/music/05_The_Silent_Bluff.ogg', gain:1.00 },
-            { name:'最后一盏灯', subtitle:'Last Table Standing', src:'assets/music/06_Last_Table_Standing.ogg', gain:1.00 }
+            { name:'1', src:'assets/music/01.mp3', gain:1.00 },
+            { name:'2', src:'assets/music/02.mp3', gain:1.00 },
+            { name:'3', src:'assets/music/03.mp3', gain:1.00 },
+            { name:'4', src:'assets/music/04.mp3', gain:1.00 }
         ];
     }
 
@@ -42,16 +43,27 @@ class BackgroundMusic {
             this.ctx = this.audio;
             this.initialized = true;
             this._load(0, this.currentPattern);
-            this._preloadFollowing();
+            // Prioritize the first song. It is requested while the player is in
+            // the menu instead of only after the game has already started.
+            if (this.audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+                this._onFirstTrackReady();
+            } else {
+                this.audio.addEventListener('canplay', () => this._onFirstTrackReady(), { once:true });
+            }
         } catch (error) {
             console.warn('Audio not available:', error);
         }
     }
 
+    _onFirstTrackReady() {
+        this.firstTrackReady = true;
+        this._preloadFollowing();
+    }
+
     _createPlayer(index) {
         const player = new Audio();
         player.preload = index === 0 ? 'auto' : 'metadata';
-        player.loop = false;
+        player.loop = this.playbackMode === 'repeat-one';
         player.dataset.playerIndex = String(index);
         player.addEventListener('waiting', () => {
             if (this.isPlaying && index === this.activePlayer) this._emitState('loading');
@@ -61,13 +73,16 @@ class BackgroundMusic {
         });
         player.addEventListener('ended', () => {
             if (!this.isPlaying || index !== this.activePlayer) return;
-            this._transitionTo((this.currentPattern + 1) % this.patterns.length, 900, false);
+            const next = this.queuedPattern ?? this._pickNextPattern();
+            this.queuedPattern = null;
+            this._transitionTo(next, 350, false);
         });
         player.addEventListener('error', () => {
             if (!this.isPlaying || index !== this.activePlayer) return;
             this._emitState('error');
             console.warn(`Music track unavailable: ${this.patterns[this.currentPattern]?.src}`);
-            this._transitionTo((this.currentPattern + 1) % this.patterns.length, 250, false);
+            this.queuedPattern = null;
+            this._transitionTo((this.currentPattern + 1) % this.patterns.length, 100, false);
         });
         return player;
     }
@@ -89,10 +104,28 @@ class BackgroundMusic {
 
     _preloadFollowing() {
         if (!this.initialized) return;
+        if (this.playbackMode === 'repeat-one') {
+            this.queuedPattern = this.currentPattern;
+            return;
+        }
         const standby = 1 - this.activePlayer;
-        const next = (this.currentPattern + 1) % this.patterns.length;
-        this._load(standby, next, 'metadata');
+        const next = this._pickNextPattern();
+        this.queuedPattern = next;
+        // These are local assets. Fully buffering the upcoming song after the
+        // first one is playable avoids a pause at the track boundary.
+        this._load(standby, next, 'auto');
         this.players[standby].volume = 0;
+    }
+
+    _pickNextPattern(manual = false) {
+        if (!this.patterns.length) return 0;
+        if (this.playbackMode === 'repeat-one' && !manual) return this.currentPattern;
+        if (this.playbackMode === 'shuffle' && this.patterns.length > 1) {
+            let next = this.currentPattern;
+            while (next === this.currentPattern) next = Math.floor(Math.random() * this.patterns.length);
+            return next;
+        }
+        return (this.currentPattern + 1) % this.patterns.length;
     }
 
     _targetVolume(patternIndex = this.currentPattern) {
@@ -135,6 +168,7 @@ class BackgroundMusic {
         try { nextPlayer.currentTime = 0; } catch (_) {}
         nextPlayer.volume = 0;
         this.currentPattern = patternIndex;
+        this.queuedPattern = null;
         this.activePlayer = nextIndex;
         this.audio = nextPlayer;
         this.ctx = nextPlayer;
@@ -175,7 +209,9 @@ class BackgroundMusic {
         this._emitState('loading');
         const promise = this.audio.play();
         if (promise?.catch) promise.catch(error => console.warn('Music playback unavailable:', error));
-        this._fade(this.audio, 0, target, 750, token, () => this._preloadFollowing());
+        // A short ramp prevents clicks without making successful playback feel
+        // like it is still loading.
+        this._fade(this.audio, 0, target, 220, token, () => this._preloadFollowing());
     }
 
     stop(fadeMs = 350) {
@@ -210,7 +246,8 @@ class BackgroundMusic {
     }
 
     next() {
-        const nextPattern = (this.currentPattern + 1) % this.patterns.length;
+        const nextPattern = this._pickNextPattern(true);
+        this.queuedPattern = null;
         if (!this.initialized) this.init();
         if (!this.isPlaying) {
             this.currentPattern = nextPattern;
@@ -226,6 +263,16 @@ class BackgroundMusic {
     setVolume(value) {
         this.volume = Math.max(0, Math.min(.72, Number(value) || 0));
         if (this.audio && this.isPlaying && !this.fadeFrame) this.audio.volume = this._targetVolume();
+    }
+
+    setPlaybackMode(mode) {
+        const allowed = ['sequential', 'repeat-one', 'shuffle'];
+        this.playbackMode = allowed.includes(mode) ? mode : 'sequential';
+        this.queuedPattern = null;
+        // Native looping is the fastest and most gapless path for one-song mode.
+        for (const player of this.players) player.loop = this.playbackMode === 'repeat-one';
+        if (this.initialized && this.playbackMode !== 'repeat-one') this._preloadFollowing();
+        return this.playbackMode;
     }
 
     setGamePhase(phase) {

@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
-    <title>德州扑克 v1.4.0</title>
+    <title>德州扑克 v1.5.0</title>
+    <link rel="preload" href="assets/music/01.mp3" as="audio" type="audio/mpeg">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -36,7 +37,7 @@
     <div id="app">
         <!-- Header -->
         <div class="header">
-            <h1>♠ <span>Texas</span> Hold'em ♥ <small class="app-version">v1.4.0</small></h1>
+            <h1>♠ <span>Texas</span> Hold'em ♥ <small class="app-version">v1.5.0</small></h1>
             <div class="header-info">
                 <span>🎴 手牌 #<span class="hand-count" id="handCount">0</span></span>
                 <span class="blinds-info">
@@ -46,9 +47,11 @@
                 <span class="music-controls">
                     <button class="music-btn" id="musicBtn" data-ui-action="toggle-music" title="切换背景音乐">🎵 音乐关</button>
                     <button class="music-btn skip-btn" id="skipBtn" data-ui-action="skip-song" title="下一首">⏭️</button>
+                    <button class="music-btn playback-mode-btn" id="playbackModeBtn" data-ui-action="cycle-playback-mode"
+                            title="当前：顺序播放">🔁 顺序</button>
                     <span class="vol-control">
                         <label for="volSlider" style="font-size:11px;color:#888;">🔊</label>
-                        <input type="range" id="volSlider" min="0" max="100" value="30"
+                        <input type="range" id="volSlider" min="0" max="100" value="50"
                                data-ui-input="volume" style="width:60px;accent-color:#e94560;cursor:pointer;">
                     </span>
                 </span>

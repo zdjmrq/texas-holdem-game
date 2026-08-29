@@ -37,14 +37,16 @@ let onlineOutsResult = null;
 let onlineProbabilityKey = '';
 
 const APP_SETTINGS_KEY = 'texas-holdem-settings-v1';
+const MUSIC_SETTINGS_VERSION = 2;
 const AI_SPEED_LEVELS = [
     { label: '快速', delay: 800 },
     { label: '标准', delay: 1800 },
     { label: '沉浸', delay: 3200 }
 ];
 let selectedAiDelay = AI_SPEED_LEVELS[1].delay;
-let musicPreference = 'auto';
-let selectedMusicVolume = 30;
+let musicPreference = 'off';
+let selectedMusicVolume = 50;
+let musicPlaybackMode = 'sequential';
 
 function loadAppSettings() {
     try {
@@ -60,8 +62,15 @@ function loadAppSettings() {
         const speed = AI_SPEED_LEVELS.find(level => level.delay === saved.aiDelay);
         if (speed) selectedAiDelay = speed.delay;
         if (saved.gameMode === 'standard' || saved.gameMode === 'shortdeck') gameMode = saved.gameMode;
-        if (['auto', 'on', 'off'].includes(saved.musicPreference)) musicPreference = saved.musicPreference;
-        if (Number.isFinite(saved.musicVolume)) selectedMusicVolume = Math.max(0, Math.min(100, saved.musicVolume));
+        // Version 2 intentionally resets the replaced soundtrack to the new
+        // defaults once: off, 50 volume and sequential playback.
+        if (saved.musicSettingsVersion === MUSIC_SETTINGS_VERSION) {
+            if (['on', 'off'].includes(saved.musicPreference)) musicPreference = saved.musicPreference;
+            if (Number.isFinite(saved.musicVolume)) selectedMusicVolume = Math.max(0, Math.min(100, saved.musicVolume));
+            if (['sequential', 'repeat-one', 'shuffle'].includes(saved.musicPlaybackMode)) {
+                musicPlaybackMode = saved.musicPlaybackMode;
+            }
+        }
     } catch (_) {}
 }
 
@@ -77,6 +86,8 @@ function saveAppSettings() {
             gameMode,
             musicPreference,
             musicVolume: selectedMusicVolume,
+            musicPlaybackMode,
+            musicSettingsVersion: MUSIC_SETTINGS_VERSION,
             serverUrl: serverInput ? serverInput.value.trim() : undefined,
             playerName: nameInput ? nameInput.value.trim().slice(0, 8) : undefined
         }));
@@ -205,6 +216,7 @@ function applyRoomConfigFromServer(message) {
     const stack = Number(config.startingStack);
     const small = Number(config.smallBlind || config.ante);
     const big = Number(config.bigBlind || config.minBet);
+    const aiDelay = Number(config.aiDelay);
     if (typeof config.isShortDeck === 'boolean') gameMode = config.isShortDeck ? 'shortdeck' : 'standard';
     if (STARTING_STACK_LEVELS.includes(stack)) selectedStartingStack = stack;
     const blindLevel = BLIND_LEVELS.find(level => level.small === small && level.big === big);
@@ -212,6 +224,7 @@ function applyRoomConfigFromServer(message) {
         selectedSmallBlind = blindLevel.small;
         selectedBigBlind = blindLevel.big;
     }
+    if (AI_SPEED_LEVELS.some(level => level.delay === aiDelay)) selectedAiDelay = aiDelay;
     document.querySelectorAll('.mode-btn').forEach(button => {
         button.classList.toggle('selected', button.dataset.mode === gameMode);
     });
@@ -1129,7 +1142,8 @@ function doJoinRoom() {
         smallBlind: selectedSmallBlind,
         bigBlind: selectedBigBlind,
         ante: selectedSmallBlind,
-        minBet: selectedBigBlind
+        minBet: selectedBigBlind,
+        aiDelay: selectedAiDelay
     });
 }
 
@@ -2234,11 +2248,13 @@ function showShowdown(result) {
 
 function closeModalAndContinue() {
     if (playMode === 'online') {
-        // 联网模式：发准备信号 + 按钮显示等待
+        // 多人桌等待其他真人；单人桌只等待服务端开始下一手。
         sendReadyForNext();
         const btn = document.querySelector('#showdownModal .modal-btn');
         if (btn) {
-            btn.textContent = '⏳ 等待其他玩家...';
+            const connectedHumans = (network.gameState?.players || []).filter(player =>
+                player.isHuman && player.connected && player.stack > 0).length;
+            btn.textContent = connectedHumans <= 1 ? '⏳ 正在开始下一手...' : '⏳ 等待其他玩家...';
             btn.disabled = true;
             btn.style.opacity = '0.6';
             btn.style.cursor = 'not-allowed';
@@ -2702,7 +2718,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const volumeSlider = document.getElementById('volSlider');
     if (volumeSlider) volumeSlider.value = selectedMusicVolume;
     if (typeof bgMusic !== 'undefined') bgMusic.setVolume(musicVolumeFromSlider(selectedMusicVolume));
+    if (typeof bgMusic !== 'undefined') bgMusic.setPlaybackMode(musicPlaybackMode);
+    // Fetch the first local track while game settings are being chosen. Actual
+    // playback still starts only after a user action/game start.
+    if (typeof bgMusic !== 'undefined') bgMusic.init();
     updateMusicButton(false);
+    updatePlaybackModeButton();
 
     ['serverAddress', 'playerNameInput'].forEach(id => {
         const input = document.getElementById(id);
@@ -2790,6 +2811,28 @@ function setVolume(val) {
     saveAppSettings();
 }
 
+function updatePlaybackModeButton() {
+    const button = document.getElementById('playbackModeBtn');
+    if (!button) return;
+    const modes = {
+        sequential:{ label:'🔁 顺序', title:'当前：顺序播放' },
+        'repeat-one':{ label:'🔂 单曲', title:'当前：单曲循环' },
+        shuffle:{ label:'🔀 随机', title:'当前：随机播放' }
+    };
+    const view = modes[musicPlaybackMode] || modes.sequential;
+    button.textContent = view.label;
+    button.title = `${view.title}；点击切换`;
+    button.setAttribute('aria-label', button.title);
+}
+
+function cycleMusicPlaybackMode() {
+    const modes = ['sequential', 'repeat-one', 'shuffle'];
+    musicPlaybackMode = modes[(modes.indexOf(musicPlaybackMode) + 1) % modes.length];
+    bgMusic.setPlaybackMode(musicPlaybackMode);
+    updatePlaybackModeButton();
+    saveAppSettings();
+}
+
 function skipSong() {
     try {
         if (!bgMusic.initialized || !bgMusic.ctx) {
@@ -2867,6 +2910,7 @@ window.confirmRaise = confirmRaise;
 window.closeModalAndContinue = closeModalAndContinue;
 window.showMessage = showMessage;
 window.showAIMessage = showAIMessage;
+window.cycleMusicPlaybackMode = cycleMusicPlaybackMode;
 window.toggleMusic = toggleMusic;
 window.toggleRules = toggleRules;
 window.toggleProbPanel = toggleProbPanel;

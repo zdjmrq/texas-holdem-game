@@ -1674,6 +1674,12 @@ body {
     padding: 4px 8px !important;
 }
 
+.playback-mode-btn {
+    min-width: 70px;
+    padding: 4px 9px !important;
+    white-space: nowrap;
+}
+
 /* ===== Floating Action Animation ===== */
 .floating-action {
     position: absolute;

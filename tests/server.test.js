@@ -3,7 +3,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { WebSocket } = require('ws');
-const { startLocalPokerServer } = require('../server/local-server');
+const { startLocalPokerServer, sanitizeConfig } = require('../server/local-server');
+
+test('room config accepts only the host AI speed levels', () => {
+    assert.equal(sanitizeConfig({ aiDelay:800 }).aiDelay, 800);
+    assert.equal(sanitizeConfig({ aiDelay:1800 }).aiDelay, 1800);
+    assert.equal(sanitizeConfig({ aiDelay:3200 }).aiDelay, 3200);
+    assert.equal(sanitizeConfig({ aiDelay:999999 }, 450).aiDelay, 450);
+});
 
 test('default per-IP capacity fits a full ten-seat room plus reconnects', async () => {
     const server = await startLocalPokerServer({ port:0, host:'127.0.0.1' });
@@ -306,9 +313,10 @@ test('local server keeps two clients authoritative, private, resumable and synch
     const c = await new TestClient(url).connect();
     clients.push(c);
     const markC = c.mark();
-    c.send(joinPayload('2', 'Short', { isShortDeck:true }));
+    c.send(joinPayload('2', 'Short', { isShortDeck:true, aiDelay:3200 }));
     const joinedC = await c.waitAfter(markC, message => message.type === 'room_created');
     assert.equal(joinedC.roomConfig.isShortDeck, true);
+    assert.equal(joinedC.roomConfig.aiDelay, 3200);
     const shortStart = c.mark();
     c.send({ type:'start_game', requestId:'start-short', roomCode:'2' });
     const shortState = await c.waitAfter(shortStart,

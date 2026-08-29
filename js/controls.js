@@ -8,6 +8,7 @@
     const actions = {
         'toggle-music': () => toggleMusic(),
         'skip-song': () => skipSong(),
+        'cycle-playback-mode': () => cycleMusicPlaybackMode(),
         refresh: () => doRefresh(),
         home: () => goHome(),
         fullscreen: () => toggleFullscreen(),

@@ -179,7 +179,8 @@ function roomOptions(options = {}) {
         smallBlind: Math.max(1, Math.floor(Number(options.smallBlind) || 40)),
         bigBlind: Math.max(1, Math.floor(Number(options.bigBlind) || 80)),
         ante: Math.max(1, Math.floor(Number(options.ante) || 40)),
-        minBet: Math.max(1, Math.floor(Number(options.minBet) || 80))
+        minBet: Math.max(1, Math.floor(Number(options.minBet) || 80)),
+        aiDelay: Math.max(0, Math.floor(Number(options.aiDelay) || 1800))
     };
 }
 

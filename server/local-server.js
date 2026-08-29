@@ -7,6 +7,7 @@ const { ServerPokerGame, chooseServerAiAction, createServerAi } = require('./ser
 const PROTOCOL_VERSION = 2;
 const STACK_LEVELS = [5000, 10000, 20000, 50000, 100000];
 const BLIND_LEVELS = [[10,20], [20,40], [40,80], [50,100], [100,200], [200,400]];
+const AI_DELAY_LEVELS = [800, 1800, 3200];
 
 function token(bytes = 18) { return crypto.randomBytes(bytes).toString('base64url'); }
 function playerId() { return crypto.randomUUID(); }
@@ -23,7 +24,7 @@ function normalizeName(value) {
     return [...(clean || '玩家')].slice(0, 8).join('');
 }
 
-function sanitizeConfig(input = {}) {
+function sanitizeConfig(input = {}, fallbackAiDelay = 1800) {
     const isShortDeck = !!input.isShortDeck;
     const startingCandidate = Math.floor(Number(input.startingStack) || 20000);
     const startingStack = STACK_LEVELS.includes(startingCandidate) ? startingCandidate : 20000;
@@ -32,6 +33,10 @@ function sanitizeConfig(input = {}) {
     const pair = BLIND_LEVELS.find(([small, big]) => small === smallCandidate && big === bigCandidate) || [40, 80];
     const maxLimit = isShortDeck ? 8 : 10;
     const maxPlayers = Math.max(2, Math.min(maxLimit, Math.floor(Number(input.maxPlayers) || (isShortDeck ? 6 : 10))));
+    const requestedAiDelay = Math.floor(Number(input.aiDelay));
+    const aiDelay = AI_DELAY_LEVELS.includes(requestedAiDelay)
+        ? requestedAiDelay
+        : boundedNumber(fallbackAiDelay, 1800, 0, 10000, true);
     return {
         maxPlayers,
         isShortDeck,
@@ -39,7 +44,8 @@ function sanitizeConfig(input = {}) {
         smallBlind: pair[0],
         bigBlind: pair[1],
         ante: pair[0],
-        minBet: pair[1]
+        minBet: pair[1],
+        aiDelay
     };
 }
 
@@ -224,7 +230,9 @@ class PokerRoomServer {
             }
             room = {
                 code,
-                config: sanitizeConfig(message),
+                // The first player creates the room and is therefore the host.
+                // Keep their AI pace in the authoritative room config.
+                config: sanitizeConfig(message, this.aiDelay),
                 players: [],
                 hostId: null,
                 game: null,
@@ -488,7 +496,7 @@ class PokerRoomServer {
                 const decision = chooseServerAiAction(game, idx);
                 if (decision) game.act(idx, decision.action, decision.amount);
             });
-        }, this.aiDelay);
+        }, room.config.aiDelay ?? this.aiDelay);
     }
 
     enqueueAi(job) {
