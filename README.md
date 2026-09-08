@@ -1,5 +1,7 @@
 # 德州扑克 v1.5.0
 
+Android 安装包：[下载 APK](https://github.com/zdjmrq/texas-holdem-game/releases/tag/v1.5.0-android.1) · [安装、联网与构建说明](RELEASE_ANDROID.md)。支持 Android 8.0 及以上，本地 AI 对战可离线运行。
+
 Electron 桌面德州扑克游戏，支持标准德州、短牌 6+、本地 AI 对局和本地 WebSocket 联机房间。
 
 ## v1.5.0 重点变化

@@ -107,6 +107,16 @@ function restoreSavedInputs() {
 }
 
 async function syncLocalServerEndpoint() {
+    if (navigator.userAgent.includes('TexasHoldemAndroid/')) {
+        const hint = document.getElementById('localServerHint');
+        if (hint) hint.textContent = '安卓端不启动服务器；请输入电脑或服务器的 WebSocket 地址，不能使用 localhost。';
+        const serverInput = document.getElementById('serverAddress');
+        if (serverInput && /^ws:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(serverInput.value)) {
+            serverInput.value = '';
+            serverInput.placeholder = 'ws://电脑局域网IP:3000 或 wss://服务器域名';
+        }
+        return;
+    }
     if (!window.windowControls?.getLocalServerUrl) return;
     try {
         const localUrl = await window.windowControls.getLocalServerUrl();

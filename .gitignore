@@ -4,3 +4,9 @@ release-output/
 *.log
 *.tmp
 app.asar.codex-new
+android/.gradle/
+android/**/build/
+android/local.properties
+*.jks
+*.keystore
+*signing*.properties

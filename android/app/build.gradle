@@ -1,0 +1,48 @@
+plugins { id 'com.android.application' }
+
+def signing = new Properties()
+def signingFile = System.getenv('POKER_SIGNING_PROPERTIES')
+if (signingFile) file(signingFile).withInputStream { signing.load(it) }
+
+android {
+    namespace 'com.zdjmrq.texasholdem'
+    compileSdk 36
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    defaultConfig {
+        applicationId 'com.zdjmrq.texasholdem'
+        minSdk 26
+        targetSdk 36
+        versionCode 10500
+        versionName '1.5.0'
+    }
+    signingConfigs {
+        if (signingFile) {
+            release {
+                storeFile file(signing['storeFile'])
+                storePassword signing['storePassword']
+                keyAlias signing['keyAlias']
+                keyPassword signing['keyPassword']
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (signingFile) signingConfig signingConfigs.release
+            minifyEnabled false
+        }
+    }
+    sourceSets.main.assets.srcDir layout.buildDirectory.dir('generated/gameAssets')
+}
+
+tasks.register('syncGameAssets', Sync) {
+    from('../..') {
+        include 'index.html', 'js/**', 'css/**', 'assets/**'
+    }
+    into layout.buildDirectory.dir('generated/gameAssets')
+}
+tasks.named('preBuild').configure { dependsOn 'syncGameAssets' }
+
+dependencies { implementation 'androidx.webkit:webkit:1.14.0' }
