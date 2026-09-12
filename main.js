@@ -9,6 +9,16 @@ let mainWindow = null;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 
+// The authoritative room server runs inside this process, so a single escaped
+// error (a malformed client message, a bug in one AI's bookkeeping) would
+// otherwise close the whole desktop application. Keep the UI alive and log it.
+process.on('uncaughtException', error => {
+    console.error('[main] uncaught exception:', error?.stack || error);
+});
+process.on('unhandledRejection', reason => {
+    console.error('[main] unhandled rejection:', reason?.stack || reason);
+});
+
 app.on('second-instance', () => {
     if (!mainWindow) return;
     if (mainWindow.isMinimized()) mainWindow.restore();

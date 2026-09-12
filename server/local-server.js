@@ -8,6 +8,10 @@ const PROTOCOL_VERSION = 2;
 const STACK_LEVELS = [5000, 10000, 20000, 50000, 100000];
 const BLIND_LEVELS = [[10,20], [20,40], [40,80], [50,100], [100,200], [200,400]];
 const AI_DELAY_LEVELS = [800, 1800, 3200];
+// How long a played-out, empty room keeps its slot and resume tokens. Long
+// enough for a accidental refresh to reconnect, short enough that the three
+// available rooms are not blocked for a minute.
+const EMPTY_ROOM_TTL_MS = 15000;
 
 function token(bytes = 18) { return crypto.randomBytes(bytes).toString('base64url'); }
 function playerId() { return crypto.randomUUID(); }
@@ -19,9 +23,13 @@ function boundedNumber(value, fallback, minimum, maximum, integer = false) {
     return integer ? Math.floor(bounded) : bounded;
 }
 
+const MAX_NAME_LENGTH = 8;
 function normalizeName(value) {
-    const clean = String(value || '玩家').normalize('NFKC').replace(/[\u0000-\u001f\u007f]/g, '').trim();
-    return [...(clean || '玩家')].slice(0, 8).join('');
+    // Bound the raw input before doing any work so a huge payload cannot be
+    // turned into a huge name.
+    const clean = String(value || '玩家').slice(0, 256).normalize('NFKC')
+        .replace(/[\u0000-\u001f\u007f]/g, '').trim();
+    return [...(clean || '玩家')].slice(0, MAX_NAME_LENGTH).join('');
 }
 
 function sanitizeConfig(input = {}, fallbackAiDelay = 1800) {
@@ -184,7 +192,14 @@ class PokerRoomServer {
             let message;
             try { message = JSON.parse(data.toString('utf8')); }
             catch (_) { this.error(ws, '消息格式无效'); return; }
-            this.handle(ws, message);
+            // A malformed or hostile payload must never escape as an uncaught
+            // exception: the room server shares its process with the desktop UI.
+            try {
+                this.handle(ws, message);
+            } catch (error) {
+                console.error('[poker-server] message handling failed:', error?.message || error);
+                this.error(ws, '服务端处理失败，请重试', message?.requestId);
+            }
         });
         ws.on('close', () => this.onDisconnect(ws, false));
         ws.on('error', () => {});
@@ -198,6 +213,12 @@ class PokerRoomServer {
 
     handle(ws, message) {
         if (!message || typeof message.type !== 'string') return this.error(ws, '缺少消息类型', message?.requestId);
+        // Clients announce their protocol in hello; refuse anything else instead
+        // of silently interpreting a payload we may not understand.
+        const announced = message.protocolVersion;
+        if (announced !== undefined && Number(announced) !== PROTOCOL_VERSION) {
+            return this.error(ws, `协议版本不匹配（服务端 v${PROTOCOL_VERSION}）`, message.requestId, 'PROTOCOL_MISMATCH');
+        }
         switch (message.type) {
             case 'join_room': return this.joinRoom(ws, message);
             case 'create_room': return this.createRoom(ws, message);
@@ -239,7 +260,10 @@ class PokerRoomServer {
                 stateVersion: 0,
                 ready: new Set(),
                 aiTimer: null,
-                cleanupTimer: null
+                cleanupTimer: null,
+                // Rooms that were opened but never used should not hold one of the
+                // few available slots for a full minute.
+                createdAt: Date.now()
             };
             this.rooms.set(code, room);
         }
@@ -646,13 +670,21 @@ class PokerRoomServer {
     cleanupRoom(room) {
         if (room.cleanupTimer) clearTimeout(room.cleanupTimer);
         if (room.players.some(item => item.isHuman && item.connected && !item.left)) return;
+        // A room that never dealt a hand holds no game state worth resuming, so
+        // free its slot immediately instead of making the next host wait 60s for
+        // "房间已满".
+        if (!room.game) {
+            for (const player of room.players) if (player.resumeToken) this.sessions.delete(player.resumeToken);
+            this.rooms.delete(room.code);
+            return;
+        }
         room.cleanupTimer = setTimeout(() => {
             if (room.players.some(item => item.isHuman && item.connected && !item.left)) return;
             if (room.aiTimer) clearTimeout(room.aiTimer);
             if (room.nextHandTimer) clearTimeout(room.nextHandTimer);
             for (const player of room.players) if (player.resumeToken) this.sessions.delete(player.resumeToken);
             this.rooms.delete(room.code);
-        }, 60000);
+        }, EMPTY_ROOM_TTL_MS);
         room.cleanupTimer.unref?.();
     }
 

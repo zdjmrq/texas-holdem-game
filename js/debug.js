@@ -118,7 +118,6 @@
         document.body.appendChild(t);
         setTimeout(function(){ t.style.opacity = '0'; setTimeout(function(){ t.remove(); },500); },2000);
     }
-    window.showDebugToast = showToast;
 
     function addEntry(type, msg, src, line, col, stack, detail){
         var entry = { time: ts(), type: type||'error', msg: msg, src: src||'', line: line||0, col: col||0, stack: stack||'', detail: detail||'' };

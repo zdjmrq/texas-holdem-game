@@ -18,6 +18,38 @@ const SHARED_AI_CORE = (typeof module !== 'undefined' && module.exports)
     ? require('./ai-core')
     : globalThis.PokerAICore;
 
+// ── Hand evaluator fallback ──
+// The browser loads ai-core.js right after probability-core.js, so the shared
+// core is already on the page. Node (the room server) has no such globals, so
+// resolve the same implementation through require() instead. Without this the
+// server would silently fall back to the standard-deck evaluator and compute
+// short-deck equities with the wrong hand ranking (flush must beat a full
+// house, and the wheel is A-6-7-8-9).
+let _portableEvaluate = undefined;
+function portableEvaluate() {
+    if (_portableEvaluate !== undefined) return _portableEvaluate;
+    _portableEvaluate = null;
+    try {
+        if (typeof PokerProbabilityCore !== 'undefined' && PokerProbabilityCore) {
+            _portableEvaluate = PokerProbabilityCore;
+        } else if (typeof module !== 'undefined' && module.exports) {
+            _portableEvaluate = require('./probability-core');
+        }
+    } catch (error) {
+        console.warn('Probability core unavailable for AI equity:', error?.message || error);
+    }
+    return _portableEvaluate;
+}
+
+function fallbackHandEvaluator(cards, variant) {
+    const isShort = variant === 'shortdeck';
+    const core = portableEvaluate();
+    if (core && typeof core.evaluate === 'function') return core.evaluate(cards, isShort);
+    if (isShort && typeof evaluateSDHand === 'function') return evaluateSDHand(cards);
+    if (typeof evaluateHand === 'function') return evaluateHand(cards);
+    throw new Error('No hand evaluator is available for shared AI');
+}
+
 // ── Style definitions ──
 const AI_STYLES = { TAG:'TAG', LAG:'LAG', SOLID:'SOLID', MANIAC:'MANIAC', TAGFISH:'TAGFISH', CALLING:'CALLING_STATION' };
 const AI_NAMES = ['Alex','Blake','Casey','Drew','Emma','Finn','Grace','Hayes','Ivy','Jade'];
@@ -886,11 +918,7 @@ class AIPlayer {
         }
         let evaluator = gameState.evaluateCards;
         if (typeof evaluator !== 'function') {
-            evaluator = (cards, variant) => {
-                if (variant === 'shortdeck' && typeof evaluateSDHand === 'function') return evaluateSDHand(cards);
-                if (typeof evaluateHand === 'function') return evaluateHand(cards);
-                throw new Error('No hand evaluator is available for shared AI');
-            };
+            evaluator = fallbackHandEvaluator;
         }
         const result = this.sharedBrain.decide({
             ...gameState,

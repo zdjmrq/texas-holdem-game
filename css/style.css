@@ -450,17 +450,6 @@ body {
     border-color: #e94560;
 }
 
-.player-seat.winner {
-    border-color: #4caf50;
-    box-shadow: 0 0 30px rgba(76, 175, 80, 0.5);
-    animation: winnerGlow 1s ease-in-out infinite alternate;
-}
-
-@keyframes winnerGlow {
-    from { box-shadow: 0 0 20px rgba(76, 175, 80, 0.3); }
-    to { box-shadow: 0 0 40px rgba(76, 175, 80, 0.7); }
-}
-
 .player-avatar {
     font-size: 22px;
     margin-bottom: 2px;
@@ -510,7 +499,6 @@ body {
 .action-call { color: #4caf50; background: rgba(76, 175, 80, 0.15); }
 .action-raise { color: #ff9800; background: rgba(255, 152, 0, 0.15); }
 .action-allin { color: #e94560; background: rgba(233, 69, 96, 0.15); }
-.action-blind { color: #9c27b0; background: rgba(156, 39, 176, 0.15); }
 
 /* Cards */
 .card {
@@ -1078,25 +1066,6 @@ body {
     box-shadow: 0 4px 20px rgba(233, 69, 96, 0.4);
 }
 
-/* Dealer Button */
-.dealer-btn {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: #ffd700;
-    color: #333;
-    font-size: 10px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-    z-index: 2;
-}
-
 /* Status Messages */
 .game-status {
     text-align: center;
@@ -1197,39 +1166,6 @@ body {
 ::-webkit-scrollbar-thumb { background: #e94560; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #ff6b81; }
 
-/* Chip stack animation */
-.chip-stack {
-    display: inline-block;
-    animation: chipBounce 0.3s ease;
-}
-
-@keyframes chipBounce {
-    0% { transform: scale(0.8); }
-    50% { transform: scale(1.1); }
-    100% { transform: scale(1); }
-}
-
-/* Tooltip */
-.tooltip {
-    position: relative;
-    cursor: help;
-}
-
-.tooltip:hover::after {
-    content: attr(data-tip);
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.9);
-    color: #fff;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 11px;
-    white-space: nowrap;
-    z-index: 100;
-}
-
 .table-decor {
     position: absolute;
     font-size: 80px;
@@ -1240,16 +1176,6 @@ body {
 .table-decor.d1 { top: 10%; left: 10%; transform: rotate(-20deg); }
 .table-decor.d2 { bottom: 10%; right: 10%; transform: rotate(20deg); }
 .table-decor.d3 { top: 40%; left: 50%; transform: translateX(-50%) rotate(0); }
-
-/* Side pot indicator */
-.side-pot-badge {
-    font-size: 10px;
-    padding: 1px 6px;
-    background: rgba(255, 152, 0, 0.2);
-    color: #ff9800;
-    border-radius: 6px;
-    margin-left: 4px;
-}
 
 .betting-round-label {
     position: absolute;
@@ -1822,13 +1748,6 @@ body {
 @keyframes fadeInExplain {
     from { opacity: 0; transform: translateY(-5px); }
     to { opacity: 1; transform: translateY(0); }
-}
-
-/* ===== Winner Announcement Animation ===== */
-@keyframes winAnnounce {
-    0% { transform: scale(0) rotate(-10deg); opacity: 0; }
-    50% { transform: scale(1.2) rotate(3deg); }
-    100% { transform: scale(1) rotate(0); opacity: 1; }
 }
 
 /* ===== Active Player Enhanced Glow ===== */

@@ -37,7 +37,13 @@ function combinations(items, size) {
     return output;
 }
 
+// Only defined for exactly five ranks: the first/last window test below is a
+// correct straight detector for 5 cards, but for 6-7 ranks a straight can sit
+// lower in the sorted list (e.g. 8,6,5,4,3,2 contains 6-5-4-3-2) and this
+// implementation would miss it. evaluateHand() always passes 5-card
+// combinations, so reject anything else loudly instead of answering wrongly.
 function straightHigh(values, isShortDeck) {
+    if (!Array.isArray(values) || values.length !== 5) return false;
     const unique = [...new Set(values)].sort((a, b) => b - a);
     if (unique.length < 5) return false;
     if (unique[0] - unique[4] === 4) return unique[0];

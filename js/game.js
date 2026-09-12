@@ -300,9 +300,17 @@ class PokerGame {
         this.notifyAIsOfAction(playerIndex, blindName);
     }
 
+    /** Seat index of the human player (0 for the standard single-human table) */
+    get humanSeat() {
+        const index = this.players.indexOf(this.humanPlayer);
+        return index >= 0 ? index : 0;
+    }
+
     /** Check if it's the human player's turn */
+    /** Delegates to the shared betting engine (js/engine.js). */
     isPlayerTurn() {
-        return this.currentPlayerIndex === 0 && this.players[0] && !this.players[0].folded && !this.players[0].isAllIn;
+        const game = this;
+        return PokerEngine.isPlayerTurn(game);
     }
 
     /** Get the current player object */
@@ -311,150 +319,85 @@ class PokerGame {
     }
 
     /** Get active (not folded, not busted) players */
+    /** Delegates to the shared betting engine (js/engine.js). */
     getActivePlayers() {
-        return this.players.filter(p => !p.folded && p.stack > 0);
+        const game = this;
+        return PokerEngine.getActivePlayers(game);
     }
 
     /** Get players still in the hand (not folded, has chips or all-in) */
+    /** Delegates to the shared betting engine (js/engine.js). */
     getPlayersInHand() {
-        return this.players.filter(p => !p.folded);
+        const game = this;
+        return PokerEngine.getPlayersInHand(game);
     }
 
     /** Get next active player starting from pos */
+    /** Delegates to the shared betting engine (js/engine.js). */
     getNextActivePlayer(startPos) {
-        const n = this.players.length;
-        for (let i = 1; i < n; i++) {
-            const idx = (startPos + i) % n;
-            if (!this.players[idx].folded && this.players[idx].stack > 0 && !this.players[idx].isAllIn) {
-                return idx;
-            }
-        }
-        return -1;
+        const game = this;
+        return PokerEngine.getNextActivePlayer(game, startPos);
     }
 
     /** Get next player (for dealing, can be all-in) */
+    /** Delegates to the shared betting engine (js/engine.js). */
     getNextPlayerInHand(startPos) {
-        const n = this.players.length;
-        for (let i = 1; i < n; i++) {
-            const idx = (startPos + i) % n;
-            if (!this.players[idx].folded) {
-                return idx;
-            }
-        }
-        return -1;
+        const game = this;
+        return PokerEngine.getNextPlayerInHand(game, startPos);
     }
 
     /** Position among seats actually dealt into this hand, ignoring empty/busted seats. */
+    /** Delegates to the shared betting engine (js/engine.js). */
     getHandPositionInfo(playerIndex) {
-        let seats = Array.isArray(this.playersDealtThisHand)
-            ? this.playersDealtThisHand.map(player => this.players.indexOf(player)).filter(index => index >= 0)
-            : [];
-        if (!seats.length) {
-            seats = this.players.map((player, index) => player.holeCards?.length === 2 ? index : -1)
-                .filter(index => index >= 0);
-        }
-        seats.sort((a, b) => ((a - this.dealerPosition + this.players.length) % this.players.length) -
-            ((b - this.dealerPosition + this.players.length) % this.players.length));
-        return {
-            positionFromButton: Math.max(0, seats.indexOf(playerIndex)),
-            playerCount: Math.max(2, seats.length)
-        };
+        const game = this;
+        return PokerEngine.getHandPositionInfo(game, playerIndex);
     }
 
     /** Find the next live player who has not acted or has chips left to call. */
+    /** Delegates to the shared betting engine (js/engine.js). */
     getNextPlayerNeedingAction(startPos) {
-        const n = this.players.length;
-        for (let step = 1; step <= n; step++) {
-            const idx = (startPos + step) % n;
-            const player = this.players[idx];
-            if (!player || player.folded || player.isAllIn || player.stack <= 0) continue;
-            const matched = (this.roundBets[idx] || 0) >= this.currentBet;
-            if (!matched || !this.playersActed.has(idx)) return idx;
-        }
-        return -1;
+        const game = this;
+        return PokerEngine.getNextPlayerNeedingAction(game, startPos);
     }
 
     /** Whether this player still has the right to make a raise this round. */
+    /** Delegates to the shared betting engine (js/engine.js). */
     canPlayerRaise(playerIndex) {
-        const player = this.players[playerIndex];
-        if (!player || player.folded || player.isAllIn || player.stack <= 0) return false;
-        if (!this.playersActed.has(playerIndex)) return true;
-        // Multiple short all-ins can cumulatively reopen action. Compare the
-        // total increase this player now faces with the full-raise size that
-        // applied when they last acted (TDA Rule 47 semantics).
-        const facedBefore = this.actedAtBet[playerIndex] || 0;
-        const required = this.raiseSizeAtAction[playerIndex] || this.bigBlind;
-        return this.currentBet - facedBefore >= required;
+        const game = this;
+        return PokerEngine.canPlayerRaise(game, playerIndex);
     }
 
+    /** Delegates to the shared betting engine (js/engine.js). */
     recordRoundAction(playerIndex) {
-        this.playersActed.add(playerIndex);
-        this.actedAtBet[playerIndex] = this.currentBet;
-        this.raiseSizeAtAction[playerIndex] = Math.max(this.lastRaise, this.bigBlind);
+        const game = this;
+        return PokerEngine.recordRoundAction(game, playerIndex);
     }
 
+    /** Delegates to the shared betting engine (js/engine.js). */
     getMinRaiseTo() {
-        if (this.currentBet === 0) return this.bigBlind;
-        if (!this.hasFullBetThisRound && this.currentBet < this.bigBlind) return this.bigBlind;
-        return this.currentBet + Math.max(this.lastRaise, this.bigBlind);
+        const game = this;
+        return PokerEngine.getMinRaiseTo(game);
     }
 
     /** Auto-close a round when nobody has a call/fold decision left. */
+    /** Delegates to the shared betting engine (js/engine.js). */
     markRoundCompleteIfNoDecision() {
-        const live = this.getPlayersInHand().filter(p => !p.isAllIn && p.stack > 0);
-        if (live.length === 0) return true;
-        if (live.length !== 1) return false;
-        const idx = this.players.indexOf(live[0]);
-        const toCall = Math.max(0, this.currentBet - (this.roundBets[idx] || 0));
-        if (toCall > 0) return false;
-        this.recordRoundAction(idx);
-        this.bbNeedsOption = false;
-        return true;
+        const game = this;
+        return PokerEngine.markRoundCompleteIfNoDecision(game);
     }
 
     /** Return a unique unmatched top wager before advancing the street. */
+    /** Delegates to the shared betting engine (js/engine.js). */
     refundUncalledBet() {
-        const uncalled = PokerGameRules.findUncalledRefund(this.roundBets);
-        if (!uncalled) return 0;
-        const player = this.players[uncalled.index];
-        if (!player) return 0;
-        const refund = uncalled.refund;
-        player.stack += refund;
-        player.chipsInPot -= refund;
-        this.pot -= refund;
-        this.roundBets[uncalled.index] -= refund;
-        if (player.isAllIn && player.stack > 0) player.isAllIn = false;
-
-        const liveBets = this.getPlayersInHand().map(p => this.roundBets[this.players.indexOf(p)] || 0);
-        this.currentBet = liveBets.length ? Math.max(...liveBets) : 0;
-        return refund;
+        const game = this;
+        return PokerEngine.refundUncalledBet(game);
     }
 
     /** Check if betting round is complete */
+    /** Delegates to the shared betting engine (js/engine.js). */
     isBettingRoundComplete() {
-        const inHand = this.getPlayersInHand();
-        if (inHand.length <= 1) return true;
-
-        // Every active non-all-in player must have acted AND matched the current bet
-        for (const p of inHand) {
-            if (p.isAllIn) continue;
-            const idx = this.players.indexOf(p);
-            const myBet = this.roundBets[idx] || 0;
-            // Must have matched the current bet
-            if (myBet < this.currentBet) return false;
-            // Must have acted this round
-            if (!this.playersActed.has(idx)) return false;
-        }
-
-        // Pre-flop BB option: if no raise, BB gets a chance to check/raise
-        if (this.phase === 'preflop' && this.bbNeedsOption) {
-            const bb = this.players[this.bbIndex];
-            if (!bb.folded && !bb.isAllIn && this.currentBet === this.bigBlind) {
-                return false; // BB still has the option
-            }
-        }
-
-        return true;
+        const game = this;
+        return PokerEngine.isBettingRoundComplete(game);
     }
 
     /** Handle player action */
@@ -491,243 +434,17 @@ class PokerGame {
     }
 
     /** Execute an action for a player */
+    /** Delegates to the shared betting engine (js/engine.js). */
     executeAction(playerIndex, action, amount) {
-        const player = this.players[playerIndex];
-        if (!player) {
-            console.warn(`executeAction: player ${playerIndex} not found (action=${action})`);
-            return;
-        }
-        const actionLower = action.toLowerCase();
-        const contributed = this.roundBets[playerIndex] || 0;
-        const toCall = Math.max(0, this.currentBet - contributed);
-        const potBefore = this.pot;
-        const currentBetBefore = this.currentBet;
-        const lastAggressorBefore = this.lastAggressor;
-        const lastAggressorStreetBefore = this.lastAggressorStreet;
-        const preflopRaiseCountBefore = this.preflopRaiseCount;
-
-        switch (actionLower) {
-            case 'fold':
-                player.folded = true;
-                player.lastAction = { action: 'fold', amount: 0 };
-                break;
-
-            case 'check':
-                if (toCall > 0) {
-                    this.executeAction(playerIndex, 'call', 0);
-                    return;
-                }
-                player.lastAction = { action: 'check', amount: 0 };
-                this.recordRoundAction(playerIndex);
-                if (playerIndex === this.bbIndex) {
-                    this.bbNeedsOption = false; // BB exercised option
-                }
-                break;
-
-            case 'call':
-                if (toCall === 0) {
-                    this.executeAction(playerIndex, 'check', 0);
-                    return;
-                }
-                const callAmount = Math.min(toCall, player.stack);
-                player.stack -= callAmount;
-                player.chipsInPot += callAmount;
-                this.pot += callAmount;
-                if (player.stack === 0) player.isAllIn = true;
-                player.lastAction = { action: 'call', amount: callAmount };
-                this.roundBets[playerIndex] = (this.roundBets[playerIndex] || 0) + callAmount;
-                this.recordRoundAction(playerIndex);
-                if (playerIndex === this.bbIndex) {
-                    this.bbNeedsOption = false; // BB exercised option by calling
-                }
-                break;
-
-            case 'raise':
-            case 'bet':
-                // amount is total bet (including call portion)
-                const currentContrib = this.roundBets[playerIndex] || 0;
-                const totalBet = Math.min(amount, player.stack + currentContrib);
-                const additionalAmount = totalBet - currentContrib;
-
-                if (!this.canPlayerRaise(playerIndex)) {
-                    this.executeAction(playerIndex, toCall > 0 ? 'call' : 'check', 0);
-                    return;
-                }
-
-                if (additionalAmount <= 0) {
-                    // Just call instead
-                    this.executeAction(playerIndex, 'call', 0);
-                    return;
-                }
-
-                // Validate minimum raise size
-                const minRaiseSize = Math.max(this.lastRaise, this.bigBlind);
-                const minTotalBet = this.getMinRaiseTo();
-
-                if (totalBet < minTotalBet) {
-                    // A player may still make a genuine sub-minimum all-in.
-                    if (totalBet === player.stack + currentContrib && totalBet > this.currentBet) {
-                        this.executeAction(playerIndex, 'allin', 0);
-                    } else this.executeAction(playerIndex, toCall > 0 ? 'call' : 'check', 0);
-                    return;
-                }
-
-                const actualAdd = Math.min(additionalAmount, player.stack);
-                player.stack -= actualAdd;
-                player.chipsInPot += actualAdd;
-                this.pot += actualAdd;
-
-                // Calculate raise SIZE = increase above the previous currentBet
-                // (NOT totalBet - currentContrib, which includes the call portion)
-                const prevCurrentBet = this.currentBet;
-                this.currentBet = totalBet;
-                this.lastRaise = this.currentBet - prevCurrentBet;
-                this.hasFullBetThisRound = true;
-                player.lastAction = { action: 'raise', amount: actualAdd };
-                this.roundBets[playerIndex] = totalBet;
-                this.playersActed.clear();
-                this.recordRoundAction(playerIndex);
-                this.lastRaiser = playerIndex;
-                this.lastAggressor = playerIndex;
-                this.lastAggressorStreet = this.phase;
-                if (this.phase === 'preflop') this.preflopRaiseCount++;
-                this.bbNeedsOption = false; // Any raise pre-flop ends BB option
-                if (player.stack === 0) player.isAllIn = true;
-
-                // Reset hasActed for all other non-all-in players
-                for (let i = 0; i < this.players.length; i++) {
-                    if (i !== playerIndex && !this.players[i].folded && !this.players[i].isAllIn) {
-                        if (this.roundBets[i] !== undefined && this.roundBets[i] < this.currentBet) {
-                            // This player hasn't matched the raise yet
-                        }
-                    }
-                }
-                break;
-
-            case 'allin':
-                const allInAmount = player.stack;
-                const beforeAllIn = this.roundBets[playerIndex] || 0;
-                const totalAfterAllIn = beforeAllIn + allInAmount;
-
-                // A partial all-in by somebody else does not reopen raising. If
-                // this shove would be a raise while action is closed, make the
-                // largest legal call and leave the remaining chips behind.
-                if (totalAfterAllIn > this.currentBet && !this.canPlayerRaise(playerIndex)) {
-                    this.executeAction(playerIndex, toCall > 0 ? 'call' : 'check', 0);
-                    return;
-                }
-                player.chipsInPot += allInAmount;
-                this.pot += allInAmount;
-
-                if (totalAfterAllIn > this.currentBet) {
-                    // Always update currentBet so others must at least call this amount
-                    const minRaiseSize = Math.max(this.lastRaise, this.bigBlind);
-                    if (totalAfterAllIn >= this.currentBet + minRaiseSize) {
-                        // Full raise — reopen betting for all active players
-                        this.lastRaise = totalAfterAllIn - this.currentBet;
-                        this.currentBet = totalAfterAllIn;
-                        this.playersActed.clear();
-                        this.lastRaiser = playerIndex;
-                        this.lastAggressor = playerIndex;
-                        this.lastAggressorStreet = this.phase;
-                        if (this.phase === 'preflop') this.preflopRaiseCount++;
-                        this.hasFullBetThisRound = true;
-                    } else {
-                        // Partial all-in (< min raise) — update currentBet but do NOT
-                        // reopen betting for players who already matched the prior bet
-                        this.currentBet = totalAfterAllIn;
-                        if (!this.hasFullBetThisRound && this.currentBet >= this.bigBlind) {
-                            this.hasFullBetThisRound = true;
-                            this.lastRaise = this.bigBlind;
-                        }
-                    }
-                }
-
-                player.stack = 0;
-                player.isAllIn = true;
-                this.roundBets[playerIndex] = totalAfterAllIn;
-                this.recordRoundAction(playerIndex);
-                player.lastAction = { action: 'allin', amount: allInAmount };
-                break;
-        }
-
-        this.actionsThisRound++;
-
-        const resolvedAction = player.lastAction?.action || actionLower;
-        const raisedCurrentBet = this.currentBet > currentBetBefore;
-        if (raisedCurrentBet) {
-            // Track strategic aggression even for a legal partial all-in that
-            // does not reopen the betting under the rules engine.
-            this.lastAggressor = playerIndex;
-            this.lastAggressorStreet = this.phase;
-            if (this.phase === 'preflop') {
-                this.preflopAggressor = playerIndex;
-                if (this.preflopRaiseCount === preflopRaiseCountBefore) this.preflopRaiseCount++;
-            }
-            if (this.phase === 'flop') this.flopHadAggression = true;
-        }
-        const isCbetOpportunity = this.phase === 'flop' && playerIndex === this.preflopAggressor &&
-            !this.flopCbetResolved && currentBetBefore === 0;
-        if (this.phase === 'flop' && playerIndex === this.preflopAggressor && !this.flopCbetResolved) {
-            this.flopCbetResolved = true;
-        }
-        const additionalPaid = Math.max(0, Number(player.lastAction?.amount) || 0);
-        const raiseTo = Math.max(0, this.roundBets[playerIndex] || 0);
-        const actionMeta = PokerGameRules.buildActionMeta({
-            callCost: toCall,
-            toCallBefore: toCall,
-            additionalPaid,
-            amount: additionalPaid,
-            raiseTo,
-            currentBetBefore,
-            potBefore,
-            potAfter: this.pot,
-            minimumBet:this.bigBlind,
-            aggressive: raisedCurrentBet,
-            isCbetOpportunity,
-            facedCbet: this.phase === 'flop' && toCall > 0 &&
-                lastAggressorBefore === this.preflopAggressor && lastAggressorStreetBefore === 'flop',
-            faced3bet: this.phase === 'preflop' && toCall > 0 && preflopRaiseCountBefore >= 2,
-            preflopRaiseCountBefore
-        });
-
-        // Notify AI players about this action for opponent modeling
-        this.notifyAIsOfAction(playerIndex, resolvedAction, actionMeta);
+        const game = this;
+        return PokerEngine.executeAction(game, playerIndex, action, amount);
     }
 
     /** Notify all AI players about an action taken by any player */
+    /** Delegates to the shared betting engine (js/engine.js). */
     notifyAIsOfAction(playerIndex, action, actionMeta = {}) {
-        const actionStreet = this.phase;
-        const actorIsBlind = (playerIndex === this.sbIndex || playerIndex === this.bbIndex);
-        const isPreFlop = this.phase === 'preflop';
-
-        for (let i = 0; i < this.players.length; i++) {
-            if (i === playerIndex) continue; // Don't self-report
-            const p = this.players[i];
-            if (!p || p.isHuman) continue; // Only notify AI players
-            const ai = p.aiRef;
-            if (!ai) continue;
-
-            // Record action for exploitative player model
-            if (typeof ai.recordOpponentAction === 'function') {
-                ai.recordOpponentAction(playerIndex, action, actionStreet, this.handGeneration, actionMeta);
-            }
-
-            // Update opponent range estimation
-            if (typeof ai.updateOpponentRange === 'function') {
-                // Map action type for range narrowing
-                let rangeAction = action;
-                if (action === 'small blind' || action === 'big blind') rangeAction = 'call';
-                else if (isPreFlop && actionMeta.aggressive) {
-                    if (actionMeta.preflopRaiseCountBefore >= 2) rangeAction = '4bet';
-                    else if (actionMeta.preflopRaiseCountBefore >= 1) rangeAction = '3bet';
-                    else rangeAction = 'raise';
-                } else if (isPreFlop && action === 'call' && actionMeta.preflopRaiseCountBefore >= 2) {
-                    rangeAction = 'call3bet';
-                }
-                ai.updateOpponentRange(playerIndex, rangeAction, actorIsBlind, null);
-            }
-        }
+        const game = this;
+        return PokerEngine.notifyAIsOfAction(game, playerIndex, action, actionMeta);
     }
 
     /** Process AI turns */
@@ -877,124 +594,24 @@ class PokerGame {
     }
 
     /** Advance to next player or next phase */
+    /** Delegates to the shared betting engine (js/engine.js). */
     advanceGame() {
-        if (this.phase === 'idle') return false; // Hand already ended — safety guard
-        if (this.checkHandEnd()) return false;
-
-        const inHand = this.getPlayersInHand();
-        if (inHand.length <= 1) {
-            this.endHand(inHand[0]);
-            return false;
-        }
-
-        // Check if betting round is complete
-        if (this.isBettingRoundComplete()) {
-            this.refundUncalledBet();
-            // Check if only one player not all-in (or everyone all-in)
-            if (inHand.filter(p => !p.isAllIn).length <= 1) {
-                // Everyone is all-in - deal remaining community cards
-                this.advancePhase();
-                // Deal all remaining cards by advancing through phases
-                while (this.phase !== 'showdown') {
-                    this.advancePhase();
-                }
-                // Showdown
-                this.showdown();
-                if (this.onUpdate) this.onUpdate();
-                return false;
-            }
-
-            this.advancePhase();
-            if (this.phase === 'showdown') {
-                this.showdown();
-                if (this.onUpdate) this.onUpdate();
-                return false;
-            }
-
-            return true;
-        }
-
-        // Move to next player
-        const next = this.getNextPlayerNeedingAction(this.currentPlayerIndex);
-        if (next === -1) {
-            // All active players are all-in
-            if (this.getPlayersInHand().filter(p => !p.isAllIn).length <= 1) {
-                this.advancePhase();
-                while (this.phase !== 'showdown') {
-                    this.advancePhase(); // advancePhase deals cards internally
-                }
-                this.showdown();
-                if (this.onUpdate) this.onUpdate();
-                return false;
-            }
-            return false;
-        }
-
-        this.currentPlayerIndex = next;
-
-        if (this.onUpdate) this.onUpdate();
-
-        return true;
+        const game = this;
+        return PokerEngine.advanceGame(game);
     }
 
     /** Advance to next phase */
+    /** Delegates to the shared betting engine (js/engine.js). */
     advancePhase() {
-        this.roundBets = {};
-        this.playersActed = new Set();
-        this.actedAtBet = {};
-        this.raiseSizeAtAction = {};
-        this.actionsThisRound = 0;
-        this.currentBet = 0;
-        this.lastRaise = this.bigBlind;
-        this.bbNeedsOption = false; // BB option only applies pre-flop
-        this.hasFullBetThisRound = false;
-
-        switch (this.phase) {
-            case 'preflop':
-                this.dealCommunityCards(); // Deal flop (3 cards)
-                this.phase = 'flop';
-                this.bettingRound = 'flop';
-                break;
-            case 'flop':
-                this.dealCommunityCards(); // Deal turn (1 card)
-                this.phase = 'turn';
-                this.bettingRound = 'turn';
-                break;
-            case 'turn':
-                this.dealCommunityCards(); // Deal river (1 card)
-                this.phase = 'river';
-                this.bettingRound = 'river';
-                break;
-            case 'river':
-                this.phase = 'showdown';
-                this.bettingRound = 'showdown';
-                return;
-        }
-
-        // Set starter for new round (first active player after dealer)
-        this.currentPlayerIndex = this.getNextActivePlayer(this.dealerPosition);
-
-        // Calculate new probability
-        this.calculateProbability();
-
-        if (this.onUpdate) this.onUpdate();
+        const game = this;
+        return PokerEngine.advancePhase(game);
     }
 
     /** Deal community cards */
+    /** Delegates to the shared betting engine (js/engine.js). */
     dealCommunityCards() {
-        if (this.phase === 'preflop') {
-            // Deal flop: 3 cards
-            this.deck.deal(); // Burn
-            this.communityCards.push(this.deck.deal());
-            this.communityCards.push(this.deck.deal());
-            this.communityCards.push(this.deck.deal());
-        } else if (this.phase === 'flop') {
-            this.deck.deal(); // Burn
-            this.communityCards.push(this.deck.deal());
-        } else if (this.phase === 'turn') {
-            this.deck.deal(); // Burn
-            this.communityCards.push(this.deck.deal());
-        }
+        const game = this;
+        return PokerEngine.dealCommunityCards(game);
     }
 
     /** Calculate win probability for the human player */
@@ -1029,16 +646,10 @@ class PokerGame {
     }
 
     /** Check if hand should end */
+    /** Delegates to the shared betting engine (js/engine.js). */
     checkHandEnd() {
-        // An outer action loop can observe the hand once more after settlement.
-        // Do not announce the already-cleared pot a second time.
-        if (this.phase === 'idle') return true;
-        const inHand = this.getPlayersInHand();
-        if (inHand.length <= 1) {
-            this.endHand(inHand.length === 1 ? inHand[0] : null);
-            return true;
-        }
-        return false;
+        const game = this;
+        return PokerEngine.checkHandEnd(game);
     }
 
     /** End hand with a winner */
@@ -1075,165 +686,42 @@ class PokerGame {
     }
 
     /** Calculate main/side pots from every contribution, including folded chips. */
+    /** Delegates to the shared betting engine (js/engine.js). */
     calculateSidePots() {
-        const inHand = this.getPlayersInHand();
-        return PokerGameRules.calculateSidePots(this.players, this.pot, inHand);
+        const game = this;
+        return PokerEngine.calculateSidePots(game);
     }
 
     /** Odd chips go clockwise to the first winning seat left of the button. */
+    /** Delegates to the shared betting engine (js/engine.js). */
     orderFromLeftOfDealer(players) {
-        const n = this.players.length;
-        return [...players].sort((a, b) => {
-            const ai = this.players.indexOf(a);
-            const bi = this.players.indexOf(b);
-            const ad = ((ai - this.dealerPosition + n) % n) || n;
-            const bd = ((bi - this.dealerPosition + n) % n) || n;
-            return ad - bd;
-        });
+        const game = this;
+        return PokerEngine.orderFromLeftOfDealer(game, players);
     }
 
     /** Showdown: determine winner(s) with proper side pot distribution */
+    /** Delegates to the shared betting engine (js/engine.js). */
     showdown() {
-        const inHand = this.getPlayersInHand();
-        if (inHand.length <= 1) {
-            this.endHand(inHand[0]);
-            return;
-        }
-
-        // Evaluate all hands
-        const results = [];
-        for (const p of inHand) {
-            const allCards = [...p.holeCards, ...this.communityCards];
-            const hand = evaluateHand(allCards);
-            results.push({ player: p, hand });
-        }
-
-        // Build a lookup map for quick hand access
-        const handMap = new Map();
-        for (const r of results) {
-            handMap.set(r.player, r.hand);
-        }
-
-        // Calculate side pots
-        const sidePots = this.calculateSidePots();
-
-        // Award each side pot (from highest to lowest)
-        const allWinners = [];
-        let totalAwarded = 0;
-        const winnerAmounts = new Map(); // Player -> amount won
-
-        for (const pot of sidePots) {
-            if (pot.amount <= 0) continue;
-
-            // Find best hand among eligible players
-            let bestHand = null;
-            let potWinners = [];
-
-            for (const p of pot.eligible) {
-                const hand = handMap.get(p);
-                if (!hand) continue;
-                if (!bestHand || compareHands(hand, bestHand) > 0) {
-                    bestHand = hand;
-                    potWinners = [p];
-                } else if (compareHands(hand, bestHand) === 0) {
-                    potWinners.push(p);
-                }
-            }
-
-            if (potWinners.length === 0) {
-                // Safety: no eligible winner, distribute to all eligible players
-                const share = Math.floor(pot.amount / pot.eligible.length);
-                for (const p of pot.eligible) {
-                    p.stack += share;
-                    winnerAmounts.set(p, (winnerAmounts.get(p) || 0) + share);
-                    totalAwarded += share;
-                }
-                allWinners.push(...pot.eligible);
-                continue;
-            }
-
-            // Split this pot among winners (distribute remainder chip by chip)
-            potWinners = this.orderFromLeftOfDealer(potWinners);
-            const share = Math.floor(pot.amount / potWinners.length);
-            let remainder = pot.amount - share * potWinners.length;
-            for (const w of potWinners) {
-                const award = share + (remainder > 0 ? 1 : 0);
-                if (remainder > 0) remainder--;
-                w.stack += award;
-                winnerAmounts.set(w, (winnerAmounts.get(w) || 0) + award);
-                totalAwarded += award;
-            }
-
-            allWinners.push(...potWinners);
-        }
-
-        // Handle any micro-leftover due to integer math
-        if (this.pot > totalAwarded && allWinners.length > 0) {
-            const leftover = this.pot - totalAwarded;
-            const firstLeft = this.orderFromLeftOfDealer([...new Set(allWinners)])[0];
-            firstLeft.stack += leftover;
-            winnerAmounts.set(firstLeft, (winnerAmounts.get(firstLeft) || 0) + leftover);
-        }
-
-        // Deduplicate winners for display
-        const uniqueWinners = [...new Set(allWinners)];
-
-        // Best hand for display (based on the highest side pot's winner)
-        const bestResult = results.reduce((best, r) =>
-            (!best || (r.hand && compareHands(r.hand, best.hand) > 0)) ? r : best, null);
-
-        this.notifyAIsOfShowdown(results, uniqueWinners);
-
-        const settledPot = this.pot;
-        if (this.onHandEnd) {
-            this.onHandEnd({
-                winners: uniqueWinners,
-                winnerAmounts,
-                pot: settledPot,
-                hand: bestResult?.hand,
-                handName: bestResult?.hand?.name || 'Unknown',
-                results,
-                reason: 'showdown',
-                share: uniqueWinners.length > 0 ? Math.floor(this.pot / uniqueWinners.length) : 0
-            });
-        }
-
-        this.phase = 'idle';
-        this.numHands++;
-        this.pot = 0;
-        if (this.onUpdate) this.onUpdate();
+        const game = this;
+        return PokerEngine.showdown(game, { evaluate: evaluateHand, compare: compareHands });
     }
 
+    /** Delegates to the shared betting engine (js/engine.js). */
     notifyAIsOfShowdown(results, winners) {
-        const winnerSet = new Set(winners);
-        for (let observerIdx = 0; observerIdx < this.players.length; observerIdx++) {
-            const ai = this.players[observerIdx]?.aiRef;
-            if (!ai || typeof ai.recordShowdown !== 'function') continue;
-            ai.position = observerIdx;
-            for (const result of results) {
-                const seatIdx = this.players.indexOf(result.player);
-                const action = result.player.lastAction?.action;
-                const aggressive = action === 'raise' || action === 'allin';
-                const passive = action === 'check' || action === 'call';
-                ai.recordShowdown(seatIdx, {
-                    won:winnerSet.has(result.player),
-                    handRank:result.hand?.rank ?? 0,
-                    wasBluff:aggressive && !winnerSet.has(result.player) && (result.hand?.rank ?? 0) <= 2,
-                    wasTrap:passive && winnerSet.has(result.player) && (result.hand?.rank ?? 0) >= 4
-                });
-            }
-        }
+        const game = this;
+        return PokerEngine.notifyAIsOfShowdown(game, results, winners);
     }
 
     /** Get possible winning hands for the player */
     getPlayerWinHands() {
+        // Always return the same shape so callers never have to branch on the type.
         if (!this.humanPlayer || this.humanPlayer.folded || this.communityCards.length === 0) {
-            return [];
+            return { currentHand: null, beats: [], allHandTypes: Object.values(HAND_TYPE_NAMES) };
         }
 
         const allCards = [...this.humanPlayer.holeCards, ...this.communityCards];
         const currentHand = evaluateHand(allCards);
-        if (!currentHand) return [];
+        if (!currentHand) return { currentHand: null, beats: [], allHandTypes: Object.values(HAND_TYPE_NAMES) };
 
         const handName = currentHand.name;
 
@@ -1251,65 +739,24 @@ class PokerGame {
     }
 
     /** Get outs (cards that improve the player's hand) */
+    /** Delegates to the shared betting engine (js/engine.js). */
     getOuts() {
-        if (!this.humanPlayer || this.humanPlayer.folded || this.communityCards.length < 3 || this.communityCards.length >= 5) {
-            return null;
-        }
-        return this.outsResult;
+        const game = this;
+        return PokerEngine.getOuts(game);
     }
 
     /** Get available actions for the human player */
+    /** Delegates to the shared betting engine (js/engine.js). */
     getAvailableActions() {
-        if (!this.isPlayerTurn()) return [];
-
-        const toCall = Math.max(0, this.currentBet - (this.roundBets[0] || 0));
-        const player = this.humanPlayer;
-        const actions = [];
-
-        if (toCall === 0) {
-            actions.push({ type: 'check', label: 'Check', amount: 0 });
-        } else {
-            actions.push({ type: 'call', label: `Call ${Math.min(toCall, player.stack)}`, amount: Math.min(toCall, player.stack) });
-        }
-
-        if (player.stack > 0) {
-            if (toCall > 0) actions.push({ type: 'fold', label: 'Fold', amount: 0 });
-
-            const canRaise = this.canPlayerRaise(0);
-            if (canRaise) {
-                // Minimum raise
-                const raiseTotal = this.getMinRaiseTo();
-                const raiseAmount = raiseTotal - (this.roundBets[0] || 0);
-
-                if (raiseAmount < player.stack) {
-                    actions.push({ type: 'raise', label: `Raise to ${raiseTotal}`, amount: raiseTotal });
-                }
-
-            }
-
-            const allInTotal = (this.roundBets[0] || 0) + player.stack;
-            if (allInTotal <= this.currentBet || canRaise) {
-                actions.push({ type: 'allin', label: 'All-in', amount: player.stack });
-            }
-        }
-
-        return actions;
+        const game = this;
+        return PokerEngine.getAvailableActions(game);
     }
 
     /** Reset game */
+    /** Delegates to the shared betting engine (js/engine.js). */
     resetGame() {
-        this.players = [];
-        this.humanPlayer = null;
-        this.aiPlayers = [];
-        this.communityCards = [];
-        this.pot = 0;
-        this.currentBet = 0;
-        this.phase = 'idle';
-        this.numHands = 0;
-        this.dealerPosition = -1;
-        this.sbIndex = -1;
-        this.bbIndex = -1;
-        if (this.onUpdate) this.onUpdate();
+        const game = this;
+        return PokerEngine.resetGame(game);
     }
 
     /** Format card for display */

@@ -332,12 +332,59 @@ const SD_STYLE_CONFIGS = {
     }
 };
 
+/** 共享策略核心 js/ai-core.js（浏览器经全局 PokerAICore，Node 走 require）。 */
+function sharedAICore() {
+    if (typeof SHARED_AI_CORE !== 'undefined' && SHARED_AI_CORE) return SHARED_AI_CORE;
+    if (typeof globalThis !== 'undefined' && globalThis.PokerAICore) return globalThis.PokerAICore;
+    if (typeof module !== 'undefined' && module.exports) {
+        try { return require('./ai-core'); } catch (error) { return null; }
+    }
+    return null;
+}
+
+/**
+ * 短牌手牌评估器，交给共享决策核心使用。
+ * 与 Worker 路径（js/ai-worker.js 的 PokerProbabilityCore.evaluate(cards, true)）
+ * 用同一份实现，主线程回退与服务端路径不再依赖全局 evaluateSDHand 是否存在；
+ * 概率核心不可用时退回本文件的短牌评估器。
+ */
+function shortDeckAICards(cards) {
+    if (typeof PokerProbabilityCore !== 'undefined' && PokerProbabilityCore &&
+        typeof PokerProbabilityCore.evaluate === 'function') {
+        return PokerProbabilityCore.evaluate(cards, true);
+    }
+    if (typeof module !== 'undefined' && module.exports) {
+        try {
+            const core = require('./probability-core');
+            if (core && typeof core.evaluate === 'function') return core.evaluate(cards, true);
+        } catch (error) { /* fall through to the local evaluator */ }
+    }
+    return evaluateSDHand(cards);
+}
+
 class ShortDeckAIPlayer extends AIPlayer {
     constructor(name, style, stack = 20000, index = 0) {
         super(name, style, stack, index);
+        // 唯一配置来源：短牌风格表。super() 建 brain 时读的是标准 STYLE_CONFIGS，
+        // 而 Worker 决策收到的 meta.profile 就是这个 this.config，两边曾因此分叉。
         this.config = SD_STYLE_CONFIGS[style] || SD_STYLE_CONFIGS[AI_STYLES.SOLID];
         this.minBet = 80; // 2× ante
         this.isShortDeck = true;
+        // 用同一份短牌配置重建进程内 brain：主线程回退/服务端路径与 Worker
+        // 路径（js/ai-worker.js 用 meta.profile 建 brain）使用完全相同的 profile。
+        const core = sharedAICore();
+        const Brain = (core && core.UnifiedPokerAI) || this.sharedBrain?.constructor;
+        if (Brain) {
+            this.sharedBrain = new Brain({ name, style, seatId: index, profile: this.config });
+        }
+    }
+
+    /**
+     * 短牌评估器是本类的固有属性，不接受调用方传入的标准评估器：
+     * 服务端适配器传的是 evaluateHand，标准牌型次序在短牌下是错的。
+     */
+    _decideShared(gameState = {}) {
+        return super._decideShared({ ...gameState, evaluateCards: shortDeckAICards });
     }
 
     // 翻后评估：用短牌概率
@@ -405,6 +452,28 @@ function createSDAIPlayers(count, startingStack = 20000) {
         return p;
     });
 }
+
+// ============================================================
+// 5b. 共享下注内核（js/engine.js）
+// ============================================================
+
+// js/engine.js 里放的是与玩法无关的下注状态机。短牌只提供自己的数据
+// （前注、36 张牌、短牌牌型评估），流程一律委托给共享实现，避免同一条
+// 规则要在 game.js / shortdeck.js 各改一遍。
+let _sharedEngine = null;
+function sharedEngine() {
+    if (_sharedEngine) return _sharedEngine;
+    if (typeof PokerEngine !== 'undefined' && PokerEngine) _sharedEngine = PokerEngine;
+    else if (typeof require === 'function') {
+        try { _sharedEngine = require('./engine'); } catch (error) { _sharedEngine = null; }
+    }
+    if (!_sharedEngine) throw new Error('js/engine.js must be loaded before js/shortdeck.js (see index.html)');
+    return _sharedEngine;
+}
+
+// 结算钩子：短牌牌型次序（同花>葫芦）与轮子 A-6-7-8-9 由 evaluateSDHand 定义，
+// 共享的 showdown 只负责分池与派彩。
+const SD_SETTLEMENT_HOOKS = { evaluate: evaluateSDHand, compare: compareSDHands };
 
 // ============================================================
 // 6. 短牌游戏主类
@@ -635,127 +704,36 @@ class ShortDeckGame {
 
     // ── 辅助方法 ──
 
-    isPlayerTurn() {
-        return this.currentPlayerIndex === 0 && this.players[0] &&
-            !this.players[0].folded && !this.players[0].isAllIn;
-    }
+    isPlayerTurn() { return sharedEngine().isPlayerTurn(this); }
 
     get currentPlayer() { return this.players[this.currentPlayerIndex]; }
 
-    getActivePlayers() { return this.players.filter(p => !p.folded && p.stack > 0); }
+    getActivePlayers() { return sharedEngine().getActivePlayers(this); }
 
-    getPlayersInHand() { return this.players.filter(p => !p.folded); }
+    getPlayersInHand() { return sharedEngine().getPlayersInHand(this); }
 
-    getNextActivePlayer(startPos) {
-        const n = this.players.length;
-        for (let i = 1; i < n; i++) {
-            const idx = (startPos + i) % n;
-            if (!this.players[idx].folded && this.players[idx].stack > 0 && !this.players[idx].isAllIn)
-                return idx;
-        }
-        return -1;
-    }
+    getNextActivePlayer(startPos) { return sharedEngine().getNextActivePlayer(this, startPos); }
 
-    getNextPlayerInHand(startPos) {
-        const n = this.players.length;
-        for (let i = 1; i < n; i++) {
-            const idx = (startPos + i) % n;
-            if (!this.players[idx].folded) return idx;
-        }
-        return -1;
-    }
+    getNextPlayerInHand(startPos) { return sharedEngine().getNextPlayerInHand(this, startPos); }
 
-    getHandPositionInfo(playerIndex) {
-        let seats = this.playersDealtThisHand.map(player => this.players.indexOf(player))
-            .filter(index => index >= 0);
-        if (!seats.length) {
-            seats = this.players.map((player, index) => player.holeCards?.length === 2 ? index : -1)
-                .filter(index => index >= 0);
-        }
-        seats.sort((a, b) => ((a - this.dealerPosition + this.players.length) % this.players.length) -
-            ((b - this.dealerPosition + this.players.length) % this.players.length));
-        return {
-            positionFromButton: Math.max(0, seats.indexOf(playerIndex)),
-            playerCount: Math.max(2, seats.length)
-        };
-    }
+    getHandPositionInfo(playerIndex) { return sharedEngine().getHandPositionInfo(this, playerIndex); }
 
-    getNextPlayerNeedingAction(startPos) {
-        const n = this.players.length;
-        for (let step = 1; step <= n; step++) {
-            const idx = (startPos + step) % n;
-            const player = this.players[idx];
-            if (!player || player.folded || player.isAllIn || player.stack <= 0) continue;
-            const matched = (this.roundBets[idx] || 0) >= this.currentBet;
-            if (!matched || !this.playersActed.has(idx)) return idx;
-        }
-        return -1;
-    }
+    getNextPlayerNeedingAction(startPos) { return sharedEngine().getNextPlayerNeedingAction(this, startPos); }
 
-    canPlayerRaise(playerIndex) {
-        const player = this.players[playerIndex];
-        if (!player || player.folded || player.isAllIn || player.stack <= 0) return false;
-        if (!this.playersActed.has(playerIndex)) return true;
-        const facedBefore = this.actedAtBet[playerIndex] || 0;
-        const required = this.raiseSizeAtAction[playerIndex] || this.minBet;
-        return this.currentBet - facedBefore >= required;
-    }
+    canPlayerRaise(playerIndex) { return sharedEngine().canPlayerRaise(this, playerIndex); }
 
-    recordRoundAction(playerIndex) {
-        this.playersActed.add(playerIndex);
-        this.actedAtBet[playerIndex] = this.currentBet;
-        this.raiseSizeAtAction[playerIndex] = Math.max(this.lastRaise, this.minBet);
-    }
+    recordRoundAction(playerIndex) { return sharedEngine().recordRoundAction(this, playerIndex); }
 
-    getMinRaiseTo() {
-        if (this.currentBet === 0) return this.minBet;
-        if (!this.hasFullBetThisRound && this.currentBet < this.minBet) return this.minBet;
-        return this.currentBet + Math.max(this.lastRaise, this.minBet);
-    }
+    getMinRaiseTo() { return sharedEngine().getMinRaiseTo(this); }
 
-    markRoundCompleteIfNoDecision() {
-        const live = this.getPlayersInHand().filter(p => !p.isAllIn && p.stack > 0);
-        if (live.length === 0) return true;
-        if (live.length !== 1) return false;
-        const idx = this.players.indexOf(live[0]);
-        if (Math.max(0, this.currentBet - (this.roundBets[idx] || 0)) > 0) return false;
-        this.recordRoundAction(idx);
-        return true;
-    }
+    markRoundCompleteIfNoDecision() { return sharedEngine().markRoundCompleteIfNoDecision(this); }
 
-    refundUncalledBet() {
-        const uncalled = PokerGameRules.findUncalledRefund(this.roundBets);
-        if (!uncalled) return 0;
-        const player = this.players[uncalled.index];
-        if (!player) return 0;
-        const refund = uncalled.refund;
-        player.stack += refund;
-        player.chipsInPot -= refund;
-        this.pot -= refund;
-        this.roundBets[uncalled.index] -= refund;
-        if (player.isAllIn && player.stack > 0) player.isAllIn = false;
-        const liveBets = this.getPlayersInHand().map(p => this.roundBets[this.players.indexOf(p)] || 0);
-        this.currentBet = liveBets.length ? Math.max(...liveBets) : 0;
-        return refund;
-    }
+    refundUncalledBet() { return sharedEngine().refundUncalledBet(this); }
 
     // ── 下注轮次检查 ──
 
-    isBettingRoundComplete() {
-        const inHand = this.getPlayersInHand();
-        if (inHand.length <= 1) return true;
-
-        for (const p of inHand) {
-            if (p.isAllIn) continue;
-            const idx = this.players.indexOf(p);
-            const myBet = this.roundBets[idx] || 0;
-            if (myBet < this.currentBet) return false;
-            if (!this.playersActed.has(idx)) return false;
-        }
-
-        // 短牌无BB Option，直接返回
-        return true;
-    }
+    // 短牌无 BB Option；共享实现里的该分支只在 bbNeedsOption 为真时生效。
+    isBettingRoundComplete() { return sharedEngine().isBettingRoundComplete(this); }
 
     // ── 玩家行动 ──
 
@@ -786,183 +764,11 @@ class ShortDeckGame {
     // ── 执行行动 ──
 
     executeAction(playerIndex, action, amount) {
-        const player = this.players[playerIndex];
-        if (!player) {
-            console.warn(`executeAction: player ${playerIndex} not found (action=${action})`);
-            return;
-        }
-        const a = action.toLowerCase();
-        const contributed = this.roundBets[playerIndex] || 0;
-        const toCall = Math.max(0, this.currentBet - contributed);
-        const potBefore = this.pot;
-        const currentBetBefore = this.currentBet;
-        const lastAggressorBefore = this.lastAggressor;
-        const lastAggressorStreetBefore = this.lastAggressorStreet;
-        const preflopRaiseCountBefore = this.preflopRaiseCount;
-
-        switch (a) {
-            case 'fold':
-                player.folded = true;
-                player.lastAction = { action: 'fold', amount: 0 };
-                break;
-
-            case 'check':
-                if (toCall > 0) { this.executeAction(playerIndex, 'call', 0); return; }
-                player.lastAction = { action: 'check', amount: 0 };
-                this.recordRoundAction(playerIndex);
-                break;
-
-            case 'call':
-                if (toCall === 0) { this.executeAction(playerIndex, 'check', 0); return; }
-                const callAmt = Math.min(toCall, player.stack);
-                player.stack -= callAmt;
-                player.chipsInPot += callAmt;
-                this.pot += callAmt;
-                if (player.stack === 0) player.isAllIn = true;
-                player.lastAction = { action: 'call', amount: callAmt };
-                this.roundBets[playerIndex] = (this.roundBets[playerIndex] || 0) + callAmt;
-                this.recordRoundAction(playerIndex);
-                break;
-
-            case 'raise':
-            case 'bet':
-                const contrib = this.roundBets[playerIndex] || 0;
-                const total = Math.min(amount, player.stack + contrib);
-                const add = total - contrib;
-                if (!this.canPlayerRaise(playerIndex)) {
-                    this.executeAction(playerIndex, toCall > 0 ? 'call' : 'check', 0);
-                    return;
-                }
-                if (add <= 0) { this.executeAction(playerIndex, 'call', 0); return; }
-
-                // 最小加注验证
-                const minRaiseSize = Math.max(this.lastRaise, this.minBet);
-                const minTotal = this.getMinRaiseTo();
-
-                if (total < minTotal) {
-                    if (total === player.stack + contrib && total > this.currentBet) {
-                        this.executeAction(playerIndex, 'allin', 0);
-                    } else this.executeAction(playerIndex, toCall > 0 ? 'call' : 'check', 0);
-                    return;
-                }
-
-                const actualAdd = Math.min(add, player.stack);
-                player.stack -= actualAdd;
-                player.chipsInPot += actualAdd;
-                this.pot += actualAdd;
-
-                const prevCurrent = this.currentBet;
-                this.currentBet = total;
-                this.lastRaise = this.currentBet - prevCurrent;
-                this.hasFullBetThisRound = true;
-                player.lastAction = { action: 'raise', amount: actualAdd };
-                this.roundBets[playerIndex] = total;
-                this.playersActed.clear();
-                this.recordRoundAction(playerIndex);
-                this.lastRaiser = playerIndex;
-                this.lastAggressor = playerIndex;
-                this.lastAggressorStreet = this.phase;
-                if (this.phase === 'preflop') this.preflopRaiseCount++;
-                if (player.stack === 0) player.isAllIn = true;
-                break;
-
-            case 'allin':
-                const aiAmt = player.stack;
-                const beforeAI = this.roundBets[playerIndex] || 0;
-                const totalAI = beforeAI + aiAmt;
-                if (totalAI > this.currentBet && !this.canPlayerRaise(playerIndex)) {
-                    this.executeAction(playerIndex, toCall > 0 ? 'call' : 'check', 0);
-                    return;
-                }
-                player.chipsInPot += aiAmt;
-                this.pot += aiAmt;
-
-                if (totalAI > this.currentBet) {
-                    const mrs = Math.max(this.lastRaise, this.minBet);
-                    if (totalAI >= this.currentBet + mrs) {
-                        this.lastRaise = totalAI - this.currentBet;
-                        this.currentBet = totalAI;
-                        this.playersActed.clear();
-                        this.lastRaiser = playerIndex;
-                        this.lastAggressor = playerIndex;
-                        this.lastAggressorStreet = this.phase;
-                        if (this.phase === 'preflop') this.preflopRaiseCount++;
-                        this.hasFullBetThisRound = true;
-                    } else {
-                        this.currentBet = totalAI;
-                        if (!this.hasFullBetThisRound && this.currentBet >= this.minBet) {
-                            this.hasFullBetThisRound = true;
-                            this.lastRaise = this.minBet;
-                        }
-                    }
-                }
-
-                player.stack = 0;
-                player.isAllIn = true;
-                this.roundBets[playerIndex] = totalAI;
-                this.recordRoundAction(playerIndex);
-                player.lastAction = { action: 'allin', amount: aiAmt };
-                break;
-        }
-
-        this.actionsThisRound++;
-        const resolvedAction = player.lastAction?.action || a;
-        const raisedCurrentBet = this.currentBet > currentBetBefore;
-        if (raisedCurrentBet) {
-            this.lastAggressor = playerIndex;
-            this.lastAggressorStreet = this.phase;
-            if (this.phase === 'preflop') {
-                this.preflopAggressor = playerIndex;
-                if (this.preflopRaiseCount === preflopRaiseCountBefore) this.preflopRaiseCount++;
-            }
-            if (this.phase === 'flop') this.flopHadAggression = true;
-        }
-        const isCbetOpportunity = this.phase === 'flop' && playerIndex === this.preflopAggressor &&
-            !this.flopCbetResolved && currentBetBefore === 0;
-        if (this.phase === 'flop' && playerIndex === this.preflopAggressor && !this.flopCbetResolved) {
-            this.flopCbetResolved = true;
-        }
-        const additionalPaid = Math.max(0, Number(player.lastAction?.amount) || 0);
-        const raiseTo = Math.max(0, this.roundBets[playerIndex] || 0);
-        this.notifyAIsOfAction(playerIndex, resolvedAction, PokerGameRules.buildActionMeta({
-            callCost: toCall,
-            toCallBefore: toCall,
-            additionalPaid,
-            amount: additionalPaid,
-            raiseTo,
-            currentBetBefore,
-            potBefore,
-            potAfter: this.pot,
-            minimumBet:this.minBet,
-            aggressive: raisedCurrentBet,
-            isCbetOpportunity,
-            facedCbet: this.phase === 'flop' && toCall > 0 &&
-                lastAggressorBefore === this.preflopAggressor && lastAggressorStreetBefore === 'flop',
-            faced3bet: this.phase === 'preflop' && toCall > 0 && preflopRaiseCountBefore >= 2,
-            preflopRaiseCountBefore
-        }));
+        return sharedEngine().executeAction(this, playerIndex, action, amount);
     }
 
     notifyAIsOfAction(playerIndex, action, actionMeta = {}) {
-        const street = this.phase;
-        for (let i = 0; i < this.players.length; i++) {
-            if (i === playerIndex) continue;
-            const ai = this.players[i]?.aiRef;
-            if (!ai) continue;
-            if (typeof ai.recordOpponentAction === 'function')
-                ai.recordOpponentAction(playerIndex, action, street, this.handGeneration, actionMeta);
-            if (typeof ai.updateOpponentRange === 'function') {
-                let rangeAction = action;
-                if (street === 'preflop' && actionMeta.aggressive) {
-                    if (actionMeta.preflopRaiseCountBefore >= 2) rangeAction = '4bet';
-                    else if (actionMeta.preflopRaiseCountBefore >= 1) rangeAction = '3bet';
-                    else rangeAction = 'raise';
-                } else if (street === 'preflop' && action === 'call' && actionMeta.preflopRaiseCountBefore >= 2) {
-                    rangeAction = 'call3bet';
-                }
-                ai.updateOpponentRange(playerIndex, rangeAction, false, null);
-            }
-        }
+        return sharedEngine().notifyAIsOfAction(this, playerIndex, action, actionMeta);
     }
 
     // ── AI 流程 ──
@@ -1075,94 +881,15 @@ class ShortDeckGame {
 
     // ── 游戏推进 ──
 
-    advanceGame() {
-        if (this.phase === 'idle') return false;
-        if (this.checkHandEnd()) return false;
-
-        const inHand = this.getPlayersInHand();
-        if (inHand.length <= 1) { this.endHand(inHand[0]); return false; }
-
-        if (this.isBettingRoundComplete()) {
-            this.refundUncalledBet();
-            if (inHand.filter(p => !p.isAllIn).length <= 1) {
-                this.advancePhase();
-                while (this.phase !== 'showdown') this.advancePhase();
-                this.showdown();
-                if (this.onUpdate) this.onUpdate();
-                return false;
-            }
-            this.advancePhase();
-            if (this.phase === 'showdown') { this.showdown(); if (this.onUpdate) this.onUpdate(); return false; }
-            return true;
-        }
-
-        const next = this.getNextPlayerNeedingAction(this.currentPlayerIndex);
-        if (next === -1) {
-            if (this.getPlayersInHand().filter(p => !p.isAllIn).length <= 1) {
-                this.advancePhase();
-                while (this.phase !== 'showdown') this.advancePhase();
-                this.showdown();
-                if (this.onUpdate) this.onUpdate();
-                return false;
-            }
-            return false;
-        }
-
-        this.currentPlayerIndex = next;
-
-        if (this.onUpdate) this.onUpdate();
-        return true;
-    }
+    advanceGame() { return sharedEngine().advanceGame(this); }
 
     // ── 阶段推进 ──
 
-    advancePhase() {
-        this.roundBets = {};
-        this.playersActed = new Set();
-        this.actedAtBet = {};
-        this.raiseSizeAtAction = {};
-        this.actionsThisRound = 0;
-        this.currentBet = 0;
-        this.lastRaise = this.minBet;
-        this.hasFullBetThisRound = false;
+    advancePhase() { return sharedEngine().advancePhase(this); }
 
-        switch (this.phase) {
-            case 'preflop':
-                this.dealCommunityCards();
-                this.phase = 'flop';
-                this.bettingRound = 'flop';
-                break;
-            case 'flop':
-                this.dealCommunityCards();
-                this.phase = 'turn';
-                this.bettingRound = 'turn';
-                break;
-            case 'turn':
-                this.dealCommunityCards();
-                this.phase = 'river';
-                this.bettingRound = 'river';
-                break;
-            case 'river':
-                this.phase = 'showdown';
-                this.bettingRound = 'showdown';
-                return;
-        }
+    // ── 发公共牌（翻牌 3 张、转牌/河牌各 1 张，双方一致） ──
 
-        this.currentPlayerIndex = this.getNextActivePlayer(this.dealerPosition);
-        this.calculateProbability();
-        if (this.onUpdate) this.onUpdate();
-    }
-
-    // ── 发公共牌 ──
-
-    dealCommunityCards() {
-        this.deck.deal(); // 烧牌
-        this.communityCards.push(this.deck.deal());
-        if (this.phase === 'preflop') {
-            this.communityCards.push(this.deck.deal());
-            this.communityCards.push(this.deck.deal());
-        }
-    }
+    dealCommunityCards() { return sharedEngine().dealCommunityCards(this); }
 
     // ── 概率计算 ──
 
@@ -1198,14 +925,7 @@ class ShortDeckGame {
 
     // ── 检查牌局结束 ──
 
-    checkHandEnd() {
-        // An outer action loop can observe the hand once more after settlement.
-        // Do not announce the already-cleared pot a second time.
-        if (this.phase === 'idle') return true;
-        const ih = this.getPlayersInHand();
-        if (ih.length <= 1) { this.endHand(ih.length === 1 ? ih[0] : null); return true; }
-        return false;
-    }
+    checkHandEnd() { return sharedEngine().checkHandEnd(this); }
 
     endHand(winner) {
         if (this.phase === 'idle') return;
@@ -1229,131 +949,17 @@ class ShortDeckGame {
 
     // ── 边池计算 ──
 
-    calculateSidePots() {
-        const inHand = this.getPlayersInHand();
-        return PokerGameRules.calculateSidePots(this.players, this.pot, inHand);
-    }
+    calculateSidePots() { return sharedEngine().calculateSidePots(this); }
 
-    orderFromLeftOfDealer(players) {
-        const n = this.players.length;
-        return [...players].sort((a, b) => {
-            const ai = this.players.indexOf(a), bi = this.players.indexOf(b);
-            const ad = ((ai - this.dealerPosition + n) % n) || n;
-            const bd = ((bi - this.dealerPosition + n) % n) || n;
-            return ad - bd;
-        });
-    }
+    orderFromLeftOfDealer(players) { return sharedEngine().orderFromLeftOfDealer(this, players); }
 
     // ── 摊牌 ──
 
-    showdown() {
-        const inHand = this.getPlayersInHand();
-        if (inHand.length <= 1) { this.endHand(inHand[0]); return; }
-
-        const results = [];
-        const handMap = new Map();
-        for (const p of inHand) {
-            const hand = evaluateSDHand([...p.holeCards, ...this.communityCards]);
-            results.push({ player: p, hand });
-            handMap.set(p, hand);
-        }
-
-        const sidePots = this.calculateSidePots();
-        const allWinners = [];
-        let totalAwarded = 0;
-        const winnerAmounts = new Map();
-
-        for (const pot of sidePots) {
-            if (pot.amount <= 0) continue;
-
-            let bestHand = null, potWinners = [];
-            for (const p of pot.eligible) {
-                const hand = handMap.get(p);
-                if (!hand) continue;
-                if (!bestHand || compareSDHands(hand, bestHand) > 0) {
-                    bestHand = hand;
-                    potWinners = [p];
-                } else if (compareSDHands(hand, bestHand) === 0) {
-                    if (!potWinners.includes(p)) potWinners.push(p);
-                }
-            }
-
-            if (potWinners.length === 0) {
-                const share = Math.floor(pot.amount / pot.eligible.length);
-                for (const p of pot.eligible) {
-                    p.stack += share;
-                    winnerAmounts.set(p, (winnerAmounts.get(p) || 0) + share);
-                    totalAwarded += share;
-                }
-                allWinners.push(...pot.eligible);
-                continue;
-            }
-
-            potWinners = this.orderFromLeftOfDealer(potWinners);
-            const share = Math.floor(pot.amount / potWinners.length);
-            let rem = pot.amount - share * potWinners.length;
-            for (const w of potWinners) {
-                const award = share + (rem > 0 ? 1 : 0);
-                if (rem > 0) rem--;
-                w.stack += award;
-                winnerAmounts.set(w, (winnerAmounts.get(w) || 0) + award);
-                totalAwarded += award;
-            }
-            allWinners.push(...potWinners);
-        }
-
-        if (this.pot > totalAwarded && allWinners.length > 0) {
-            const leftover = this.pot - totalAwarded;
-            const firstLeft = this.orderFromLeftOfDealer([...new Set(allWinners)])[0];
-            firstLeft.stack += leftover;
-            winnerAmounts.set(firstLeft, (winnerAmounts.get(firstLeft) || 0) + leftover);
-        }
-
-        const uniqueWinners = [...new Set(allWinners)];
-        const bestResult = results.reduce((best, r) =>
-            (!best || (r.hand && compareSDHands(r.hand, best.hand) > 0)) ? r : best, null);
-
-        this.notifyAIsOfShowdown(results, uniqueWinners);
-
-        const settledPot = this.pot;
-        if (this.onHandEnd) {
-            this.onHandEnd({
-                winners: uniqueWinners,
-                winnerAmounts,
-                pot: settledPot,
-                hand: bestResult?.hand,
-                handName: bestResult?.hand?.name || 'Unknown',
-                results,
-                reason: 'showdown',
-                share: uniqueWinners.length > 0 ? Math.floor(this.pot / uniqueWinners.length) : 0
-            });
-        }
-
-        this.phase = 'idle';
-        this.numHands++;
-        this.pot = 0;
-        if (this.onUpdate) this.onUpdate();
-    }
+    // 分池/派彩逻辑共享；短牌只提供自己的牌型评估与比较（SD_SETTLEMENT_HOOKS）。
+    showdown() { return sharedEngine().showdown(this, SD_SETTLEMENT_HOOKS); }
 
     notifyAIsOfShowdown(results, winners) {
-        const winnerSet = new Set(winners);
-        for (let observerIdx = 0; observerIdx < this.players.length; observerIdx++) {
-            const ai = this.players[observerIdx]?.aiRef;
-            if (!ai || typeof ai.recordShowdown !== 'function') continue;
-            ai.position = observerIdx;
-            for (const result of results) {
-                const seatIdx = this.players.indexOf(result.player);
-                const action = result.player.lastAction?.action;
-                const aggressive = action === 'raise' || action === 'allin';
-                const passive = action === 'check' || action === 'call';
-                ai.recordShowdown(seatIdx, {
-                    won:winnerSet.has(result.player),
-                    handRank:result.hand?.rank ?? 0,
-                    wasBluff:aggressive && !winnerSet.has(result.player) && (result.hand?.rank ?? 0) <= 2,
-                    wasTrap:passive && winnerSet.has(result.player) && (result.hand?.rank ?? 0) >= 4
-                });
-            }
-        }
+        return sharedEngine().notifyAIsOfShowdown(this, results, winners);
     }
 
     // ── 手牌分析 ──
@@ -1372,64 +978,15 @@ class ShortDeckGame {
         };
     }
 
-    getOuts() {
-        if (!this.humanPlayer || this.humanPlayer.folded || this.communityCards.length < 3 || this.communityCards.length >= 5) return null;
-        return this.outsResult;
-    }
+    getOuts() { return sharedEngine().getOuts(this); }
 
     // ── 可用行动 ──
 
-    getAvailableActions() {
-        if (!this.isPlayerTurn()) return [];
-
-        const toCall = Math.max(0, this.currentBet - (this.roundBets[0] || 0));
-        const player = this.humanPlayer;
-        const actions = [];
-
-        if (toCall === 0) {
-            actions.push({ type: 'check', label: 'Check', amount: 0 });
-        } else {
-            actions.push({ type: 'call', label: `Call ${Math.min(toCall, player.stack)}`, amount: Math.min(toCall, player.stack) });
-        }
-
-        if (player.stack > 0) {
-            if (toCall > 0) actions.push({ type: 'fold', label: 'Fold', amount: 0 });
-
-            const canRaise = this.canPlayerRaise(0);
-            if (canRaise) {
-                const minRaiseTotal = this.getMinRaiseTo();
-                const raiseAmount = minRaiseTotal - (this.roundBets[0] || 0);
-
-                if (raiseAmount < player.stack) {
-                    actions.push({ type: 'raise', label: `Raise to ${minRaiseTotal}`, amount: minRaiseTotal });
-                }
-
-            }
-
-            const allInTotal = (this.roundBets[0] || 0) + player.stack;
-            if (allInTotal <= this.currentBet || canRaise)
-                actions.push({ type: 'allin', label: 'All-in', amount: player.stack });
-        }
-
-        return actions;
-    }
+    getAvailableActions() { return sharedEngine().getAvailableActions(this); }
 
     // ── 重置 ──
 
-    resetGame() {
-        this.players = [];
-        this.humanPlayer = null;
-        this.aiPlayers = [];
-        this.communityCards = [];
-        this.pot = 0;
-        this.currentBet = 0;
-        this.phase = 'idle';
-        this.numHands = 0;
-        this.dealerPosition = -1;
-        this.sbIndex = -1;
-        this.bbIndex = -1;
-        if (this.onUpdate) this.onUpdate();
-    }
+    resetGame() { return sharedEngine().resetGame(this); }
 
     // ── 卡牌格式化（兼容UI） ──
 

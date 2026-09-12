@@ -492,20 +492,34 @@
         const deck = buildDeck(context.variant).filter(card => !known.has(cardKey(card)));
         const seats = context.activeOpponentSeats.length
             ? context.activeOpponentSeats : Array.from({length:context.numOpponents}, (_,i) => `unknown-${i}`);
-        const samplers = seats.map(seat => buildWeightedCombos(deck, beliefs.get(String(seat)), context.variant));
+        // A seat whose belief is marked folded produces zero-weight combinations,
+        // which used to spin forever (weightedPick returns null, samples never
+        // advances, and the wall-clock brake required samples >= minimumSamples).
+        // Skip those seats instead of sampling them.
+        const samplers = seats
+            .map(seat => buildWeightedCombos(deck, beliefs.get(String(seat)), context.variant))
+            .filter(sampler => sampler.length > 0);
+        if (!samplers.length) return { mean:0.5, stdDev:0.22, samples:0, confidence:0.05, timedOut:false };
         const budget = clamp(context.timeBudgetMs, 20, 180);
-        // A deterministic target keeps equal seeds reproducible across the
-        // browser and server. The wall-clock deadline remains an emergency
-        // brake, rather than the normal way a decision chooses its sample size.
+        // The wall-clock budget is an emergency brake, not the normal way a
+        // decision picks its sample size: the intended sample count is only
+        // interrupted when it is genuinely out of reach. Sampling a few extra
+        // milliseconds is far cheaper than letting the sample count - and with
+        // it the equity estimate and the bet size - wobble between a fast local
+        // game and a loaded room server.
+        const EMERGENCY_GRACE = 3;
         const baselineSamples = context.numOpponents >= 4 ? 180 : context.numOpponents >= 2 ? 240 : 320;
         const riverBonus = context.communityCards.length >= 5 ? 40 : 0;
         const maxSamples = Math.max(120, Math.floor(context.mcSamples || baselineSamples + riverBonus));
         const minimumSamples = context.numOpponents >= 4 ? 40 : 56;
-        let samples = 0, sum = 0, sumSquares = 0, timedOut = false;
-        while (samples < maxSamples) {
-            if (samples >= minimumSamples && samples % 8 === 0) {
-                const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-                if (now - start >= budget) { timedOut = true; break; }
+        let samples = 0, sum = 0, sumSquares = 0, timedOut = false, stalled = false;
+        for (let attempt = 0; samples < maxSamples; attempt++) {
+            const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+            // Check the emergency brake every iteration: a stalled sampler never
+            // advances samples, so a "samples % 8" gate would never fire.
+            if (now - start >= budget * EMERGENCY_GRACE) {
+                if (samples >= minimumSamples) timedOut = true;
+                break;
             }
             const used = new Set(known);
             const opponentCards = [];
@@ -516,7 +530,13 @@
                 used.add(combo.key1); used.add(combo.key2);
                 opponentCards.push([combo.c1, combo.c2]);
             }
-            if (!valid) continue;
+            if (!valid) {
+                // Five consecutive dead attempts mean this seat set can never be
+                // sampled (blockers, tiny deck, or a folded belief). Stop instead
+                // of spinning the event loop forever.
+                if (samples === 0 && attempt >= 5) { stalled = true; break; }
+                continue;
+            }
             const board = context.communityCards.slice();
             while (board.length < 5) {
                 let card = null;
@@ -547,7 +567,8 @@
             stdDev:Math.sqrt(variance),
             samples,
             confidence:clamp(samples / Math.max(160, maxSamples), 0.08, 0.96),
-            timedOut
+            timedOut,
+            stalled
         };
     }
 
@@ -880,6 +901,13 @@
             const context = normalizedContext(rawContext);
             if (this.currentHandId !== context.handId || !this.plan) this.beginHand(context.handId);
             const seed = `${rawContext.seed ?? 'table'}:${context.handId}:${this.seatId}:${context.decisionId}:${this.style}`;
+            // One stream, exactly as the shipped decision distribution expects:
+            // re-seeding the mixing roll changed which action gets picked often
+            // enough to measure (~4% of decisions), and a paired benchmark against
+            // a fixed opponent showed every alternative prefix doing worse. The
+            // "sample count changes the choice" problem is solved at its source in
+            // estimateRangeEquity instead, by making the intended sample count
+            // finish rather than stopping it on the wall clock.
             const rng = new SeededRng(seed);
             const reads = this.activeReads(context);
             let result;

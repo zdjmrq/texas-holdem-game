@@ -1,0 +1,11 @@
+* text=auto eol=lf
+
+# 二进制资源：不做行尾/编码转换
+*.mp3 binary
+*.ico binary
+*.png binary
+*.jar binary
+
+# 第三方依赖与构建产物
+node_modules/ export-ignore
+release-output/ export-ignore

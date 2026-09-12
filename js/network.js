@@ -5,6 +5,15 @@
 
 const NETWORK_SESSION_KEY = 'texas-holdem-network-session-v2';
 
+// 服务端主动终止的关闭码：自动重连只会放大问题，必须由用户手动重连。
+//   1000 正常关闭    1008 策略违规（服务端限流：message rate exceeded）
+//   1009 消息过大    1013 服务端容量已满 / 稍后重试
+//   4001 同一会话在别处恢复（顶号）：重连会造成两个客户端乒乓互踢
+const TERMINAL_CLOSE_CODES = new Set([1000, 1008, 1009, 1013, 4001]);
+function isTerminalCloseCode(code) {
+    return TERMINAL_CLOSE_CODES.has(Number(code));
+}
+
 let network = {
     ws: null,
     connected: false,
@@ -112,7 +121,7 @@ function connectToServer(url, options = {}) {
         if (!isCurrentSocket(socket, generation)) return;
         network.connected = false;
         network.ws = null;
-        const canResume = network.shouldReconnect && !!network.resumeToken && !!network.roomCode && event.code !== 1000;
+        const canResume = network.shouldReconnect && !!network.resumeToken && !!network.roomCode && !isTerminalCloseCode(event.code);
         const reconnectDelay = canResume
             ? Math.min(10000, 650 * (2 ** Math.min(network.reconnectAttempts, 4))) + Math.floor(Math.random() * 350)
             : 0;

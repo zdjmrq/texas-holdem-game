@@ -35,6 +35,9 @@ let lastShownOnlineResultHandId = null;
 let onlineProbabilityResult = null;
 let onlineOutsResult = null;
 let onlineProbabilityKey = '';
+// 服务端房间配置指纹：联机模式每条 game_state 都会调用 applyRoomConfigFromServer，
+// 配置没变就不该重建 .count-options / #roomMaxPlayers / .blinds-info（否则会把用户展开的下拉框强制关闭）
+let appliedRoomConfigFingerprint = null;
 
 const APP_SETTINGS_KEY = 'texas-holdem-settings-v1';
 const MUSIC_SETTINGS_VERSION = 2;
@@ -107,16 +110,6 @@ function restoreSavedInputs() {
 }
 
 async function syncLocalServerEndpoint() {
-    if (navigator.userAgent.includes('TexasHoldemAndroid/')) {
-        const hint = document.getElementById('localServerHint');
-        if (hint) hint.textContent = '安卓端不启动服务器；请输入电脑或服务器的 WebSocket 地址，不能使用 localhost。';
-        const serverInput = document.getElementById('serverAddress');
-        if (serverInput && /^ws:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(serverInput.value)) {
-            serverInput.value = '';
-            serverInput.placeholder = 'ws://电脑局域网IP:3000 或 wss://服务器域名';
-        }
-        return;
-    }
     if (!window.windowControls?.getLocalServerUrl) return;
     try {
         const localUrl = await window.windowControls.getLocalServerUrl();
@@ -146,6 +139,26 @@ function formatChips(value) {
     return '$' + Math.max(0, Math.floor(Number(value) || 0)).toLocaleString();
 }
 
+// ── 头部盲注信息（.blinds-info）────────────────────────────────────────────
+// 每个 game_state 都会调用两次（applyRoomConfigFromServer→syncGameSettingsUI 与
+// updateOnlineBlindDisplay），内容相同就不要再写 innerHTML。
+let lastBlindsInfoHTML = null;
+
+function blindsInfoHTML(isShortDeck, small, big) {
+    return isShortDeck
+        ? `<span>Ante: <span id="sbDisplay">${small}</span></span><span>最小下注: <span id="bbDisplay">${big}</span></span>`
+        : `<span>SB: <span id="sbDisplay">${small}</span></span><span>BB: <span id="bbDisplay">${big}</span></span>`;
+}
+
+function writeBlindsInfo(isShortDeck, small, big) {
+    const html = blindsInfoHTML(isShortDeck, small, big);
+    if (html === lastBlindsInfoHTML) return;
+    const el = document.querySelector('.blinds-info');
+    if (!el) return;
+    el.innerHTML = html;
+    lastBlindsInfoHTML = html;
+}
+
 function updateGameSetting(type, rawIndex) {
     if (type === 'stack') {
         const index = Math.max(0, Math.min(STARTING_STACK_LEVELS.length - 1, parseInt(rawIndex) || 0));
@@ -158,6 +171,7 @@ function updateGameSetting(type, rawIndex) {
         const index = Math.max(0, Math.min(AI_SPEED_LEVELS.length - 1, parseInt(rawIndex) || 0));
         selectedAiDelay = AI_SPEED_LEVELS[index].delay;
     }
+    appliedRoomConfigFingerprint = null; // 本地改动过设置 → 让服务端配置可以重新应用
     syncGameSettingsUI();
     saveAppSettings();
 }
@@ -201,12 +215,7 @@ function syncGameSettingsUI() {
             : `${depth} BB 起始深度`;
     }
 
-    const headerBlinds = document.querySelector('.blinds-info');
-    if (headerBlinds) {
-        headerBlinds.innerHTML = gameMode === 'shortdeck'
-            ? `<span>Ante: <span id="sbDisplay">${selectedSmallBlind}</span></span><span>最小下注: <span id="bbDisplay">${selectedBigBlind}</span></span>`
-            : `<span>SB: <span id="sbDisplay">${selectedSmallBlind}</span></span><span>BB: <span id="bbDisplay">${selectedBigBlind}</span></span>`;
-    }
+    writeBlindsInfo(gameMode === 'shortdeck', selectedSmallBlind, selectedBigBlind);
 
     const dynamicValues = {
         'small-blind': selectedSmallBlind,
@@ -235,6 +244,9 @@ function applyRoomConfigFromServer(message) {
         selectedBigBlind = blindLevel.big;
     }
     if (AI_SPEED_LEVELS.some(level => level.delay === aiDelay)) selectedAiDelay = aiDelay;
+    const fingerprint = [gameMode, selectedStartingStack, selectedSmallBlind, selectedBigBlind, selectedAiDelay].join('|');
+    if (fingerprint === appliedRoomConfigFingerprint) return; // 配置没变：跳过全部 DOM 重建
+    appliedRoomConfigFingerprint = fingerprint;
     document.querySelectorAll('.mode-btn').forEach(button => {
         button.classList.toggle('selected', button.dataset.mode === gameMode);
     });
@@ -260,6 +272,7 @@ function resetOnlinePresentationState() {
 /** Select game mode (standard/shortdeck) */
 function selectGameMode(mode) {
     gameMode = mode;
+    appliedRoomConfigFingerprint = null; // 本地改动过设置 → 让服务端配置可以重新应用
     document.querySelectorAll('.mode-btn').forEach(b => {
         b.classList.toggle('selected', b.dataset.mode === mode);
     });
@@ -561,7 +574,7 @@ function renderOnlineGame(msg) {
     if (potDisplay) potDisplay.style.display = '';
 
     // 底池
-    document.getElementById('potDisplay').textContent = '底池: $' + (msg.pot || 0).toLocaleString();
+    document.getElementById('potDisplay').textContent = '底池: ' + formatChips(msg.pot);
 
     // 公共牌
     renderOnlineCommunityCards(msg.communityCards || []);
@@ -593,11 +606,11 @@ function renderOnlineGame(msg) {
         document.getElementById('humanStack').textContent = 'ALL-IN';
         document.getElementById('humanStack').style.color = '#ffd700';
     } else {
-        document.getElementById('humanStack').textContent = '$' + myStack.toLocaleString();
+        document.getElementById('humanStack').textContent = formatChips(myStack);
         document.getElementById('humanStack').style.color = '';
     }
     var totalBet = myFullInfo ? myFullInfo.chipsInPot || 0 : (msg.yourBet || 0);
-    document.getElementById('humanRoundBet').textContent = '$' + (totalBet).toLocaleString();
+    document.getElementById('humanRoundBet').textContent = formatChips(totalBet);
 
     // 高亮
     const humanArea = document.getElementById('humanArea');
@@ -745,11 +758,7 @@ function updateOnlineBlindDisplay(msg) {
     const isShortDeck = !!(config.isShortDeck || (msg && msg.isShortDeck));
     const small = Number(config.smallBlind || config.ante) || selectedSmallBlind;
     const big = Number(config.bigBlind || config.minBet) || selectedBigBlind;
-    const blindsInfo = document.querySelector('.blinds-info');
-    if (!blindsInfo) return;
-    blindsInfo.innerHTML = isShortDeck
-        ? `<span>Ante: <span id="sbDisplay">${small}</span></span><span>最小下注: <span id="bbDisplay">${big}</span></span>`
-        : `<span>SB: <span id="sbDisplay">${small}</span></span><span>BB: <span id="bbDisplay">${big}</span></span>`;
+    writeBlindsInfo(isShortDeck, small, big);
 }
 
 /** 渲染联网玩家位置标识（服务端已传 sbIdx/bbIdx） */
@@ -786,6 +795,61 @@ function renderOnlinePositionBadges(msg) {
     }
 }
 
+// ============================================================
+// 座位渲染工具：节点复用 + 表格尺寸缓存
+// 每帧整表重建会丢弃全部节点：createElement/appendChild 开销大，CSS 动画
+// （action-pop、thinking 光晕）会被每帧重启，800ms 的清理定时器永远追不上。
+// 这里改成「节点只建一次，之后只改 textContent / class / style」。
+// ============================================================
+
+function setNodeText(node, text) {
+    if (node.textContent !== text) node.textContent = text;
+}
+
+function setNodeClass(node, className) {
+    if (node.className !== className) node.className = className;
+}
+
+function setNodeDisplay(node, visible) {
+    const want = visible ? '' : 'none';
+    if (node.style.display !== want) node.style.display = want;
+}
+
+function setNodeColor(node, color) {
+    if (node.style.color !== color) node.style.color = color;
+}
+
+/** 表格容器尺寸缓存 —— 避免每帧读 offsetWidth/offsetHeight 触发强制同步布局 */
+let tableSizeCache = { node: null, width: 0, height: 0 };
+
+function invalidateTableSizeCache() {
+    tableSizeCache = { node: null, width: 0, height: 0 };
+}
+
+function getTableSize(container) {
+    if (tableSizeCache.node === container && tableSizeCache.width > 0 && tableSizeCache.height > 0) {
+        return tableSizeCache;
+    }
+    const width = container.offsetWidth;
+    const height = container.offsetHeight;
+    // 容器隐藏时（还在开始界面）读到 0：先用兜底值但不入缓存，下一帧再测
+    if (width > 0 && height > 0) tableSizeCache = { node: container, width, height };
+    return { node: container, width: width || 900, height: height || 420 };
+}
+
+window.addEventListener('resize', invalidateTableSizeCache);
+document.addEventListener('fullscreenchange', invalidateTableSizeCache);
+
+/** 座位容器：只增删到目标数量，已有节点原样复用 */
+function syncSeatNodes(container, count, factory) {
+    while (container.children.length > count) {
+        container.removeChild(container.children[container.children.length - 1]);
+    }
+    while (container.children.length < count) {
+        container.appendChild(factory());
+    }
+}
+
 /** 渲染玩家座位（联网版）—— 每人从自己座位视角看牌桌 */
 function renderOnlinePlayers(players, state) {
     const container = document.getElementById('aiPlayersContainer');
@@ -795,17 +859,23 @@ function renderOnlinePlayers(players, state) {
     const totalN = players.length;
     const mySeat = players.findIndex(function(p) { return p.id === myId; });
     if (mySeat < 0) return;
-    container.innerHTML = '';
 
-    const cw = container.offsetWidth || 900;
-    const ch = container.offsetHeight || 420;
+    const size = getTableSize(container);
     // 计算 N-1 个非我的座位位置（第0个是"我左边第一个"顺时针方向）
-    const positions = calculateTablePositions(totalN - 1, cw, ch);
+    const positions = calculateTablePositions(totalN - 1, size.width, size.height);
 
-    for (const seatIdx in players) {
-        const i = parseInt(seatIdx);
+    let opponentCount = 0;
+    for (const p of players) if (p.id !== myId) opponentCount++;
+    syncSeatNodes(container, opponentCount, createOnlineSeatNode);
+
+    let seatIdx = 0;
+    for (const seatKey in players) {
+        const i = parseInt(seatKey);
         const player = players[i];
         if (player.id === myId) continue; // 我在 humanArea
+        const seat = container.children[seatIdx++];
+        if (!seat || !seat.__parts) continue;
+        const parts = seat.__parts;
 
         // 视角转换：这个玩家在我的屏幕上应该出现在哪个位置？
         // 顺时针步数 steps = 这个座位到我的顺时针距离
@@ -813,92 +883,124 @@ function renderOnlinePlayers(players, state) {
         var steps = ((i - mySeat) % totalN + totalN) % totalN;
         var screenIdx = steps - 1;
 
-        const seat = document.createElement('div');
-        seat.className = 'player-seat';
-        if (player.folded) seat.classList.add('folded');
-        if (player.isAllIn) seat.classList.add('all-in');
-
         // 按视角位置定位
         if (positions && positions[screenIdx]) {
-            seat.style.left = positions[screenIdx].x + 'px';
-            seat.style.top = positions[screenIdx].y + 'px';
+            const posX = positions[screenIdx].x + 'px';
+            const posY = positions[screenIdx].y + 'px';
+            if (seat.style.left !== posX) seat.style.left = posX;
+            if (seat.style.top !== posY) seat.style.top = posY;
         }
+
+        const isThinking = !!(state && state.currentPlayerIdx !== undefined &&
+            i === state.currentPlayerIdx && !player.folded);
+        let seatClass = 'player-seat';
+        if (player.folded) seatClass += ' folded';
+        if (player.isAllIn) seatClass += ' all-in';
+        if (isThinking) seatClass += ' thinking';
+        setNodeClass(seat, seatClass);
 
         // 位置标识（D / SB / BB）—— 基于实际座位索引 i，与视角无关
-        const posBadges = [];
-        if (i === state.dealerPos) posBadges.push({label:'D',title:'庄家',bg:'#ffd700',color:'#1a1a2e'});
-        if (i === state.sbIdx) posBadges.push({label:'SB',title:'小盲',bg:'#3498db',color:'#fff'});
-        if (i === state.bbIdx) posBadges.push({label:'BB',title:'大盲',bg:'#e67e22',color:'#fff'});
-        for (const b of posBadges) {
-            const badge = document.createElement('span');
-            badge.className = 'pos-badge';
-            badge.textContent = b.label;
-            badge.title = b.title;
-            badge.style.cssText = 'position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:10px;background:' + b.bg + ';color:' + b.color + ';padding:1px 6px;border-radius:8px;font-weight:bold;z-index:5;';
-            seat.appendChild(badge);
-        }
+        setNodeDisplay(parts.badgeDealer, i === state.dealerPos);
+        setNodeDisplay(parts.badgeSb, i === state.sbIdx);
+        setNodeDisplay(parts.badgeBb, i === state.bbIdx);
 
-        const avatar = document.createElement('div');
-        avatar.className = 'player-avatar';
-        avatar.textContent = player.avatar || (player.isHuman ? '👤' : '🤖');
-        seat.appendChild(avatar);
+        setNodeText(parts.avatar, player.avatar || (player.isHuman ? '👤' : '🤖'));
+        setNodeText(parts.name, player.name);
 
-        const name = document.createElement('div');
-        name.className = 'player-name';
-        name.textContent = player.name;
-        seat.appendChild(name);
-
-        const stack = document.createElement('div');
-        stack.className = 'player-stack';
         if (player.isAllIn) {
-            stack.textContent = 'ALL-IN';
+            setNodeText(parts.stack, 'ALL-IN');
+            setNodeColor(parts.stack, '');
         } else if (player.stack <= 0) {
-            stack.textContent = '💰 已破产';
-            stack.style.color = '#e94560';
+            setNodeText(parts.stack, '💰 已破产');
+            setNodeColor(parts.stack, '#e94560');
         } else {
-            stack.textContent = '$' + (player.stack || 0).toLocaleString();
+            setNodeText(parts.stack, formatChips(player.stack));
+            setNodeColor(parts.stack, '');
         }
-        seat.appendChild(stack);
 
         // 下注额
         if (player.chipsInPot > 0 && state.phase && state.phase !== 'idle') {
-            const bet = document.createElement('div');
-            bet.className = 'player-bet';
-            bet.textContent = '$' + (player.chipsInPot || 0);
-            seat.appendChild(bet);
+            setNodeText(parts.bet, formatChips(player.chipsInPot));
+            setNodeDisplay(parts.bet, true);
+        } else {
+            setNodeDisplay(parts.bet, false);
         }
 
-        // 后手空白手牌
-        const cardsDiv = document.createElement('div');
-        cardsDiv.className = 'player-cards';
-        if (player.folded) {
-            const c1 = document.createElement('div');
-            c1.className = 'card card-back card-back-logo small';
-            cardsDiv.appendChild(c1);
-            const c2 = c1.cloneNode();
-            cardsDiv.appendChild(c2);
-        } else if (state.phase === 'showdown' || state.phase === 'idle') {
-            // 摊牌时也不显示牌，空着
+        // 后手空白手牌（摊牌时不显示牌，空着）
+        let cardClass = '';
+        if (player.folded) cardClass = 'card card-back card-back-logo small';
+        else if (state.phase !== 'showdown' && state.phase !== 'idle') cardClass = 'card card-back small';
+        if (cardClass) {
+            setNodeClass(parts.card0, cardClass);
+            setNodeClass(parts.card1, cardClass);
+            setNodeDisplay(parts.card0, true);
+            setNodeDisplay(parts.card1, true);
         } else {
-            const c1 = document.createElement('div');
-            c1.className = 'card card-back small';
-            cardsDiv.appendChild(c1);
-            const c2 = c1.cloneNode();
-            cardsDiv.appendChild(c2);
+            setNodeDisplay(parts.card0, false);
+            setNodeDisplay(parts.card1, false);
         }
-        seat.appendChild(cardsDiv);
 
         // 思考动画
-        if (state && state.currentPlayerIdx !== undefined && i === state.currentPlayerIdx && !player.folded) {
-            seat.classList.add('thinking');
-            var dots = document.createElement('div');
-            dots.className = 'thinking-dots';
-            dots.textContent = '...';
-            seat.appendChild(dots);
-        }
-
-        container.appendChild(seat);
+        setNodeDisplay(parts.dots, isThinking);
     }
+}
+
+/** 联机座位骨架：一次创建（含 D/SB/BB 三个固定徽章），之后只更新内容 */
+function createOnlineSeatNode() {
+    const seat = document.createElement('div');
+    seat.className = 'player-seat';
+    const badgeCss = 'position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:10px;padding:1px 6px;border-radius:8px;font-weight:bold;z-index:5;';
+    const badgeDealer = document.createElement('span');
+    badgeDealer.className = 'pos-badge';
+    badgeDealer.textContent = 'D';
+    badgeDealer.title = '庄家';
+    badgeDealer.style.cssText = badgeCss + 'background:#ffd700;color:#1a1a2e;display:none;';
+    const badgeSb = document.createElement('span');
+    badgeSb.className = 'pos-badge';
+    badgeSb.textContent = 'SB';
+    badgeSb.title = '小盲';
+    badgeSb.style.cssText = badgeCss + 'background:#3498db;color:#fff;display:none;';
+    const badgeBb = document.createElement('span');
+    badgeBb.className = 'pos-badge';
+    badgeBb.textContent = 'BB';
+    badgeBb.title = '大盲';
+    badgeBb.style.cssText = badgeCss + 'background:#e67e22;color:#fff;display:none;';
+    const avatar = document.createElement('div');
+    avatar.className = 'player-avatar';
+    const name = document.createElement('div');
+    name.className = 'player-name';
+    const stack = document.createElement('div');
+    stack.className = 'player-stack';
+    const bet = document.createElement('div');
+    bet.className = 'player-bet';
+    bet.style.display = 'none';
+    const cards = document.createElement('div');
+    cards.className = 'player-cards';
+    const card0 = document.createElement('div');
+    card0.className = 'card card-back small';
+    card0.style.display = 'none';
+    const card1 = document.createElement('div');
+    card1.className = 'card card-back small';
+    card1.style.display = 'none';
+    const dots = document.createElement('div');
+    dots.className = 'thinking-dots';
+    dots.textContent = '...';
+    dots.style.display = 'none';
+
+    seat.appendChild(badgeDealer);
+    seat.appendChild(badgeSb);
+    seat.appendChild(badgeBb);
+    seat.appendChild(avatar);
+    seat.appendChild(name);
+    seat.appendChild(stack);
+    seat.appendChild(bet);
+    cards.appendChild(card0);
+    cards.appendChild(card1);
+    seat.appendChild(cards);
+    seat.appendChild(dots);
+
+    seat.__parts = { badgeDealer, badgeSb, badgeBb, avatar, name, stack, bet, cards, card0, card1, dots };
+    return seat;
 }
 
 /** 追踪上一帧的联网状态，用于 AI 行动动画检测 */
@@ -1007,7 +1109,7 @@ function showOnlineShowdown(result) {
     // 赢家
     const winnerNames = result.winners.map(w => w.isHuman ? (w.id === network.playerId ? '你' : (w.name || '玩家')) : w.name).join(', ');
     document.getElementById('winnerName').textContent = winnerNames;
-    document.getElementById('winnerAmount').textContent = '$' + (result.pot || 0).toLocaleString();
+    document.getElementById('winnerAmount').textContent = formatChips(result.pot);
 
     // 牌型名称：弃牌胜出不显示牌型，摊牌才显示
     const nameMap = result.isShortDeck ? SD_HAND_TYPE_NAMES : HAND_TYPE_NAMES;
@@ -1133,11 +1235,6 @@ function doDisconnect() {
     showNetworkError('🔌 已断开连接');
 }
 
-function doCreateRoom() {
-    // 去掉了单独创建 — 统一用"进入房间"，创建=第一个进入
-    doJoinRoom();
-}
-
 function doJoinRoom() {
     const code = document.getElementById('joinRoomCode').value.trim();
     const name = document.getElementById('playerNameInput').value.trim() || '玩家';
@@ -1200,6 +1297,11 @@ function updatePlayerList(players) {
     }
 }
 
+// 人数按钮 / 联机人数下拉框最后渲染的 gameMode：内容不变就不重建节点
+// （重建会丢掉用户刚点选的人数，并强制关闭正在展开的下拉框）
+let renderedCountOptionsMode = null;
+let renderedRoomMaxPlayersMode = null;
+
 /** Update player count buttons based on mode */
 function updatePlayerCountOptions() {
     const container = document.querySelector('.count-options');
@@ -1214,9 +1316,12 @@ function updatePlayerCountOptions() {
         : [2, 6, 7, 8, 9, 10];
     const defaultOption = isSD ? 6 : 10;
 
-    container.innerHTML = options.map(n =>
-        `<button class="count-btn${n === defaultOption ? ' selected' : ''}" data-count="${n}">${n} 人</button>`
-    ).join('');
+    if (renderedCountOptionsMode !== gameMode) {
+        container.innerHTML = options.map(n =>
+            `<button class="count-btn${n === defaultOption ? ' selected' : ''}" data-count="${n}">${n} 人</button>`
+        ).join('');
+        renderedCountOptionsMode = gameMode;
+    }
 
     // 同步更新联机模式的人数下拉框
     updateOnlinePlayerCountOptions();
@@ -1235,9 +1340,12 @@ function updateOnlinePlayerCountOptions() {
         : [2, 6, 7, 8, 9, 10];
     const defaultOption = isSD ? 6 : 10;
 
-    select.innerHTML = options.map(n =>
-        `<option value="${n}"${n === defaultOption ? ' selected' : ''}>${n}人</option>`
-    ).join('');
+    if (renderedRoomMaxPlayersMode !== gameMode) {
+        select.innerHTML = options.map(n =>
+            `<option value="${n}"${n === defaultOption ? ' selected' : ''}>${n}人</option>`
+        ).join('');
+        renderedRoomMaxPlayersMode = gameMode;
+    }
 }
 
 /** Update start screen title/subtitle based on current mode */
@@ -1298,13 +1406,8 @@ function setupGameCallbacks(g) {
         const seat = document.querySelector(`.player-seat[data-player-index="${idx}"]`);
         if (seat) {
             seat.classList.add('thinking');
-            let dots = seat.querySelector('.thinking-dots');
-            if (!dots) {
-                dots = document.createElement('div');
-                dots.className = 'thinking-dots';
-                dots.textContent = '...';
-                seat.appendChild(dots);
-            }
+            const dots = seat.__parts ? seat.__parts.dots : seat.querySelector('.thinking-dots');
+            if (dots) setNodeDisplay(dots, true);
         }
     };
 
@@ -1312,8 +1415,8 @@ function setupGameCallbacks(g) {
         const seat = document.querySelector(`.player-seat[data-player-index="${idx}"]`);
         if (seat) {
             seat.classList.remove('thinking');
-            const dots = seat.querySelector('.thinking-dots');
-            if (dots) dots.remove();
+            const dots = seat.__parts ? seat.__parts.dots : seat.querySelector('.thinking-dots');
+            if (dots) setNodeDisplay(dots, false);
         }
         const player = g.players[idx];
         if (!player) return;
@@ -1366,8 +1469,8 @@ function renderUI() {
 
     // Human player area
     if (game.humanPlayer) {
-        document.getElementById('humanStack').textContent = '$' + game.humanPlayer.stack.toLocaleString();
-        document.getElementById('humanRoundBet').textContent = '$' + (game.humanPlayer.chipsInPot || 0).toLocaleString();
+        document.getElementById('humanStack').textContent = formatChips(game.humanPlayer.stack);
+        document.getElementById('humanRoundBet').textContent = formatChips(game.humanPlayer.chipsInPot);
 
         // Human cards
         if (game.humanPlayer.holeCards && game.humanPlayer.holeCards.length === 2 && !humanCardsAnimating) {
@@ -1562,36 +1665,40 @@ function renderAIPlayers() {
     if (!container) return;
 
     const aiPlayers = game.players.filter(p => !p.isHuman);
-    container.innerHTML = '';
-
     const aiCount = aiPlayers.length;
 
-    // Get container dimensions for positioning
-    const cw = container.offsetWidth || 900;
-    const ch = container.offsetHeight || 420;
+    // 尺寸取自缓存，避免「清空容器后立刻读 offsetWidth」造成的强制同步布局
+    const size = getTableSize(container);
+    const positions = calculateTablePositions(aiCount, size.width, size.height);
 
-    // Calculate positions based on player count
-    const positions = calculateTablePositions(aiCount, cw, ch);
+    syncSeatNodes(container, aiCount, createLocalSeatNode);
 
     for (const [i, player] of aiPlayers.entries()) {
+        const seat = container.children[i];
+        if (!seat || !seat.__parts) continue;
+        const parts = seat.__parts;
         const playerIdx = game.players.indexOf(player);
-        const seat = document.createElement('div');
-        seat.className = 'player-seat';
-        seat.id = `ai-seat-${i}`;
-        seat.dataset.playerIndex = playerIdx;
+
+        const seatId = `ai-seat-${i}`;
+        if (seat.id !== seatId) seat.id = seatId;
+        if (seat.dataset.playerIndex !== String(playerIdx)) seat.dataset.playerIndex = playerIdx;
 
         // Apply absolute positioning
         if (positions && positions[i]) {
-            seat.style.left = positions[i].x + 'px';
-            seat.style.top = positions[i].y + 'px';
+            const posX = positions[i].x + 'px';
+            const posY = positions[i].y + 'px';
+            if (seat.style.left !== posX) seat.style.left = posX;
+            if (seat.style.top !== posY) seat.style.top = posY;
         }
 
-        if (player.folded) seat.classList.add('folded');
-        if (player.isAllIn) seat.classList.add('all-in');
-        if (game.currentPlayer && !game.currentPlayer.isHuman &&
-            game.currentPlayer.name === player.name) {
-            seat.classList.add('active');
-        }
+        const isCurrentAI = !!(game.currentPlayer && !game.currentPlayer.isHuman &&
+            game.currentPlayer.name === player.name);
+        let seatClass = 'player-seat';
+        if (player.folded) seatClass += ' folded';
+        if (player.isAllIn) seatClass += ' all-in';
+        if (isCurrentAI) seatClass += ' active';
+        if (isCurrentAI && !player.folded) seatClass += ' thinking';
+        setNodeClass(seat, seatClass);
 
         // Position badges (D, SB, BB)
         const posBadges = [];
@@ -1606,95 +1713,144 @@ function renderAIPlayers() {
                 posBadges.push({ label: 'BB', cls: 'badge-bb', title: '大盲' });
             }
         }
-
-        if (posBadges.length > 0) {
-            const badgeContainer = document.createElement('div');
-            badgeContainer.className = 'position-badges';
+        const badgeKey = posBadges.map(b => b.label).join(',');
+        if (parts.badgeKey !== badgeKey) {
+            parts.badgeKey = badgeKey;
+            parts.badges.replaceChildren();
             for (const b of posBadges) {
                 const badge = document.createElement('span');
                 badge.className = `pos-badge ${b.cls}`;
                 badge.textContent = b.label;
                 badge.title = b.title;
-                badgeContainer.appendChild(badge);
+                parts.badges.appendChild(badge);
             }
-            seat.appendChild(badgeContainer);
+            setNodeDisplay(parts.badges, posBadges.length > 0);
         }
 
-        const avatar = document.createElement('div');
-        avatar.className = 'player-avatar';
-        avatar.textContent = player.avatar || '🤖';
-        seat.appendChild(avatar);
+        setNodeText(parts.avatar, player.avatar || '🤖');
+        setNodeText(parts.name, player.name);
+        setNodeText(parts.stack, player.isAllIn ? 'ALL-IN' : formatChips(player.stack));
 
-        const name = document.createElement('div');
-        name.className = 'player-name';
-        name.textContent = player.name;
-        seat.appendChild(name);
-
-        const stack = document.createElement('div');
-        stack.className = 'player-stack';
-        stack.textContent = '$' + player.stack.toLocaleString();
-        if (player.isAllIn) stack.textContent = 'ALL-IN';
-        seat.appendChild(stack);
-
-        // Cards
-        const cardsDiv = document.createElement('div');
-        cardsDiv.className = 'player-cards';
-        if (player.holeCards && player.holeCards.length === 2) {
+        // Cards（复用两个牌面节点，只在内容变化时写 innerHTML）
+        const hole = (player.holeCards && player.holeCards.length === 2) ? player.holeCards : null;
+        const cardNodes = [parts.card0, parts.card1];
+        for (let c = 0; c < 2; c++) {
+            const node = cardNodes[c];
+            const card = hole ? hole[c] : null;
+            if (!card) {
+                setNodeDisplay(node, false);
+                continue;
+            }
+            let cardClass = 'card card-back small';
+            let cardHtml = '';
             if (player.folded) {
-                const c1 = document.createElement('div');
-                c1.className = 'card card-back card-back-logo small';
-                cardsDiv.appendChild(c1);
-                const c2 = c1.cloneNode();
-                cardsDiv.appendChild(c2);
+                cardClass = 'card card-back card-back-logo small';
             } else if (game.phase === 'showdown' || game.phase === 'idle') {
-                for (const card of player.holeCards) {
-                    const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
-                    const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
-                    const cardEl = document.createElement('div');
-                    cardEl.className = `card small ${isRed ? 'red' : 'black'}`;
-                    cardEl.innerHTML = `
-                        <span class="card-rank">${card.rank}</span>
-                        <span class="card-suit">${suitSymbols[card.suit]}</span>
-                    `;
-                    cardsDiv.appendChild(cardEl);
-                }
-            } else {
-                const c1 = document.createElement('div');
-                c1.className = 'card card-back small';
-                cardsDiv.appendChild(c1);
-                const c2 = c1.cloneNode();
-                cardsDiv.appendChild(c2);
+                const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+                const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+                cardClass = `card small ${isRed ? 'red' : 'black'}`;
+                cardHtml = `<span class="card-rank">${card.rank}</span><span class="card-suit">${suitSymbols[card.suit]}</span>`;
             }
+            setNodeClass(node, cardClass);
+            if (parts.cardHtml[c] !== cardHtml) {
+                parts.cardHtml[c] = cardHtml;
+                if (cardHtml) node.innerHTML = cardHtml;
+                else node.replaceChildren();
+            }
+            setNodeDisplay(node, true);
         }
-        seat.appendChild(cardsDiv);
 
         // Bet/chips
         if (player.chipsInPot > 0 && game.phase !== 'idle') {
-            const bet = document.createElement('div');
-            bet.className = 'player-bet';
-            bet.textContent = '$' + player.chipsInPot;
-            seat.appendChild(bet);
+            setNodeText(parts.bet, formatChips(player.chipsInPot));
+            setNodeDisplay(parts.bet, true);
+        } else {
+            setNodeDisplay(parts.bet, false);
         }
 
-        // Last action
+        // Last action —— 只在动作真正变化时重建并重启动画
+        // （每帧重建会让 action-pop 每帧重启，800ms 的移除定时器永远追不上）
         if (player.lastAction && game.phase !== 'idle') {
-            const action = document.createElement('div');
-            action.className = `player-last-action action-${player.lastAction.action} action-pop`;
             const actionLabels = {
                 'fold': '弃牌', 'check': '过牌', 'call': '跟注',
                 'raise': '加注', 'allin': '全下',
                 'small blind': '小盲', 'big blind': '大盲'
             };
             const label = actionLabels[player.lastAction.action] || player.lastAction.action;
-            action.textContent = player.lastAction.amount > 0 && !['fold','check'].includes(player.lastAction.action)
+            const actionText = player.lastAction.amount > 0 && !['fold','check'].includes(player.lastAction.action)
                 ? `${label} $${player.lastAction.amount}`
                 : label;
-            seat.appendChild(action);
-            setTimeout(() => action.classList.remove('action-pop'), 800);
+            const actionKey = `${player.lastAction.action}|${actionText}`;
+            if (parts.actionKey !== actionKey) {
+                parts.actionKey = actionKey;
+                setNodeText(parts.action, actionText);
+                setNodeClass(parts.action, `player-last-action action-${player.lastAction.action} action-pop`);
+                if (parts.actionTimer) clearTimeout(parts.actionTimer);
+                parts.actionTimer = setTimeout(() => {
+                    parts.actionTimer = 0;
+                    parts.action.classList.remove('action-pop');
+                }, 800);
+            }
+            setNodeDisplay(parts.action, true);
+        } else {
+            if (parts.actionTimer) {
+                clearTimeout(parts.actionTimer);
+                parts.actionTimer = 0;
+            }
+            parts.actionKey = null;
+            setNodeDisplay(parts.action, false);
         }
 
-        container.appendChild(seat);
+        // 思考动画（onAIThinking/onAIAction 也会即时切换）
+        setNodeDisplay(parts.dots, isCurrentAI && !player.folded);
     }
+}
+
+/** 本地座位骨架：一次创建，之后只更新内容 */
+function createLocalSeatNode() {
+    const seat = document.createElement('div');
+    seat.className = 'player-seat';
+    const badges = document.createElement('div');
+    badges.className = 'position-badges';
+    badges.style.display = 'none';
+    const avatar = document.createElement('div');
+    avatar.className = 'player-avatar';
+    const name = document.createElement('div');
+    name.className = 'player-name';
+    const stack = document.createElement('div');
+    stack.className = 'player-stack';
+    const cards = document.createElement('div');
+    cards.className = 'player-cards';
+    const card0 = document.createElement('div');
+    card0.className = 'card card-back small';
+    card0.style.display = 'none';
+    const card1 = document.createElement('div');
+    card1.className = 'card card-back small';
+    card1.style.display = 'none';
+    const bet = document.createElement('div');
+    bet.className = 'player-bet';
+    bet.style.display = 'none';
+    const action = document.createElement('div');
+    action.className = 'player-last-action';
+    action.style.display = 'none';
+    const dots = document.createElement('div');
+    dots.className = 'thinking-dots';
+    dots.textContent = '...';
+    dots.style.display = 'none';
+
+    seat.appendChild(badges);
+    seat.appendChild(avatar);
+    seat.appendChild(name);
+    seat.appendChild(stack);
+    cards.appendChild(card0);
+    cards.appendChild(card1);
+    seat.appendChild(cards);
+    seat.appendChild(bet);
+    seat.appendChild(action);
+    seat.appendChild(dots);
+
+    seat.__parts = { badges, badgeKey: null, avatar, name, stack, cards, card0, card1, cardHtml: ['', ''], bet, action, actionKey: null, actionTimer: 0, dots };
+    return seat;
 }
 
 /**
@@ -2018,7 +2174,7 @@ function updateGameStatus() {
 }
 
 function updatePot() {
-    document.getElementById('potDisplay').textContent = '底池: $' + game.pot.toLocaleString();
+    document.getElementById('potDisplay').textContent = '底池: ' + formatChips(game.pot);
 }
 
 function updateBettingRoundLabel() {
@@ -2379,19 +2535,10 @@ function updateModeUI() {
     }
 
     // Update blinds info display
-    const blindsInfo = document.querySelector('.blinds-info');
-    if (blindsInfo) {
-        if (isSD && game) {
-            blindsInfo.innerHTML = `
-                <span>Ante: <span id="sbDisplay">${game.ante}</span></span>
-                <span>最小下注: <span id="bbDisplay">${game.minBet}</span></span>
-            `;
-        } else {
-            blindsInfo.innerHTML = `
-                <span>SB: <span id="sbDisplay">${game ? game.smallBlind : selectedSmallBlind}</span></span>
-                <span>BB: <span id="bbDisplay">${game ? game.bigBlind : selectedBigBlind}</span></span>
-            `;
-        }
+    if (isSD && game) {
+        writeBlindsInfo(true, game.ante, game.minBet);
+    } else {
+        writeBlindsInfo(false, game ? game.smallBlind : selectedSmallBlind, game ? game.bigBlind : selectedBigBlind);
     }
     syncGameSettingsUI();
 }
@@ -2661,6 +2808,9 @@ function showDebugToast(msg) {
 // ============================================================
 
 document.addEventListener('keydown', function(e) {
+    // 输入框/文本域/下拉框（含加注滑块）中的按键属于输入，不能触发弃牌等牌桌动作
+    const target = e.target;
+    if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName || ''))) return;
     const isOnlineTurn = playMode === 'online' && network.gameState && network.gameState.isYourTurn && !network.pendingAction;
     const isLocalTurn = playMode === 'local' && game && game.isPlayerTurn();
     if (!isOnlineTurn && !isLocalTurn) return;
@@ -2889,10 +3039,37 @@ function setupMusicAutoStart(g) {
 
 /** 轮到玩家行动时的提示音（简短叮声，仅当前玩家听到） */
 var _turnAudioCtx = null;
+
+/** 懒创建提示音上下文；被自动播放策略挂起时恢复，否则首次提示音完全无声 */
+function getTurnAudioContext() {
+    if (!_turnAudioCtx) {
+        var Ctor = window.AudioContext || window.webkitAudioContext;
+        if (!Ctor) return null;
+        _turnAudioCtx = new Ctor();
+    }
+    if (_turnAudioCtx.state === 'suspended' && typeof _turnAudioCtx.resume === 'function') {
+        var resumed = _turnAudioCtx.resume();
+        if (resumed && typeof resumed.catch === 'function') resumed.catch(function() {});
+    }
+    return _turnAudioCtx;
+}
+
+/** 页面卸载时释放音频上下文（否则每次重载都会留下一个常驻 AudioContext） */
+function releaseTurnAudioContext() {
+    var ctx = _turnAudioCtx;
+    _turnAudioCtx = null;
+    if (ctx && typeof ctx.close === 'function') {
+        try { ctx.close(); } catch (_) {}
+    }
+}
+
+window.addEventListener('pagehide', releaseTurnAudioContext);
+window.addEventListener('beforeunload', releaseTurnAudioContext);
+
 function playTurnAlert() {
     try {
-        if (!_turnAudioCtx) _turnAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        var ctx = _turnAudioCtx;
+        var ctx = getTurnAudioContext();
+        if (!ctx) return;
         var now = ctx.currentTime;
         // 两音叠加：800Hz + 1200Hz，模拟悦耳"叮"
         [800, 1200].forEach(function(freq) {
@@ -2910,8 +3087,9 @@ function playTurnAlert() {
     } catch(e) { /* 静默失败，不影响游戏 */ }
 }
 
-// Expose to global for inline handlers
-window.game = game;
+// Expose to global for inline handlers.
+// game 会在 DOMContentLoaded / startNewGame 里被重新赋值，静态快照会变成陈旧引用（永远指向旧实例/初始 null）
+Object.defineProperty(window, 'game', { configurable: true, get: () => game });
 window.doAction = doAction;
 window.showRaiseSlider = showRaiseSlider;
 window.hideRaiseSlider = hideRaiseSlider;
@@ -2934,7 +3112,6 @@ window.goHome = goHome;
 window.selectPlayMode = selectPlayMode;
 window.doConnect = doConnect;
 window.doDisconnect = doDisconnect;
-window.doCreateRoom = doCreateRoom;
 window.doJoinRoom = doJoinRoom;
 window.doLeaveRoom = doLeaveRoom;
 window.doStartGame = doStartGame;

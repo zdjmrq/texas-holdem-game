@@ -28,7 +28,7 @@ function loadBrowserRules() {
         clearTimeout: () => {},
         performance: { now: () => 0 }
     });
-    for (const relative of ['js/cards.js', 'js/game-rules-core.js', 'js/probability-core.js', 'js/probability.js', 'js/ai-core.js', 'js/ai.js', 'js/game.js', 'js/shortdeck.js']) {
+    for (const relative of ['js/cards.js', 'js/game-rules-core.js', 'js/engine.js', 'js/probability-core.js', 'js/probability.js', 'js/ai-core.js', 'js/ai.js', 'js/game.js', 'js/shortdeck.js']) {
         const filename = path.join(__dirname, '..', relative);
         vm.runInContext(fs.readFileSync(filename, 'utf8'), context, { filename });
     }

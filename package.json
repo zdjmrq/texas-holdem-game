@@ -1,14 +1,19 @@
 {
   "name": "texas-holdem",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "德州扑克 — 标准德州 + 短牌(6+ Hold'em)",
   "main": "main.js",
   "scripts": {
+    "start": "electron .",
     "server": "node server/local-server.js",
-    "test": "node --test tests/*.test.js",
+    "test": "node --test --test-timeout=30000 tests/*.test.js",
+    "test:all": "npm test && npm run test:ai-smoke",
     "test:ai-smoke": "node tests/ai-batch-smoke.js"
   },
   "dependencies": {
     "ws": "8.21.3"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0"
   }
 }
