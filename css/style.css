@@ -686,6 +686,14 @@ body {
     cursor: not-allowed;
 }
 
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible {
+    outline: 3px solid #ffd700 !important;
+    outline-offset: 3px;
+}
+
 .btn-fold {
     background: linear-gradient(135deg, #c62828, #b71c1c);
     color: white;
@@ -792,21 +800,16 @@ body {
     display: none;
 }
 
-.probability-panel.privacy-hidden {
-    min-height: 150px;
-}
-
 .probability-panel.privacy-hidden .prob-content {
-    opacity: 0;
-    pointer-events: none;
+    display: none;
 }
 
 .privacy-analysis-shield {
-    position: absolute;
-    inset: 45px 15px 15px;
     display: flex;
     align-items: center;
     justify-content: center;
+    min-height: 96px;
+    box-sizing: border-box;
     padding: 15px;
     border-radius: 10px;
     background: linear-gradient(135deg, rgba(15, 25, 35, 0.97), rgba(22, 33, 62, 0.97));
@@ -815,7 +818,6 @@ body {
     font-size: 12px;
     line-height: 1.6;
     text-align: center;
-    z-index: 3;
 }
 
 .prob-panel-title {

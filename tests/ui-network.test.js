@@ -287,6 +287,74 @@ test('ui: keyboard shortcuts ignore keystrokes typed into inputs', () => {
     assert.equal(run('__foldCalls'), 1, 'shortcut must still work on the table');
 });
 
+test('ui: arrow keys adjust a raise and Space confirms it from the slider', () => {
+    run(`
+        raiseSliderVisible = true;
+        document.getElementById('raiseRange').min = '100';
+        document.getElementById('raiseRange').max = '180';
+        document.getElementById('raiseRange').step = '20';
+        document.getElementById('raiseRange').value = '140';
+        window.__raiseConfirms = 0;
+        window.__originalConfirmRaise = confirmRaise;
+        confirmRaise = function () { window.__raiseConfirms++; raiseSliderVisible = false; };
+    `);
+    const slider = { tagName: 'INPUT', isContentEditable: false };
+    keydown('ArrowRight', slider);
+    keydown('ArrowRight', slider);
+    keydown('ArrowRight', slider);
+    assert.equal(env.byId('raiseRange').value, '180', 'amount must stop at the maximum');
+    keydown('ArrowLeft', slider);
+    assert.equal(env.byId('raiseRange').value, '160');
+    keydown(' ', slider);
+    assert.equal(run('__raiseConfirms'), 1, 'Space confirms even with the range input focused');
+    run('confirmRaise = window.__originalConfirmRaise;');
+});
+
+test('ui: the local turn alert plays once for each decision', () => {
+    run(`
+        playMode = 'local';
+        startNewGame();
+        window.__turnAlerts = 0;
+        window.__originalTurnAlert = playTurnAlert;
+        playTurnAlert = function () { window.__turnAlerts++; };
+        game.currentPlayerIndex = 0;
+        game.phase = 'preflop';
+        game.playersActed.clear();
+        game.actionsThisRound = 3;
+        game.onUpdate();
+        game.onUpdate();
+    `);
+    assert.equal(run('__turnAlerts'), 1, 'repeat rendering must not replay the alert');
+    run('game.actionsThisRound++; game.onUpdate();');
+    assert.equal(run('__turnAlerts'), 2, 'a new decision must play the alert');
+    run('playTurnAlert = window.__originalTurnAlert;');
+});
+
+test('ui: hiding cards respects the analysis panel expansion state', () => {
+    run(`
+        playMode = 'local';
+        game.humanPlayer.holeCards = [{ rank:'A', suit:'spades' }, { rank:'K', suit:'spades' }];
+        humanCardsHidden = true;
+        document.getElementById('probContent').classList.add('collapsed');
+        syncHumanCardsControl();
+    `);
+    assert.equal(env.byId('privacyAnalysisShield').hidden, true, 'collapsed panel must not show the shield');
+    assert.equal(env.byId('probPanel').classList.contains('privacy-hidden'), false);
+    run('toggleProbPanel()');
+    assert.equal(env.byId('privacyAnalysisShield').hidden, false, 'opening while cards are hidden shows the shield');
+    assert.equal(env.byId('probPanel').classList.contains('privacy-hidden'), true);
+    assert.equal(env.byId('probContent').getAttribute('aria-hidden'), 'true');
+    run('toggleProbPanel()');
+    assert.equal(env.byId('privacyAnalysisShield').hidden, true, 'closing hides the shield again');
+    run('humanCardsHidden = false; toggleProbPanel();');
+    assert.equal(env.byId('privacyAnalysisShield').hidden, true, 'visible cards show the normal analysis');
+    assert.equal(env.byId('probContent').getAttribute('aria-hidden'), 'false');
+    run('humanCardsHidden = false; document.getElementById("probContent").classList.add("collapsed"); syncHumanCardsControl();');
+    const css = read('css/style.css');
+    assert.match(css, /\.privacy-hidden \.prob-content \{\s*display: none;/,
+        'hidden analysis must leave the layout instead of stretching the panel');
+});
+
 test('ui: applyRoomConfigFromServer only rebuilds settings when the config changed', () => {
     ui.__standard = { roomConfig: { isShortDeck: false, startingStack: 20000, smallBlind: 40, bigBlind: 80, aiDelay: 1800 } };
     run('appliedRoomConfigFingerprint = null; applyRoomConfigFromServer(this.__standard);');
@@ -388,6 +456,19 @@ test('ui: turn alert resumes (and later releases) the AudioContext', () => {
     assert.equal(env.audioContexts[0].closed, 1, 'context must be closable on unload');
     run('playTurnAlert()');
     assert.equal(env.audioContexts.length, 2, 'a fresh context is created after release');
+});
+
+test('ui: turn alerts default on, can be muted independently, and persist', () => {
+    assert.equal(run('turnAlertsEnabled'), true);
+    run('releaseTurnAudioContext(); toggleTurnAlert();');
+    assert.equal(run('turnAlertsEnabled'), false);
+    const before = env.audioContexts.length;
+    run('playTurnAlert()');
+    assert.equal(env.audioContexts.length, before, 'muted alerts must not open an audio context');
+    assert.equal(JSON.parse(run("localStorage.getItem('texas-holdem-settings-v1')")).turnAlertsEnabled, false);
+    run('toggleTurnAlert()');
+    assert.equal(run('turnAlertsEnabled'), true);
+    assert.equal(JSON.parse(run("localStorage.getItem('texas-holdem-settings-v1')")).turnAlertsEnabled, true);
 });
 
 test('css: dead rules stay deleted and live seat/ability rules stay', () => {

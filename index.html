@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
-    <title>德州扑克 v1.5.1</title>
+    <title>德州扑克 v1.5.2</title>
     <link rel="preload" href="assets/music/01.mp3" as="audio" type="audio/mpeg">
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -37,7 +37,7 @@
     <div id="app">
         <!-- Header -->
         <div class="header">
-            <h1>♠ <span>Texas</span> Hold'em ♥ <small class="app-version">v1.5.1</small></h1>
+            <h1>♠ <span>Texas</span> Hold'em ♥ <small class="app-version">v1.5.2</small></h1>
             <div class="header-info">
                 <span>🎴 手牌 #<span class="hand-count" id="handCount">0</span></span>
                 <span class="blinds-info">
@@ -46,6 +46,7 @@
                 </span>
                 <span class="music-controls">
                     <button class="music-btn" id="musicBtn" data-ui-action="toggle-music" title="切换背景音乐">🎵 音乐关</button>
+                    <button class="music-btn" id="turnAlertBtn" data-ui-action="toggle-turn-alert" aria-pressed="true" title="关闭出手提示音">🔔 提示音开</button>
                     <button class="music-btn skip-btn" id="skipBtn" data-ui-action="skip-song" title="下一首">⏭️</button>
                     <button class="music-btn playback-mode-btn" id="playbackModeBtn" data-ui-action="cycle-playback-mode"
                             title="当前：顺序播放">🔁 顺序</button>
@@ -270,8 +271,9 @@
                     <button class="action-btn btn-allin" id="btnAllin" disabled data-ui-action="poker-action" data-poker-action="allin">全下</button>
                 </div>
                 <div class="action-explain" id="actionExplain"></div>
-                <div class="raise-slider-container" id="raiseSlider">
+                <div class="raise-slider-container" id="raiseSlider" aria-label="选择加注额度">
                     <input type="range" id="raiseRange" min="80" max="1000" value="120" step="10"
+                           aria-label="加注到的总金额"
                            data-ui-input="raise">
                     <span class="raise-amount-display" id="raiseAmountDisplay">加注到 $60</span>
                     <div style="display:flex;gap:6px;margin-top:4px;">
@@ -283,10 +285,10 @@
 
             <!-- Probability Panel -->
             <div class="probability-panel" id="probPanel">
-                <div class="prob-panel-title" id="probToggle" data-ui-action="toggle-probability" style="cursor:pointer;user-select:none;">
+                <div class="prob-panel-title" id="probToggle" role="button" tabindex="0" aria-expanded="false" data-ui-action="toggle-probability" style="cursor:pointer;user-select:none;">
                     📊 胜率分析 <span id="probToggleIcon" style="font-size:11px;color:#666;">▼</span>
                 </div>
-                <div class="prob-content collapsed" id="probContent">
+                <div class="prob-content collapsed" id="probContent" aria-hidden="true">
                     <div class="probability-bars" id="probBars">
                         <div class="prob-bar">
                             <span class="bar-label">胜率</span>

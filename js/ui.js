@@ -35,6 +35,7 @@ let lastShownOnlineResultHandId = null;
 let onlineProbabilityResult = null;
 let onlineOutsResult = null;
 let onlineProbabilityKey = '';
+let lastNotifiedOnlineTurn = null;
 // 服务端房间配置指纹：联机模式每条 game_state 都会调用 applyRoomConfigFromServer，
 // 配置没变就不该重建 .count-options / #roomMaxPlayers / .blinds-info（否则会把用户展开的下拉框强制关闭）
 let appliedRoomConfigFingerprint = null;
@@ -48,6 +49,7 @@ const AI_SPEED_LEVELS = [
 ];
 let selectedAiDelay = AI_SPEED_LEVELS[1].delay;
 let musicPreference = 'off';
+let turnAlertsEnabled = true;
 let selectedMusicVolume = 50;
 let musicPlaybackMode = 'sequential';
 
@@ -65,6 +67,7 @@ function loadAppSettings() {
         const speed = AI_SPEED_LEVELS.find(level => level.delay === saved.aiDelay);
         if (speed) selectedAiDelay = speed.delay;
         if (saved.gameMode === 'standard' || saved.gameMode === 'shortdeck') gameMode = saved.gameMode;
+        if (typeof saved.turnAlertsEnabled === 'boolean') turnAlertsEnabled = saved.turnAlertsEnabled;
         // Version 2 intentionally resets the replaced soundtrack to the new
         // defaults once: off, 50 volume and sequential playback.
         if (saved.musicSettingsVersion === MUSIC_SETTINGS_VERSION) {
@@ -88,6 +91,7 @@ function saveAppSettings() {
             aiDelay: selectedAiDelay,
             gameMode,
             musicPreference,
+            turnAlertsEnabled,
             musicVolume: selectedMusicVolume,
             musicPlaybackMode,
             musicSettingsVersion: MUSIC_SETTINGS_VERSION,
@@ -259,6 +263,7 @@ function applyRoomConfigFromServer(message) {
 
 function resetOnlinePresentationState() {
     lastOnlineState = null;
+    lastNotifiedOnlineTurn = null;
     lastOnlineHoleCardsKey = '';
     lastOnlineHandMarker = null;
     lastShownOnlineResultHandId = null;
@@ -632,8 +637,10 @@ function renderOnlineGame(msg) {
     // 状态文字 & 下注轮次标签
     updateOnlineStatus(msg);
 
-    // ── 轮到我了 → 提示音 ──
-    if (msg.isYourTurn && lastOnlineState && !lastOnlineState.isYourTurn) {
+    // turnId stays stable across repeated snapshots of the same decision.
+    const turnKey = `${msg.roomCode || network.roomCode}:${msg.handId}:${msg.turnId}`;
+    if (msg.isYourTurn && !network.pendingAction && turnKey !== lastNotifiedOnlineTurn) {
+        lastNotifiedOnlineTurn = turnKey;
         playTurnAlert();
     }
 
@@ -1186,6 +1193,7 @@ function showOnlineShowdown(result) {
     }
 
     modal.classList.add('show');
+    modal.querySelector('.modal-btn')?.focus();
 }
 
 /** 联网模式下的玩家行动 */
@@ -1362,6 +1370,7 @@ function updateStartScreenMode() {
 
 /** Attach all UI callbacks to a game instance */
 function setupGameCallbacks(g) {
+    let lastNotifiedLocalTurn = null;
     g.onUpdate = function() {
         if (typeof bgMusic !== 'undefined') bgMusic.setGamePhase(g.phase);
         renderUI();
@@ -1375,6 +1384,17 @@ function setupGameCallbacks(g) {
         updatePot();
         updateBettingRoundLabel();
         document.getElementById('handCount').textContent = g.numHands;
+        // onUpdate also runs just after our own action, before the turn advances.
+        // Only sound when the player still has a decision to make.
+        const humanBet = g.roundBets?.[g.getHumanSeatIndex?.() ?? 0] || 0;
+        const needsAction = !g.playersActed?.has(g.getHumanSeatIndex?.() ?? 0) || humanBet < g.currentBet;
+        if (g.isPlayerTurn() && needsAction) {
+            const turnKey = `${g.numHands}:${g.phase}:${g.actionsThisRound}`;
+            if (turnKey !== lastNotifiedLocalTurn) {
+                lastNotifiedLocalTurn = turnKey;
+                playTurnAlert();
+            }
+        }
     };
 
     g.onHandEnd = function(result) {
@@ -1537,9 +1557,12 @@ function syncHumanCardsControl() {
     label.textContent = !hasCards ? '我的手牌'
         : humanCardsHidden ? '我的手牌 · 已隐藏，点击查看' : '我的手牌 · 点击隐藏';
     const panel = document.getElementById('probPanel');
+    const content = document.getElementById('probContent');
     const shield = document.getElementById('privacyAnalysisShield');
-    if (panel) panel.classList.toggle('privacy-hidden', humanCardsHidden && hasCards);
-    if (shield) shield.hidden = !(humanCardsHidden && hasCards);
+    const showShield = humanCardsHidden && hasCards && content && !content.classList.contains('collapsed');
+    if (panel) panel.classList.toggle('privacy-hidden', !!showShield);
+    if (shield) shield.hidden = !showShield;
+    if (content) content.setAttribute('aria-hidden', String(!!showShield || content.classList.contains('collapsed')));
 }
 
 function renderCurrentHumanCards() {
@@ -2263,11 +2286,25 @@ function showRaiseSlider() {
     container.classList.add('show');
     raiseSliderVisible = true;
     updateRaiseDisplay();
+    slider.focus();
 }
 
 function hideRaiseSlider() {
     document.getElementById('raiseSlider').classList.remove('show');
+    if (raiseSliderVisible && !document.getElementById('btnRaise').disabled) {
+        document.getElementById('btnRaise').focus();
+    }
     raiseSliderVisible = false;
+}
+
+function adjustRaiseAmount(direction) {
+    const slider = document.getElementById('raiseRange');
+    const min = Number(slider.min);
+    const max = Number(slider.max);
+    const step = Number(slider.step) || 1;
+    const value = Number(slider.value);
+    slider.value = String(Math.max(min, Math.min(max, value + direction * step)));
+    updateRaiseDisplay();
 }
 
 function updateRaiseDisplay() {
@@ -2279,6 +2316,7 @@ function updateRaiseDisplay() {
 function confirmRaise() {
     const amount = parseInt(document.getElementById('raiseRange').value);
     hideRaiseSlider();
+    document.getElementById('humanCards').focus();
     if (playMode === 'online') {
         const legal = network.gameState && network.gameState.legalActions;
         if (!legal || !(legal.actions || []).includes('raise')) return;
@@ -2410,6 +2448,7 @@ function showShowdown(result) {
     }
 
     modal.classList.add('show');
+    modal.querySelector('.modal-btn')?.focus();
 }
 
 function closeModalAndContinue() {
@@ -2658,6 +2697,7 @@ function showMessage(title, message) {
     document.getElementById('modalResults').appendChild(msgDiv);
 
     modal.classList.add('show');
+    modal.querySelector('.modal-btn')?.focus();
 }
 
 function showAIMessage(name, message) {
@@ -2679,6 +2719,7 @@ function showAIMessage(name, message) {
     document.getElementById('modalResults').appendChild(msgDiv);
 
     modal.classList.add('show');
+    modal.querySelector('.modal-btn')?.focus();
 }
 
 // ============================================================
@@ -2804,58 +2845,20 @@ function showDebugToast(msg) {
 }
 
 // ============================================================
-// Keyboard Shortcuts
-// ============================================================
-
-document.addEventListener('keydown', function(e) {
-    // 输入框/文本域/下拉框（含加注滑块）中的按键属于输入，不能触发弃牌等牌桌动作
-    const target = e.target;
-    if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName || ''))) return;
-    const isOnlineTurn = playMode === 'online' && network.gameState && network.gameState.isYourTurn && !network.pendingAction;
-    const isLocalTurn = playMode === 'local' && game && game.isPlayerTurn();
-    if (!isOnlineTurn && !isLocalTurn) return;
-
-    switch (e.key.toLowerCase()) {
-        case 'f':
-            if (!document.getElementById('btnFold').disabled) doAction('fold');
-            break;
-        case 'c':
-            if (!document.getElementById('btnCheck').disabled) doAction('check');
-            else if (!document.getElementById('btnCall').disabled) doAction('call');
-            break;
-        case 'r':
-            if (!document.getElementById('btnRaise').disabled) showRaiseSlider();
-            break;
-        case 'a':
-            if (!document.getElementById('btnAllin').disabled) doAction('allin');
-            break;
-        case 'enter':
-            if (raiseSliderVisible) confirmRaise();
-            break;
-        case 'escape':
-            if (raiseSliderVisible) {
-                hideRaiseSlider();
-            } else if (document.fullscreenElement || document.webkitFullscreenElement) {
-                toggleFullscreen();
-            }
-            break;
-    }
-});
-
-// ============================================================
 // Keyboard Shortcuts Display
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', function() {
     document.documentElement.classList.toggle('electron-shell', !!window.windowControls);
     loadAppSettings();
+    updateTurnAlertButton();
     restoreSavedInputs();
     syncLocalServerEndpoint();
 
     // Add keyboard hint
     const hints = document.createElement('div');
     hints.style.cssText = 'text-align:center;font-size:11px;color:#555;margin-top:8px;';
-    hints.innerHTML = '快捷键: <kbd>F</kbd> 弃牌 <kbd>C</kbd> 过牌/跟注 <kbd>R</kbd> 加注 <kbd>A</kbd> All-in <kbd>Enter</kbd> 确认 <kbd>Esc</kbd> 取消';
+    hints.innerHTML = '键盘: <kbd>Tab</kbd> 选择控件 <kbd>Enter/空格</kbd> 激活 · <kbd>F</kbd> 弃牌 <kbd>C</kbd> 过牌/跟注 <kbd>R</kbd> 加注 <kbd>A</kbd> 全下 · 加注时 <kbd>←/→</kbd> 调整 <kbd>空格</kbd> 确认 <kbd>Esc</kbd> 取消';
     document.getElementById('app').appendChild(hints);
 
     document.querySelectorAll('.mode-btn').forEach(button => {
@@ -2911,11 +2914,12 @@ function toggleRules() {
 }
 
 function toggleProbPanel() {
-    if (humanCardsHidden && getCurrentHumanCards().length === 2) return;
     const content = document.getElementById('probContent');
     const icon = document.getElementById('probToggleIcon');
     content.classList.toggle('collapsed');
     icon.textContent = content.classList.contains('collapsed') ? '▼' : '▲';
+    document.getElementById('probToggle').setAttribute('aria-expanded', String(!content.classList.contains('collapsed')));
+    syncHumanCardsControl();
 }
 
 // ============================================================
@@ -2962,6 +2966,23 @@ function toggleMusic() {
     } catch (e) {
         console.log('Music toggle unavailable:', e);
     }
+}
+
+function updateTurnAlertButton() {
+    const button = document.getElementById('turnAlertBtn');
+    if (!button) return;
+    button.textContent = turnAlertsEnabled ? '🔔 提示音开' : '🔕 提示音关';
+    button.title = turnAlertsEnabled ? '关闭出手提示音' : '开启出手提示音';
+    button.setAttribute('aria-label', button.title);
+    button.setAttribute('aria-pressed', String(turnAlertsEnabled));
+    button.classList.toggle('music-on', turnAlertsEnabled);
+}
+
+function toggleTurnAlert() {
+    turnAlertsEnabled = !turnAlertsEnabled;
+    updateTurnAlertButton();
+    if (turnAlertsEnabled) getTurnAudioContext();
+    saveAppSettings();
 }
 
 function setVolume(val) {
@@ -3042,6 +3063,7 @@ var _turnAudioCtx = null;
 
 /** 懒创建提示音上下文；被自动播放策略挂起时恢复，否则首次提示音完全无声 */
 function getTurnAudioContext() {
+    if (!turnAlertsEnabled) return null;
     if (!_turnAudioCtx) {
         var Ctor = window.AudioContext || window.webkitAudioContext;
         if (!Ctor) return null;
@@ -3065,8 +3087,13 @@ function releaseTurnAudioContext() {
 
 window.addEventListener('pagehide', releaseTurnAudioContext);
 window.addEventListener('beforeunload', releaseTurnAudioContext);
+// Initialize under a real user gesture so a later network turn can sound even
+// when the browser's audio autoplay policy would suspend a new context.
+document.addEventListener('pointerdown', getTurnAudioContext, { once:true });
+document.addEventListener('keydown', getTurnAudioContext, { once:true });
 
 function playTurnAlert() {
+    if (!turnAlertsEnabled) return;
     try {
         var ctx = getTurnAudioContext();
         if (!ctx) return;
