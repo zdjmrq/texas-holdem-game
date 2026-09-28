@@ -55,16 +55,6 @@
         const key = event.key.toLowerCase();
         if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
 
-        if (target.closest?.('[data-ui-key="human-cards"]')) {
-            handleHumanCardsKey(event);
-            return;
-        }
-        if (target.closest?.('#probToggle') && (key === 'enter' || key === ' ')) {
-            event.preventDefault();
-            toggleProbPanel();
-            return;
-        }
-
         // The raise panel owns these keys even while the range input has focus.
         if (raiseSliderVisible) {
             if (key === 'arrowleft' || key === 'arrowright') {
@@ -74,10 +64,9 @@
                 event.preventDefault();
                 hideRaiseSlider();
             } else if (key === ' ' || key === 'enter') {
-                // Native buttons retain their own Enter/Space action, including Cancel.
-                if (target.closest?.('button')) return;
-                if (event.repeat) return;
+                // Confirm the active raise, never a previously focused control.
                 event.preventDefault();
+                if (event.repeat) return;
                 confirmRaise();
             }
             return;
@@ -99,6 +88,16 @@
             return;
         }
 
+        if (target.closest?.('[data-ui-key="human-cards"]') && (key === 'enter' || key === ' ')) {
+            handleHumanCardsKey(event);
+            return;
+        }
+        if (target.closest?.('#probToggle') && (key === 'enter' || key === ' ')) {
+            event.preventDefault();
+            toggleProbPanel();
+            return;
+        }
+
         if (key === 'escape' && (document.fullscreenElement || document.webkitFullscreenElement)) {
             event.preventDefault();
             toggleFullscreen();
@@ -106,7 +105,8 @@
         }
 
         // Typing and native controls keep their usual keyboard behavior.
-        if (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName || '') ||
+        if (target.isContentEditable || (/^(TEXTAREA|SELECT)$/.test(target.tagName || '') ||
+            (target.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button'].includes(target.type))) ||
             (target.closest?.('button') && (key === 'enter' || key === ' '))) return;
         const isOnlineTurn = playMode === 'online' && network.gameState?.isYourTurn && !network.pendingAction;
         const isLocalTurn = playMode === 'local' && game?.isPlayerTurn();

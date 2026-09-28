@@ -490,3 +490,43 @@ test('js: dead doCreateRoom export and debug.js shadowed toast are gone', () => 
         'debug.js assignment was shadowed by the ui.js function declaration');
     assert.ok(read('js/ui.js').includes('function showDebugToast'), 'ui.js keeps the live toast implementation');
 });
+
+test('ui: Tab focus on cards, buttons or range does not swallow poker shortcuts', () => {
+    const e = createDomShim();
+    vm.runInContext(`playMode = 'local'; game.isPlayerTurn = () => true;
+        doAction = action => { window.lastAction = action; };
+        showRaiseSlider = () => { window.lastAction = 'raise'; };
+        ['btnFold','btnCheck','btnRaise','btnAllin'].forEach(id => document.getElementById(id).disabled = false);`, e.context);
+    for (const target of [
+        { tagName: 'DIV', closest: selector => selector.includes('human-cards') ? {} : null },
+        { tagName: 'BUTTON', closest: selector => selector === 'button' ? {} : null },
+        { tagName: 'INPUT', type: 'range', closest: () => null }
+    ]) {
+        for (const [key, action] of Object.entries({ f: 'fold', c: 'check', r: 'raise', a: 'allin' })) {
+            let prevented = false;
+            for (const handler of e.document._ev.keydown) handler({ key, target, preventDefault() { prevented = true; } });
+            assert.equal(e.context.lastAction, action);
+            assert.ok(prevented);
+        }
+    }
+});
+
+test('ui: active raise confirmation overrides old Tab focus and suppresses native activation', () => {
+    const e = createDomShim();
+    vm.runInContext(`confirmRaise = () => { window.confirms = (window.confirms || 0) + 1; };
+        handleHumanCardsKey = toggleProbPanel = () => { throw new Error('stale focus activated'); };`, e.context);
+    for (const selector of ['button', '[data-ui-key="human-cards"]', '#probToggle']) {
+        for (const key of ['Enter', ' ']) {
+            vm.runInContext('raiseSliderVisible = true;', e.context);
+            let prevented = false;
+            const target = { closest: value => value === selector ? {} : null };
+            for (const handler of e.document._ev.keydown) handler({ key, target, preventDefault() { prevented = true; } });
+            assert.ok(prevented, 'native button click must be cancelled');
+        }
+    }
+    assert.equal(e.context.confirms, 6);
+    let prevented = false;
+    for (const handler of e.document._ev.keydown) handler({ key: 'Enter', repeat: true, target: {}, preventDefault() { prevented = true; } });
+    assert.equal(e.context.confirms, 6);
+    assert.ok(prevented);
+});
