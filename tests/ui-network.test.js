@@ -530,3 +530,18 @@ test('ui: active raise confirmation overrides old Tab focus and suppresses nativ
     assert.equal(e.context.confirms, 6);
     assert.ok(prevented);
 });
+
+test('ui: Enter and Space on the raise Cancel button cancel without betting', () => {
+    const e = createDomShim();
+    vm.runInContext(`confirmRaise = () => { throw new Error('Cancel must never bet'); };
+        hideRaiseSlider = () => { window.cancels = (window.cancels || 0) + 1; raiseSliderVisible = false; };`, e.context);
+    for (const key of ['Enter', ' ']) {
+        vm.runInContext('raiseSliderVisible = true;', e.context);
+        let prevented = false;
+        const target = { closest: selector => ['#raiseSlider', '[data-ui-action="hide-raise"]'].includes(selector) ? {} : null };
+        for (const handler of e.document._ev.keydown) handler({ key, target, preventDefault() { prevented = true; } });
+        assert.ok(prevented, 'prevent duplicate native activation');
+        assert.equal(vm.runInContext('raiseSliderVisible', e.context), false);
+    }
+    assert.equal(e.context.cancels, 2);
+});

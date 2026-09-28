@@ -64,10 +64,14 @@
                 event.preventDefault();
                 hideRaiseSlider();
             } else if (key === ' ' || key === 'enter') {
-                // Confirm the active raise, never a previously focused control.
+                // Explicit panel actions take priority; unrelated old focus cannot submit a different action.
                 event.preventDefault();
                 if (event.repeat) return;
-                confirmRaise();
+                if (target.closest?.('#raiseSlider') && target.closest?.('[data-ui-action="hide-raise"]')) {
+                    hideRaiseSlider();
+                } else {
+                    confirmRaise();
+                }
             }
             return;
         }
