@@ -1,0 +1,2 @@
+standard: 12 hands, 66 actions, avg 9.1ms, p95 21.1ms, max 27.4ms
+shortdeck: 12 hands, 193 actions, avg 6.0ms, p95 11.6ms, max 16.7ms

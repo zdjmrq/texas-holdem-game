@@ -1,0 +1,128 @@
+[
+  {
+    "repo": "google-deepmind/open_spiel",
+    "commit": "48401890ee9857e611678302371378175a8e4c6b",
+    "path": "docs/algorithms.md",
+    "sha256": "a74226813009ab391acdba406f4b664e2d2915b41b5662c3e1b0812d93f1f1a5",
+    "bytes": 27949
+  },
+  {
+    "repo": "google-deepmind/open_spiel",
+    "commit": "48401890ee9857e611678302371378175a8e4c6b",
+    "path": "docs/games.md",
+    "sha256": "3dc5fc789986817f0dc1f9fd3ca6f47aaa82bc9942a1ba7bd3dfd7c65a843578",
+    "bytes": 39604
+  },
+  {
+    "repo": "google-deepmind/open_spiel",
+    "commit": "48401890ee9857e611678302371378175a8e4c6b",
+    "path": "open_spiel/python/algorithms/outcome_sampling_mccfr.py",
+    "sha256": "28ca557232ca281ec9ee50d9eb598f8734da5ab6cbff78a7e6e8558ca1057d95",
+    "bytes": 6119
+  },
+  {
+    "repo": "google-deepmind/open_spiel",
+    "commit": "48401890ee9857e611678302371378175a8e4c6b",
+    "path": "open_spiel/python/algorithms/external_sampling_mccfr.py",
+    "sha256": "845151cd5a55c11f48f3a63817cb4c4763c1123af9bde52ee0306618546fff13",
+    "bytes": 6957
+  },
+  {
+    "repo": "google-deepmind/open_spiel",
+    "commit": "48401890ee9857e611678302371378175a8e4c6b",
+    "path": "open_spiel/algorithms/is_mcts.cc",
+    "sha256": "66fa04052f7e95693b5223ab2237eca6abe0bfd5cf3c673010d641567ea20aab",
+    "bytes": 14045
+  },
+  {
+    "repo": "google-deepmind/open_spiel",
+    "commit": "48401890ee9857e611678302371378175a8e4c6b",
+    "path": "open_spiel/games/universal_poker/universal_poker.cc",
+    "sha256": "5ae7f53979becac11d1ddf76998d6656cf38e69e95a1d35e2e2f7ca6c42732c1",
+    "bytes": 72804
+  },
+  {
+    "repo": "google-deepmind/open_spiel",
+    "commit": "48401890ee9857e611678302371378175a8e4c6b",
+    "path": "open_spiel/games/universal_poker/universal_poker.h",
+    "sha256": "71989c801c20c2eb9f70dff2e7f9b1b65c7d65d68d67ebb94b3e0c60b045182e",
+    "bytes": 12986
+  },
+  {
+    "repo": "google-deepmind/open_spiel",
+    "commit": "48401890ee9857e611678302371378175a8e4c6b",
+    "path": "open_spiel/games/universal_poker/acpc_cpp/acpc_game.cc",
+    "sha256": "00d38216230e437a7df3b5a0431d321e430b694e15014fc6b2b2bfaa43dca294",
+    "bytes": 9565
+  },
+  {
+    "repo": "luckyone18/Poker",
+    "commit": "c3e4e055ecdcdf40183201ad368fbd7f1e0603d7",
+    "path": "README.md",
+    "sha256": "3a8d111737fb4ee0fde26157f12548c3c6eb135f34e8de6ef2838e0a21c13183",
+    "bytes": 12594
+  },
+  {
+    "repo": "luckyone18/Poker",
+    "commit": "c3e4e055ecdcdf40183201ad368fbd7f1e0603d7",
+    "path": "bots/gto_bot.py",
+    "sha256": "6eb89ff27c84e00b7fcf4dae110ad4d3481cc4a06912c74fe79ee95e6f825e28",
+    "bytes": 21076
+  },
+  {
+    "repo": "luckyone18/Poker",
+    "commit": "c3e4e055ecdcdf40183201ad368fbd7f1e0603d7",
+    "path": "bots/opponent_model_bot.py",
+    "sha256": "e39ba328ca09500d4998d22774fe7f3d05e88ce811f7dcec0050c4005346e2cf",
+    "bytes": 16014
+  },
+  {
+    "repo": "luckyone18/Poker",
+    "commit": "c3e4e055ecdcdf40183201ad368fbd7f1e0603d7",
+    "path": "bots/exploitative_bot.py",
+    "sha256": "121f1d34ccb3fe578712784ae1ec3246c923cb6aeb813c0216f09bbf95633357",
+    "bytes": 25754
+  },
+  {
+    "repo": "luckyone18/Poker",
+    "commit": "c3e4e055ecdcdf40183201ad368fbd7f1e0603d7",
+    "path": "bots/monte_carlo_bot.py",
+    "sha256": "d9293b04d3638f22c7c9884d99a197b713ab321b5cd0e73bec5262dbed4c3f1a",
+    "bytes": 7204
+  },
+  {
+    "repo": "luckyone18/Poker",
+    "commit": "c3e4e055ecdcdf40183201ad368fbd7f1e0603d7",
+    "path": "bots/cfr_bot.py",
+    "sha256": "bfcd614c917cf6bb477e185840ad0b9b2a5156f09eec93543fd8623acfbf244c",
+    "bytes": 29739
+  },
+  {
+    "repo": "luckyone18/Poker",
+    "commit": "c3e4e055ecdcdf40183201ad368fbd7f1e0603d7",
+    "path": "core/bot_api.py",
+    "sha256": "a2494a2315607aef59ce27a31efd91a23abea70089503cdfbe3edd10092c2a67",
+    "bytes": 714
+  },
+  {
+    "repo": "luckyone18/Poker",
+    "commit": "c3e4e055ecdcdf40183201ad368fbd7f1e0603d7",
+    "path": "core/engine.py",
+    "sha256": "7fc6ba90b7589529a49571801bb28cb182427cd6b992f2ea021d982e35f78af5",
+    "bytes": 33997
+  },
+  {
+    "repo": "luckyone18/Poker",
+    "commit": "c3e4e055ecdcdf40183201ad368fbd7f1e0603d7",
+    "path": "run_tournament_stats.py",
+    "sha256": "cc50540186aa5aba4067ca1247254867fa7457b879724fd6b437e9a17a077ef0",
+    "bytes": 12707
+  },
+  {
+    "repo": "luckyone18/Poker",
+    "commit": "c3e4e055ecdcdf40183201ad368fbd7f1e0603d7",
+    "path": "training/train_cfr_bot_multiway.py",
+    "sha256": "8c8009db37e4e048763ef9a9084e6724fdc963f52487ff5ae4e9e4ef83ab6f55",
+    "bytes": 10111
+  }
+]

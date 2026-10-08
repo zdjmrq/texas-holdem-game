@@ -52,6 +52,37 @@ let musicPreference = 'off';
 let turnAlertsEnabled = true;
 let selectedMusicVolume = 50;
 let musicPlaybackMode = 'sequential';
+let attentionGameRef = null, attentionTableSerial = 0, settlementAlertSerial = 0;
+
+/** Native main-process focus decides whether the taskbar/tray should flash. */
+function syncDesktopAttention() {
+    const modal = document.getElementById('showdownModal');
+    const next = modal?.querySelector('.modal-btn');
+    const settlement = !!modal?.classList.contains('show') && !!next && !next.disabled;
+    let turn = false;
+    if (playMode === 'online') turn = !!network.gameState?.isYourTurn && !network.pendingAction && !!network.connected;
+    else if (game && !['idle', 'showdown'].includes(game.phase) && game.isPlayerTurn()) {
+        const seat = game.getHumanSeatIndex?.() ?? 0;
+        turn = !game.playersActed?.has(seat) || (game.roundBets?.[seat] || 0) < game.currentBet;
+    }
+    if (playMode === 'local' && attentionGameRef !== game) {
+        attentionGameRef = game;
+        attentionTableSerial++;
+    }
+    const turnKey = playMode === 'online'
+        ? `online:${network.roomCode}:${network.gameState?.handId}:${network.gameState?.turnId}`
+        : `local:${attentionTableSerial}:${game?.numHands}:${game?.phase}:${game?.actionsThisRound}`;
+    const key = settlement ? `settlement:${settlementAlertSerial}` : turnKey;
+    window.windowControls?.setAttention?.(settlement || turn, settlement ? 'settlement' : 'turn', key);
+}
+
+function presentSettlementModal(modal) {
+    const alreadyShown = modal.classList.contains('show');
+    modal.classList.add('show');
+    modal.querySelector('.modal-btn')?.focus();
+    if (!alreadyShown) { settlementAlertSerial++; playSettlementAlert(); }
+    syncDesktopAttention();
+}
 
 function loadAppSettings() {
     try {
@@ -262,6 +293,7 @@ function applyRoomConfigFromServer(message) {
 }
 
 function resetOnlinePresentationState() {
+    window.windowControls?.setAttention?.(false);
     lastOnlineState = null;
     lastNotifiedOnlineTurn = null;
     lastOnlineHoleCardsKey = '';
@@ -330,6 +362,7 @@ function doConnect() {
     };
 
     onDisconnected = info => {
+        window.windowControls?.setAttention?.(false);
         if (playMode !== 'online') return;
         if (info && info.willReconnect) {
             const waitSeconds = Math.max(1, Math.ceil((Number(info.reconnectDelay) || 0) / 1000));
@@ -349,7 +382,7 @@ function doConnect() {
         document.getElementById('startScreen').style.display = 'flex';
         document.getElementById('communityArea').style.display = 'none';
         document.getElementById('potDisplay').style.display = 'none';
-        document.getElementById('aiPlayersContainer').innerHTML = '';
+        clearSeatNodes(document.getElementById('aiPlayersContainer'));
         document.getElementById('gameStatus').textContent = gameMode === 'shortdeck'
             ? '点击「开始游戏」开始短牌对局！'
             : '点击「开始游戏」开始德州扑克对局！';
@@ -411,11 +444,17 @@ function doConnect() {
     };
 
     onActionAck = () => {
-        if (playMode === 'online' && network.gameState) updateOnlineActions(network.gameState);
+        if (playMode === 'online' && network.gameState) {
+            updateOnlineActions(network.gameState);
+            syncDesktopAttention();
+        }
     };
 
     onRequestError = () => {
-        if (playMode === 'online' && network.gameState) updateOnlineActions(network.gameState);
+        if (playMode === 'online' && network.gameState) {
+            updateOnlineActions(network.gameState);
+            syncDesktopAttention();
+        }
     };
 
     onReadyStatus = (msg) => {
@@ -440,6 +479,7 @@ function doConnect() {
             btn.style.cursor = 'not-allowed';
         }
         // 我没点 → 保持"下一手 →"可点击状态，不动按钮
+        syncDesktopAttention();
     };
 
     showNetworkError = (msg) => {
@@ -643,6 +683,7 @@ function renderOnlineGame(msg) {
         lastNotifiedOnlineTurn = turnKey;
         playTurnAlert();
     }
+    syncDesktopAttention();
 
     // ── AI 行动动画检测（使用服务端 lastAction，不再推测） ──
     if (lastOnlineState) {
@@ -772,13 +813,15 @@ function updateOnlineBlindDisplay(msg) {
 function renderOnlinePositionBadges(msg) {
     const container = document.getElementById('humanPosBadges');
     if (!container) return;
-    container.style.display = 'none';
-    container.innerHTML = '';
-    if (!msg.phase || msg.phase === 'idle') return;
-
     const myPlayer = (msg.players || []).find(p => p.id === network.playerId);
     const allPlayers = msg.players || [];
     const mySeat = myPlayer ? allPlayers.indexOf(myPlayer) : -1;
+    const renderKey = !msg.phase || msg.phase === 'idle' ? 'online:idle' : `online:${mySeat}:${msg.dealerPos}:${msg.sbIdx}:${msg.bbIdx}`;
+    if (container.__positionRenderKey === renderKey) return;
+    container.__positionRenderKey = renderKey;
+    container.style.display = 'none';
+    container.innerHTML = '';
+    if (!msg.phase || msg.phase === 'idle') return;
 
     const badges = [];
     if (mySeat >= 0 && mySeat === msg.dealerPos) {
@@ -822,6 +865,17 @@ function setNodeDisplay(node, visible) {
     if (node.style.display !== want) node.style.display = want;
 }
 
+// Seat status rows keep their space when empty; actions must not resize the table.
+function setSeatSlotVisible(node, visible) {
+    if (node.style.display) node.style.display = '';
+    const value = visible ? '' : 'hidden';
+    if (node.style.visibility !== value) node.style.visibility = value;
+    if (node.classList.contains('thinking-dots')) {
+        const state = visible ? 'running' : 'paused';
+        if (node.style.animationPlayState !== state) node.style.animationPlayState = state;
+    }
+}
+
 function setNodeColor(node, color) {
     if (node.style.color !== color) node.style.color = color;
 }
@@ -844,17 +898,76 @@ function getTableSize(container) {
     return { node: container, width: width || 900, height: height || 420 };
 }
 
-window.addEventListener('resize', invalidateTableSizeCache);
-document.addEventListener('fullscreenchange', invalidateTableSizeCache);
+let seatLayoutFrame = 0;
+let seatResizeObserver = null;
+
+function queueSeatLayout() {
+    if (seatLayoutFrame) return;
+    seatLayoutFrame = requestAnimationFrame(() => {
+        seatLayoutFrame = 0;
+        relayoutSeats();
+    });
+}
+
+function relayoutSeats() {
+    const container = document.getElementById('aiPlayersContainer');
+    const table = document.getElementById('tableContainer');
+    if (!container || !table || !container.children.length) return;
+    const seats = Array.from(container.children);
+    const width = Math.max(95, ...seats.map(seat => seat.offsetWidth));
+    const height = Math.max(window.innerHeight <= 650 ? 180 : 210, ...seats.map(seat => seat.offsetHeight));
+    const style = getComputedStyle(container);
+    const border = parseFloat(getComputedStyle(table).borderTopWidth) || 8;
+    const inset = (parseFloat(style.top) || 30) + (parseFloat(style.bottom) || 30) + border * 2;
+    const drop = window.innerHeight <= 650 ? 16 : 42;
+    // Leave two complete rows when side seats exist, rather than clipping them.
+    const topCapacity = Math.max(3, Math.min(7, Math.floor(container.offsetWidth / 130)));
+    const minimum = seats.length > topCapacity ? Math.ceil(height * 2 + drop + 32 + inset) : 0;
+    const value = `${minimum}px`;
+    if (table.style.getPropertyValue('--seat-min-table-height') !== value) {
+        table.style.setProperty('--seat-min-table-height', value);
+        invalidateTableSizeCache();
+    }
+    const size = getTableSize(container);
+    const positions = calculateTablePositions(seats.length, size.width, size.height, width, height);
+    for (let i = 0; i < seats.length; i++) {
+        const seat = seats[i];
+        const pos = positions[Number(seat.dataset.tablePositionIndex ?? i)];
+        if (!pos) continue;
+        seat.style.left = `${pos.x}px`;
+        seat.style.top = `${pos.y}px`;
+    }
+}
+
+function resizeTableLayout() {
+    invalidateTableSizeCache();
+    queueSeatLayout();
+}
+window.addEventListener('resize', resizeTableLayout);
+document.addEventListener('fullscreenchange', resizeTableLayout);
 
 /** 座位容器：只增删到目标数量，已有节点原样复用 */
 function syncSeatNodes(container, count, factory) {
+    const changed = container.children.length !== count;
     while (container.children.length > count) {
+        seatResizeObserver?.unobserve(container.children[container.children.length - 1]);
         container.removeChild(container.children[container.children.length - 1]);
     }
     while (container.children.length < count) {
-        container.appendChild(factory());
+        const seat = factory();
+        container.appendChild(seat);
+        seatResizeObserver?.observe(seat);
     }
+    if (changed) queueSeatLayout();
+}
+
+/** Removed seats must also leave ResizeObserver, which survives game resets. */
+function clearSeatNodes(container) {
+    if (!container) return;
+    for (const seat of Array.from(container.children)) seatResizeObserver?.unobserve(seat);
+    container.innerHTML = '';
+    document.getElementById('tableContainer')?.style?.removeProperty?.('--seat-min-table-height');
+    invalidateTableSizeCache();
 }
 
 /** 渲染玩家座位（联网版）—— 每人从自己座位视角看牌桌 */
@@ -867,9 +980,7 @@ function renderOnlinePlayers(players, state) {
     const mySeat = players.findIndex(function(p) { return p.id === myId; });
     if (mySeat < 0) return;
 
-    const size = getTableSize(container);
     // 计算 N-1 个非我的座位位置（第0个是"我左边第一个"顺时针方向）
-    const positions = calculateTablePositions(totalN - 1, size.width, size.height);
 
     let opponentCount = 0;
     for (const p of players) if (p.id !== myId) opponentCount++;
@@ -889,13 +1000,9 @@ function renderOnlinePlayers(players, state) {
         // screenIdx = steps - 1（因为 positions[0] = 我左边第1个）
         var steps = ((i - mySeat) % totalN + totalN) % totalN;
         var screenIdx = steps - 1;
-
-        // 按视角位置定位
-        if (positions && positions[screenIdx]) {
-            const posX = positions[screenIdx].x + 'px';
-            const posY = positions[screenIdx].y + 'px';
-            if (seat.style.left !== posX) seat.style.left = posX;
-            if (seat.style.top !== posY) seat.style.top = posY;
+        if (seat.dataset.tablePositionIndex !== String(screenIdx)) {
+            seat.dataset.tablePositionIndex = String(screenIdx);
+            queueSeatLayout();
         }
 
         const isThinking = !!(state && state.currentPlayerIdx !== undefined &&
@@ -928,9 +1035,9 @@ function renderOnlinePlayers(players, state) {
         // 下注额
         if (player.chipsInPot > 0 && state.phase && state.phase !== 'idle') {
             setNodeText(parts.bet, formatChips(player.chipsInPot));
-            setNodeDisplay(parts.bet, true);
+            setSeatSlotVisible(parts.bet, true);
         } else {
-            setNodeDisplay(parts.bet, false);
+            setSeatSlotVisible(parts.bet, false);
         }
 
         // 后手空白手牌（摊牌时不显示牌，空着）
@@ -948,8 +1055,9 @@ function renderOnlinePlayers(players, state) {
         }
 
         // 思考动画
-        setNodeDisplay(parts.dots, isThinking);
+        setSeatSlotVisible(parts.dots, isThinking);
     }
+    if (!seatResizeObserver) queueSeatLayout();
 }
 
 /** 联机座位骨架：一次创建（含 D/SB/BB 三个固定徽章），之后只更新内容 */
@@ -1192,8 +1300,7 @@ function showOnlineShowdown(result) {
         resultsDiv.appendChild(row);
     }
 
-    modal.classList.add('show');
-    modal.querySelector('.modal-btn')?.focus();
+    presentSettlementModal(modal);
 }
 
 /** 联网模式下的玩家行动 */
@@ -1227,6 +1334,7 @@ function onlineDoAction(type) {
     document.getElementById('btnRaise').disabled = true;
     document.getElementById('btnAllin').disabled = true;
     document.getElementById('actionExplain').textContent = '⏳ 等待服务器确认...';
+    syncDesktopAttention();
 }
 
 function doDisconnect() {
@@ -1278,7 +1386,7 @@ function doLeaveRoom() {
     document.getElementById('gameStatus').textContent = gameMode === 'shortdeck'
         ? '点击「开始游戏」开始短牌对局！'
         : '点击「开始游戏」开始德州扑克对局！';
-    document.getElementById('aiPlayersContainer').innerHTML = '';
+    clearSeatNodes(document.getElementById('aiPlayersContainer'));
     showNetworkError('已离开房间');
 }
 
@@ -1372,6 +1480,7 @@ function updateStartScreenMode() {
 function setupGameCallbacks(g) {
     let lastNotifiedLocalTurn = null;
     g.onUpdate = function() {
+        if (g !== game || playMode !== 'local') return;
         if (typeof bgMusic !== 'undefined') bgMusic.setGamePhase(g.phase);
         renderUI();
         updateActionButtons();
@@ -1388,20 +1497,23 @@ function setupGameCallbacks(g) {
         // Only sound when the player still has a decision to make.
         const humanBet = g.roundBets?.[g.getHumanSeatIndex?.() ?? 0] || 0;
         const needsAction = !g.playersActed?.has(g.getHumanSeatIndex?.() ?? 0) || humanBet < g.currentBet;
-        if (g.isPlayerTurn() && needsAction) {
+        if (g.isPlayerTurn() && needsAction && !['idle', 'showdown'].includes(g.phase)) {
             const turnKey = `${g.numHands}:${g.phase}:${g.actionsThisRound}`;
             if (turnKey !== lastNotifiedLocalTurn) {
                 lastNotifiedLocalTurn = turnKey;
                 playTurnAlert();
             }
         }
+        syncDesktopAttention();
     };
 
     g.onHandEnd = function(result) {
+        const generation = g.handGeneration;
         const playerBusted = g.humanPlayer && g.humanPlayer.stack <= 0;
         if (result.reason === 'showdown') {
             document.getElementById('gameStatus').textContent = '⏳ 正在结算... 2 秒';
             setTimeout(() => {
+                if (g !== game || g.handGeneration !== generation || playMode !== 'local') return;
                 showShowdown(result);
                 if (playerBusted) {
                     const modalResults = document.getElementById('modalResults');
@@ -1427,7 +1539,7 @@ function setupGameCallbacks(g) {
         if (seat) {
             seat.classList.add('thinking');
             const dots = seat.__parts ? seat.__parts.dots : seat.querySelector('.thinking-dots');
-            if (dots) setNodeDisplay(dots, true);
+            if (dots) setSeatSlotVisible(dots, true);
         }
     };
 
@@ -1436,7 +1548,7 @@ function setupGameCallbacks(g) {
         if (seat) {
             seat.classList.remove('thinking');
             const dots = seat.__parts ? seat.__parts.dots : seat.querySelector('.thinking-dots');
-            if (dots) setNodeDisplay(dots, false);
+            if (dots) setSeatSlotVisible(dots, false);
         }
         const player = g.players[idx];
         if (!player) return;
@@ -1515,6 +1627,9 @@ function renderUI() {
 function renderCard(elementId, card, faceUp) {
     const el = document.getElementById(elementId);
     if (!el) return;
+    const renderKey = card && faceUp ? `${card.rank}:${card.suit}` : 'back';
+    if (el.__cardRenderKey === renderKey) return;
+    el.__cardRenderKey = renderKey;
 
     if (!card || !faceUp) {
         el.className = 'card card-back';
@@ -1650,6 +1765,10 @@ function renderHumanPositionBadges() {
     const container = document.getElementById('humanPosBadges');
     if (!container) return;
 
+    const renderKey = game.phase === 'idle' ? 'local:idle' : `local:${game.dealerPosition}:${game.sbIndex}:${game.bbIndex}`;
+    if (container.__positionRenderKey === renderKey) return;
+    container.__positionRenderKey = renderKey;
+
     container.style.display = 'none';
     container.innerHTML = '';
 
@@ -1690,10 +1809,6 @@ function renderAIPlayers() {
     const aiPlayers = game.players.filter(p => !p.isHuman);
     const aiCount = aiPlayers.length;
 
-    // 尺寸取自缓存，避免「清空容器后立刻读 offsetWidth」造成的强制同步布局
-    const size = getTableSize(container);
-    const positions = calculateTablePositions(aiCount, size.width, size.height);
-
     syncSeatNodes(container, aiCount, createLocalSeatNode);
 
     for (const [i, player] of aiPlayers.entries()) {
@@ -1705,13 +1820,9 @@ function renderAIPlayers() {
         const seatId = `ai-seat-${i}`;
         if (seat.id !== seatId) seat.id = seatId;
         if (seat.dataset.playerIndex !== String(playerIdx)) seat.dataset.playerIndex = playerIdx;
-
-        // Apply absolute positioning
-        if (positions && positions[i]) {
-            const posX = positions[i].x + 'px';
-            const posY = positions[i].y + 'px';
-            if (seat.style.left !== posX) seat.style.left = posX;
-            if (seat.style.top !== posY) seat.style.top = posY;
+        if (seat.dataset.tablePositionIndex !== String(i)) {
+            seat.dataset.tablePositionIndex = String(i);
+            queueSeatLayout();
         }
 
         const isCurrentAI = !!(game.currentPlayer && !game.currentPlayer.isHuman &&
@@ -1786,9 +1897,9 @@ function renderAIPlayers() {
         // Bet/chips
         if (player.chipsInPot > 0 && game.phase !== 'idle') {
             setNodeText(parts.bet, formatChips(player.chipsInPot));
-            setNodeDisplay(parts.bet, true);
+            setSeatSlotVisible(parts.bet, true);
         } else {
-            setNodeDisplay(parts.bet, false);
+            setSeatSlotVisible(parts.bet, false);
         }
 
         // Last action —— 只在动作真正变化时重建并重启动画
@@ -1814,19 +1925,20 @@ function renderAIPlayers() {
                     parts.action.classList.remove('action-pop');
                 }, 800);
             }
-            setNodeDisplay(parts.action, true);
+            setSeatSlotVisible(parts.action, true);
         } else {
             if (parts.actionTimer) {
                 clearTimeout(parts.actionTimer);
                 parts.actionTimer = 0;
             }
             parts.actionKey = null;
-            setNodeDisplay(parts.action, false);
+            setSeatSlotVisible(parts.action, false);
         }
 
         // 思考动画（onAIThinking/onAIAction 也会即时切换）
-        setNodeDisplay(parts.dots, isCurrentAI && !player.folded);
+        setSeatSlotVisible(parts.dots, isCurrentAI && !player.folded);
     }
+    if (!seatResizeObserver) queueSeatLayout();
 }
 
 /** 本地座位骨架：一次创建，之后只更新内容 */
@@ -1881,11 +1993,11 @@ function createLocalSeatNode() {
  * 2 players: AI opposite the human (top center).
  * 6-10 players: tight top row (fit as many as possible), overflow on sides.
  */
-function calculateTablePositions(aiCount, cw, ch) {
+function calculateTablePositions(aiCount, cw, ch, seatWidth = 95, seatHeight = 170) {
     const positions = [];
 
     if (aiCount === 1) {
-        return [{ x: cw / 2, y: Math.max(75, ch * 0.07) }];
+        return [{ x: cw / 2, y: Math.max(seatHeight / 2 + 12, ch * 0.07) }];
     }
 
     // Compact: each seat slot ≈ 130px with the smaller seat sizes
@@ -1898,15 +2010,16 @@ function calculateTablePositions(aiCount, cw, ch) {
 
     // ── Clockwise order from human seat (bottom) ──
     // Human at 6 o'clock. Clockwise: left side → top (left-to-right) → right side
-    const topY = Math.max(70, ch * 0.06);
-    const margin = Math.max(45, cw * 0.03 + (left + right) * 20);
+    const topY = Math.max(seatHeight / 2 + 12, ch * 0.06);
+    const margin = Math.max(seatWidth / 2 + 12, cw * 0.03 + (left + right) * 20);
     const span = cw - 2 * margin;
+    const sideX = Math.max(seatWidth / 2 + 32, cw * 0.09);
+    const sideY = Math.max(topY, ch - seatHeight / 2 - 16);
+    const arcDrop = window.innerHeight <= 650 ? 16 : 42;
 
     // 1. Left side (clockwise first from human)
     if (left > 0) {
-        const sx = Math.max(100, cw * 0.09);
-        const sy = Math.min(Math.max(topY + 320, ch * 0.46), ch * 0.74);
-        positions.push({ x: sx, y: sy });
+        positions.push({ x: sideX, y: sideY });
     }
 
     // 2. Top row: left-to-right (clockwise across the top)
@@ -1914,15 +2027,13 @@ function calculateTablePositions(aiCount, cw, ch) {
         const t = topCount > 1 ? i / (topCount - 1) : 0.5;
         const x = margin + span * t;
         const dist = Math.abs(t - 0.5) * 2; // 0 center, 1 edges
-        const drop = 42 * dist * dist;      // quadratic, max 42px at edges
+        const drop = arcDrop * dist * dist;
         positions.push({ x, y: topY + drop });
     }
 
     // 3. Right side (clockwise last, comes back to human)
     if (right > 0) {
-        const sx = Math.max(100, cw * 0.09);
-        const sy = Math.min(Math.max(topY + 320, ch * 0.46), ch * 0.74);
-        positions.push({ x: cw - sx, y: sy });
+        positions.push({ x: cw - sideX, y: sideY });
     }
 
     return positions;
@@ -2256,7 +2367,7 @@ let raiseSliderVisible = false;
 function showRaiseSlider() {
     const container = document.getElementById('raiseSlider');
 
-    let minRaise, maxRaise, bigBlind;
+    let minRaise, maxRaise, bigBlind, unit;
 
     if (playMode === 'online' && network.gameState) {
         const gs = network.gameState;
@@ -2266,6 +2377,7 @@ function showRaiseSlider() {
         bigBlind = Number(gs.isShortDeck ? (config.minBet || gs.minBet) : (config.bigBlind || gs.bigBlind)) || selectedBigBlind;
         minRaise = Math.max(0, Number(legal.minRaiseTo) || 0);
         maxRaise = Math.max(0, Number(legal.maxRaiseTo) || 0);
+        unit = Number(legal.wagerUnit) || PokerGameRules.wagerUnit(config);
     } else {
         if (!game || !game.isPlayerTurn()) return;
         const raiseAction = game.getAvailableActions().find(action => action.type === 'raise');
@@ -2273,15 +2385,18 @@ function showRaiseSlider() {
         bigBlind = game instanceof ShortDeckGame ? game.minBet : game.bigBlind;
         minRaise = raiseAction.amount;
         maxRaise = (game.roundBets[0] || 0) + (game.humanPlayer ? game.humanPlayer.stack : 0);
+        unit = PokerGameRules.wagerUnit(game);
     }
 
     if (!Number.isFinite(minRaise) || !Number.isFinite(maxRaise) || minRaise > maxRaise) return;
+    const bounds = PokerGameRules.raiseBounds(minRaise, maxRaise, unit);
+    if (bounds.min > bounds.max) return;
 
     const slider = document.getElementById('raiseRange');
-    slider.min = minRaise;
-    slider.max = maxRaise;
-    slider.value = Math.min(minRaise + bigBlind * 2, maxRaise);
-    slider.step = Math.max(1, Math.floor(bigBlind / 2));
+    slider.min = bounds.min;
+    slider.max = bounds.max;
+    slider.step = bounds.unit;
+    slider.value = PokerGameRules.snapRaise(minRaise + bigBlind * 2, bounds.min, bounds.max, bounds.unit);
 
     container.classList.add('show');
     raiseSliderVisible = true;
@@ -2311,10 +2426,13 @@ function updateRaiseDisplay() {
     const slider = document.getElementById('raiseRange');
     const display = document.getElementById('raiseAmountDisplay');
     display.textContent = '加注 $' + parseInt(slider.value);
+    slider.setAttribute('aria-valuetext', `${display.textContent}，数字键 1 减少，2 增加，每次 ${slider.step}`);
 }
 
 function confirmRaise() {
-    const amount = parseInt(document.getElementById('raiseRange').value);
+    const slider = document.getElementById('raiseRange');
+    const amount = PokerGameRules.snapRaise(slider.value, Number(slider.min), Number(slider.max), Number(slider.step));
+    if (amount === null) return;
     hideRaiseSlider();
     document.getElementById('humanCards').focus();
     if (playMode === 'online') {
@@ -2326,6 +2444,7 @@ function confirmRaise() {
             document.getElementById(id).disabled = true;
         });
         document.getElementById('actionExplain').textContent = '⏳ 等待服务器确认...';
+        syncDesktopAttention();
     } else {
         showFloatingAction(`你: 加注 $${amount}`, 'raise', true);
         game.playerAction('raise', amount);
@@ -2447,8 +2566,7 @@ function showShowdown(result) {
         }
     }
 
-    modal.classList.add('show');
-    modal.querySelector('.modal-btn')?.focus();
+    presentSettlementModal(modal);
 }
 
 function closeModalAndContinue() {
@@ -2464,10 +2582,15 @@ function closeModalAndContinue() {
             btn.style.opacity = '0.6';
             btn.style.cursor = 'not-allowed';
         }
+        syncDesktopAttention();
         return;
     }
     document.getElementById('showdownModal').classList.remove('show');
+    syncDesktopAttention();
+    const currentGame = game;
+    const generation = game?.handGeneration;
     setTimeout(() => {
+        if (game !== currentGame || game?.handGeneration !== generation || playMode !== 'local') return;
         if (!game || !game.humanPlayer) return;
         if (game.humanPlayer.stack <= 0) {
             goToStartScreen('busted');
@@ -2479,6 +2602,8 @@ function closeModalAndContinue() {
 
 /** Return to start/main screen */
 function goToStartScreen(reason) {
+    window.windowControls?.setAttention?.(false);
+    if (typeof aiWorkerService !== 'undefined') aiWorkerService?.dispose();
     const startScreen = document.getElementById('startScreen');
     const bottomPanel = document.getElementById('bottomPanel');
     const tableContainer = document.getElementById('tableContainer');
@@ -2516,7 +2641,7 @@ function goToStartScreen(reason) {
     const potDisplay = document.getElementById('potDisplay');
     potDisplay.textContent = '底池: $0';
     potDisplay.style.display = 'none';
-    document.getElementById('aiPlayersContainer').innerHTML = '';
+    clearSeatNodes(document.getElementById('aiPlayersContainer'));
     document.getElementById('gameStatus').textContent = gameMode === 'shortdeck'
         ? '点击「开始游戏」开始短牌对局！'
         : '点击「开始游戏」开始德州扑克对局！';
@@ -2525,6 +2650,10 @@ function goToStartScreen(reason) {
 
 /** Start a new game with selected player count and mode */
 function startNewGame() {
+    if (game) game.resetGame();
+    if (typeof aiWorkerService !== 'undefined') aiWorkerService?.dispose();
+    probabilityService.clear();
+    window.windowControls?.setAttention?.(false);
     const selectedBtn = document.querySelector('.count-btn.selected');
     const totalPlayers = parseInt(selectedBtn ? selectedBtn.dataset.count : 4);
     const aiCount = totalPlayers - 1;
@@ -2696,8 +2825,7 @@ function showMessage(title, message) {
     msgDiv.textContent = message;
     document.getElementById('modalResults').appendChild(msgDiv);
 
-    modal.classList.add('show');
-    modal.querySelector('.modal-btn')?.focus();
+    presentSettlementModal(modal);
 }
 
 function showAIMessage(name, message) {
@@ -2718,8 +2846,7 @@ function showAIMessage(name, message) {
     msgDiv.textContent = message;
     document.getElementById('modalResults').appendChild(msgDiv);
 
-    modal.classList.add('show');
-    modal.querySelector('.modal-btn')?.focus();
+    presentSettlementModal(modal);
 }
 
 // ============================================================
@@ -2848,8 +2975,46 @@ function showDebugToast(msg) {
 // Keyboard Shortcuts Display
 // ============================================================
 
+function setupDesktopHeader() {
+    if (!window.windowControls) return;
+    const home = document.getElementById('headerHome');
+    const header = document.getElementById('appHeader');
+    if (!home || !header) return;
+    const root = document.documentElement;
+    let measuredHeight = 0, frame = 0;
+    const sync = measure => {
+        const compact = window.innerHeight <= 650;
+        if (measure || !measuredHeight) {
+            measuredHeight = header.offsetHeight + (parseFloat(getComputedStyle(header).marginBottom) || 0);
+            root.style.setProperty('--header-hover-height', `${Math.round(header.offsetHeight * .85)}px`);
+        }
+        const height = compact ? '0px' : `${measuredHeight}px`;
+        if (home.style.height !== height) home.style.height = height;
+        root.classList.toggle('header-detached', compact || home.getBoundingClientRect().bottom <= 0);
+    };
+    const onScroll = () => {
+        if (frame) return;
+        frame = requestAnimationFrame(() => { frame = 0; sync(false); });
+    };
+    window.addEventListener('scroll', onScroll, {passive:true});
+    window.addEventListener('resize', () => sync(true));
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Tab') root.classList.add('header-keyboard-focus');
+    });
+    document.addEventListener('pointerdown', () => root.classList.remove('header-keyboard-focus'), {passive:true});
+    if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(() => sync(true)).observe(header);
+    }
+    sync(true);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     document.documentElement.classList.toggle('electron-shell', !!window.windowControls);
+    setupDesktopHeader();
+    if (typeof ResizeObserver !== 'undefined') {
+        seatResizeObserver = new ResizeObserver(resizeTableLayout);
+        seatResizeObserver.observe(document.getElementById('aiPlayersContainer'));
+    }
     loadAppSettings();
     updateTurnAlertButton();
     restoreSavedInputs();
@@ -2857,8 +3022,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add keyboard hint
     const hints = document.createElement('div');
-    hints.style.cssText = 'text-align:center;font-size:11px;color:#555;margin-top:8px;';
-    hints.innerHTML = '键盘: <kbd>Tab</kbd> 选择控件 <kbd>Enter/空格</kbd> 激活 · <kbd>F</kbd> 弃牌 <kbd>C</kbd> 过牌/跟注 <kbd>R</kbd> 加注 <kbd>A</kbd> 全下 · 加注时 <kbd>←/→</kbd> 调整 <kbd>空格</kbd> 确认 <kbd>Esc</kbd> 取消';
+    hints.style.cssText = 'text-align:center;font-size:11px;color:#bac6d8;margin-top:8px;';
+    hints.innerHTML = '键盘: <kbd>Tab</kbd> 选择控件 <kbd>Enter/空格</kbd> 激活 · <kbd>F</kbd> 弃牌 <kbd>C</kbd> 过牌/跟注 <kbd>R</kbd> 加注 <kbd>A</kbd> 全下 · 加注时数字 <kbd>1</kbd> 减 / <kbd>2</kbd> 加，方向键调整 <kbd>空格</kbd> 确认 <kbd>Esc</kbd> 取消';
     document.getElementById('app').appendChild(hints);
 
     document.querySelectorAll('.mode-btn').forEach(button => {
@@ -2882,9 +3047,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (volumeSlider) volumeSlider.value = selectedMusicVolume;
     if (typeof bgMusic !== 'undefined') bgMusic.setVolume(musicVolumeFromSlider(selectedMusicVolume));
     if (typeof bgMusic !== 'undefined') bgMusic.setPlaybackMode(musicPlaybackMode);
-    // Fetch the first local track while game settings are being chosen. Actual
-    // playback still starts only after a user action/game start.
-    if (typeof bgMusic !== 'undefined') bgMusic.init();
+    // Music stays unloaded until requested; muted games need no media buffers.
     updateMusicButton(false);
     updatePlaybackModeButton();
 
@@ -2937,11 +3100,15 @@ function updateMusicButton(playing, state = playing ? 'playing' : 'off') {
     if (!btn) return;
     const trackName = bgMusic && typeof bgMusic.getCurrentPatternName === 'function'
         ? bgMusic.getCurrentPatternName() : '牌桌音乐';
-    if (state === 'loading') btn.textContent = `⏳ 正在加载 ${trackName}`;
-    else if (state === 'error') btn.textContent = '⚠️ 音乐加载失败';
-    else btn.textContent = playing ? `🎵 ${trackName}` : '🎵 音乐关';
-    btn.title = state === 'loading' ? `正在准备：${trackName}`
+    // Loading/playing events can alternate during a crossfade. Keep the visible
+    // label stable so changing tracks never resizes or flashes the controls row.
+    const label = state === 'error' ? '⚠️ 音乐关' : playing ? '🎵 音乐开' : '🎵 音乐关';
+    if (btn.textContent !== label) btn.textContent = label;
+    btn.title = state === 'error' ? '音乐加载失败；点击重试'
+        : state === 'loading' ? `正在准备：${trackName}`
         : playing ? `正在播放：${trackName}` : '播放背景音乐';
+    btn.setAttribute('aria-label', btn.title);
+    btn.setAttribute('aria-pressed', String(playing));
     btn.dataset.playbackState = state;
     btn.classList.toggle('music-on', playing);
 }
@@ -2972,7 +3139,7 @@ function updateTurnAlertButton() {
     const button = document.getElementById('turnAlertBtn');
     if (!button) return;
     button.textContent = turnAlertsEnabled ? '🔔 提示音开' : '🔕 提示音关';
-    button.title = turnAlertsEnabled ? '关闭出手提示音' : '开启出手提示音';
+    button.title = turnAlertsEnabled ? '关闭出手和结算提示音' : '开启出手和结算提示音';
     button.setAttribute('aria-label', button.title);
     button.setAttribute('aria-pressed', String(turnAlertsEnabled));
     button.classList.toggle('music-on', turnAlertsEnabled);
@@ -3078,6 +3245,7 @@ function getTurnAudioContext() {
 
 /** 页面卸载时释放音频上下文（否则每次重载都会留下一个常驻 AudioContext） */
 function releaseTurnAudioContext() {
+    window.windowControls?.setAttention?.(false);
     var ctx = _turnAudioCtx;
     _turnAudioCtx = null;
     if (ctx && typeof ctx.close === 'function') {
@@ -3108,10 +3276,35 @@ function playTurnAlert() {
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
             osc.connect(gain);
             gain.connect(ctx.destination);
+            osc.onended = () => { osc.disconnect(); gain.disconnect(); };
             osc.start(now);
             osc.stop(now + 0.25);
         });
     } catch(e) { /* 静默失败，不影响游戏 */ }
+}
+
+/** Two ascending chimes distinguish hand settlement from a betting turn. */
+function playSettlementAlert() {
+    if (!turnAlertsEnabled) return;
+    try {
+        const ctx = getTurnAudioContext();
+        if (!ctx) return;
+        [660, 990].forEach((frequency, index) => {
+            const start = ctx.currentTime + index * 0.18;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = frequency;
+            gain.gain.setValueAtTime(0.001, start);
+            gain.gain.exponentialRampToValueAtTime(0.10, start + 0.012);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + 0.32);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+            osc.start(start);
+            osc.stop(start + 0.33);
+        });
+    } catch (_) {}
 }
 
 // Expose to global for inline handlers.

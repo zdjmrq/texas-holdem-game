@@ -1,0 +1,6 @@
+
+> texas-holdem@1.5.8 test:ai-smoke
+> node tests/ai-batch-smoke.js
+
+standard: 12 hands, 106 actions, avg 6.6ms, p95 15.9ms, max 18.9ms
+shortdeck: 12 hands, 187 actions, avg 4.2ms, p95 7.8ms, max 11.2ms

@@ -1,0 +1,59 @@
+[
+  {
+    "key": "v158g-ranked-weak",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 481001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "rankedContinuationWeight": 0.25
+    }
+  },
+  {
+    "key": "v158g-ranked-medium",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 481001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "rankedContinuationWeight": 0.65
+    }
+  },
+  {
+    "key": "v158g-ranked-full",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 481001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "rankedContinuationWeight": 1
+    }
+  },
+  {
+    "key": "v158g-ranked-joint",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 481001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "rankedContinuationWeight": 0.65,
+      "jointCallReturnWeight": 1
+    }
+  }
+]

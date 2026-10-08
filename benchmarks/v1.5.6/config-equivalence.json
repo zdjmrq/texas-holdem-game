@@ -1,0 +1,57 @@
+{
+  "passed": true,
+  "hands": 64,
+  "decisions": 818,
+  "referenceHash": "1360378b5e33b8810367f01e6d6183dd01373489e6989035e54b9c488ea0961d",
+  "releaseHash": "2694b1a393eb6ac42d78216d1b7ddaee9d73ee007ce8b646e2b82967ed7ce199",
+  "rows": [
+    {
+      "variant": "standard",
+      "seats": 2,
+      "hands": 8,
+      "decisions": 32
+    },
+    {
+      "variant": "standard",
+      "seats": 4,
+      "hands": 8,
+      "decisions": 50
+    },
+    {
+      "variant": "standard",
+      "seats": 6,
+      "hands": 8,
+      "decisions": 61
+    },
+    {
+      "variant": "standard",
+      "seats": 10,
+      "hands": 8,
+      "decisions": 100
+    },
+    {
+      "variant": "shortdeck",
+      "seats": 2,
+      "hands": 8,
+      "decisions": 45
+    },
+    {
+      "variant": "shortdeck",
+      "seats": 4,
+      "hands": 8,
+      "decisions": 117
+    },
+    {
+      "variant": "shortdeck",
+      "seats": 6,
+      "hands": 8,
+      "decisions": 179
+    },
+    {
+      "variant": "shortdeck",
+      "seats": 8,
+      "hands": 8,
+      "decisions": 234
+    }
+  ]
+}

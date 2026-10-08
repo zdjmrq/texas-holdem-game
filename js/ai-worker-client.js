@@ -51,13 +51,28 @@ class AIWorkerService {
         this.post('showdown', key, meta, { seatId, result });
     }
 
+    release(key) {
+        // Cleanup must never start an otherwise unused worker.
+        this.worker?.postMessage({ type:'release', key });
+        for (const [id, request] of this.pending) {
+            if (request.key === key) this._settle(id, null, new Error('AI game ended'));
+        }
+    }
+
+    dispose() {
+        for (const id of [...this.pending.keys()]) this._settle(id, null, new Error('AI service disposed'));
+        this.worker?.terminate();
+        this.worker = null;
+        this.unavailable = false;
+    }
+
     decide(key, meta, context) {
         const worker = this._ensure();
         if (!worker) return Promise.reject(new Error('AI worker unavailable'));
         const id = ++this.sequence;
         const cloneableContext = { ...context };
         delete cloneableContext.evaluateCards;
-        const promise = new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));
+        const promise = new Promise((resolve, reject) => this.pending.set(id, { resolve, reject, key }));
         // A worker that hangs (a stalled search, OOM without onerror) would
         // otherwise leave this promise pending forever and freeze the table.
         // Timing out rejects the decision, and the caller already falls back to

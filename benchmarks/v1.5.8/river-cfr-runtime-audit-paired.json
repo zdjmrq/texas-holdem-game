@@ -1,0 +1,128 @@
+{
+  "case": "paired",
+  "buildMs": 32.45722500000001,
+  "elapsedMs": 1522.0471909999999,
+  "results": [
+    {
+      "position": "first",
+      "informationSets": 204,
+      "treeNodes": 3564,
+      "checkpoints": [
+        {
+          "iterations": 200,
+          "solveMs": 39.53482199999999,
+          "value": -30.271633149141067,
+          "bestResponseValues": [
+            -6.902703329204524,
+            62.71275746394696
+          ],
+          "nashConv": 55.81005413474243,
+          "exploitability": 27.905027067371215
+        },
+        {
+          "iterations": 800,
+          "solveMs": 49.63826599999999,
+          "value": -35.416403850787034,
+          "bestResponseValues": [
+            -25.11466226530957,
+            48.397768555778654
+          ],
+          "nashConv": 23.283106290469085,
+          "exploitability": 11.641553145234543
+        },
+        {
+          "iterations": 10000,
+          "solveMs": 747.68247,
+          "value": -36.60163636434532,
+          "bestResponseValues": [
+            -34.436559128702314,
+            38.46982188910442
+          ],
+          "nashConv": 4.03326276040211,
+          "exploitability": 2.016631380201055
+        }
+      ]
+    },
+    {
+      "position": "checked",
+      "informationSets": 102,
+      "treeNodes": 1800,
+      "checkpoints": [
+        {
+          "iterations": 200,
+          "solveMs": 9.66402800000003,
+          "value": 41.21693113157216,
+          "bestResponseValues": [
+            59.69392350012478,
+            -30.478743619790595
+          ],
+          "nashConv": 29.215179880334187,
+          "exploitability": 14.607589940167093
+        },
+        {
+          "iterations": 800,
+          "solveMs": 24.725209999999947,
+          "value": 44.48123617620557,
+          "bestResponseValues": [
+            50.466640620272386,
+            -39.88984667358658
+          ],
+          "nashConv": 10.576793946685804,
+          "exploitability": 5.288396973342902
+        },
+        {
+          "iterations": 10000,
+          "solveMs": 380.061563,
+          "value": 46.52256356951123,
+          "bestResponseValues": [
+            47.5584419648886,
+            -46.11429325039031
+          ],
+          "nashConv": 1.44414871449829,
+          "exploitability": 0.722074357249145
+        }
+      ]
+    },
+    {
+      "position": "facing",
+      "informationSets": 30,
+      "treeNodes": 540,
+      "checkpoints": [
+        {
+          "iterations": 200,
+          "solveMs": 4.845553999999993,
+          "value": 148.76709299573812,
+          "bestResponseValues": [
+            181.32316437113818,
+            -136.596365981437
+          ],
+          "nashConv": 44.72679838970117,
+          "exploitability": 22.363399194850587
+        },
+        {
+          "iterations": 800,
+          "solveMs": 14.328629999999976,
+          "value": 154.79876806605355,
+          "bestResponseValues": [
+            162.27624040163175,
+            -144.09297907416826
+          ],
+          "nashConv": 18.183261327463498,
+          "exploitability": 9.091630663731749
+        },
+        {
+          "iterations": 10000,
+          "solveMs": 107.56234699999982,
+          "value": 158.2906465797605,
+          "bestResponseValues": [
+            160.15284662871323,
+            -157.1417629084136
+          ],
+          "nashConv": 3.011083720299638,
+          "exploitability": 1.505541860149819
+        }
+      ]
+    }
+  ],
+  "scope": "Exact consistent-information-set best responses in a six-bucket, heads-up river game; independent public ranges; not ten-player NLHE exploitability or actual table strength."
+}

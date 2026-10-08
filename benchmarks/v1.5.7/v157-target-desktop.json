@@ -1,0 +1,405 @@
+{
+  "initial": {
+    "players": 10,
+    "starting": 5000,
+    "sb": 100,
+    "bb": 200,
+    "caption": "Bot 策略重点优化：标准十人桌 · 起始 5000 · 盲注 100/200",
+    "styles": [
+      "CALLING_STATION",
+      "TAG",
+      "MANIAC",
+      "SOLID",
+      "LAG",
+      "TAGFISH",
+      "CALLING_STATION",
+      "TAG",
+      "MANIAC"
+    ]
+  },
+  "rows": [
+    {
+      "hand": 0,
+      "ended": true,
+      "chips": 50000,
+      "refsStable": true,
+      "styles": [
+        "CALLING_STATION",
+        "TAG",
+        "MANIAC",
+        "SOLID",
+        "LAG",
+        "TAGFISH",
+        "CALLING_STATION",
+        "TAG",
+        "MANIAC"
+      ],
+      "actions": [
+        {
+          "action": "raise",
+          "amount": 500,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "call",
+          "amount": 500,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "raise",
+          "amount": 1000,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "raise",
+          "amount": 2000,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "allin",
+          "amount": 3500,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        }
+      ],
+      "leaks": [],
+      "pending": 0
+    },
+    {
+      "hand": 1,
+      "ended": true,
+      "chips": 50000,
+      "refsStable": true,
+      "styles": [
+        "CALLING_STATION",
+        "TAG",
+        "MANIAC",
+        "SOLID",
+        "LAG",
+        "TAGFISH",
+        "CALLING_STATION",
+        "TAG",
+        "MANIAC"
+      ],
+      "actions": [
+        {
+          "action": "raise",
+          "amount": 500,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "call",
+          "amount": 500,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "raise",
+          "amount": 1000,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "raise",
+          "amount": 2000,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "allin",
+          "amount": 3500,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        }
+      ],
+      "leaks": [],
+      "pending": 0
+    },
+    {
+      "hand": 2,
+      "ended": true,
+      "chips": 50000,
+      "refsStable": true,
+      "styles": [
+        "CALLING_STATION",
+        "TAG",
+        "MANIAC",
+        "SOLID",
+        "LAG",
+        "TAGFISH",
+        "CALLING_STATION",
+        "TAG",
+        "MANIAC"
+      ],
+      "actions": [
+        {
+          "action": "raise",
+          "amount": 500,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "call",
+          "amount": 500,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "raise",
+          "amount": 1000,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "raise",
+          "amount": 2000,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "allin",
+          "amount": 3500,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "raise",
+          "amount": 500,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        },
+        {
+          "action": "fold",
+          "amount": 0,
+          "focus": "ten-player-25bb"
+        }
+      ],
+      "leaks": [],
+      "pending": 0
+    }
+  ]
+}

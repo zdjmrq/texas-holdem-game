@@ -37,7 +37,7 @@ test('music controls default to off, volume 50 and sequential playback', () => {
     assert.match(html, /id="musicBtn"[^>]*>🎵 音乐关</);
     assert.match(html, /id="playbackModeBtn"[^>]*[\s\S]*?>🔁 顺序</);
     assert.match(html, /id="volSlider"[^>]*[\s\S]*?value="50"/);
-    assert.match(html, /rel="preload" href="assets\/music\/01\.mp3" as="audio"/);
+    assert.doesNotMatch(html, /rel="preload"[^>]*as="audio"/);
 });
 
 test('playback modes choose sequential, repeated and non-repeating random tracks', () => {
@@ -52,4 +52,50 @@ test('playback modes choose sequential, repeated and non-repeating random tracks
     context.Math.random = () => 0.9;
     music.setPlaybackMode('shuffle');
     assert.equal(music._pickNextPattern(), 3);
+});
+
+test('a delayed manual skip keeps the old song audible until the next track can play', async () => {
+    const frames = [];
+    let now = 0, ready;
+    context.performance = {now:()=>now};
+    context.requestAnimationFrame = fn => {frames.push(fn); return frames.length;};
+    context.cancelAnimationFrame = () => {};
+    const music = new BackgroundMusic();
+    const old = {volume:.216, ended:false, paused:false, pause(){this.paused=true;}};
+    const next = {volume:0, play:()=>new Promise(resolve=>{ready=resolve;})};
+    music.players = [old, next];
+    music.initialized = true;
+    music.isPlaying = true;
+    music._load = () => {};
+    music._preloadFollowing = () => {};
+    const transition = music._transitionTo(1, 1200, true);
+    assert.equal(frames.length, 0, 'the fade must not start while the next song is still loading');
+    assert.equal(old.volume, .216);
+    assert.equal(old.paused, false);
+    now = 2000;
+    ready();
+    await transition;
+    frames.shift()(2600);
+    assert.ok(old.volume > 0 && next.volume > 0);
+    frames.shift()(3200);
+    assert.equal(old.paused, true);
+    assert.equal(next.volume, music.volume);
+});
+
+test('stopping music while a skip is loading cannot restart the stale fade', async () => {
+    let ready;
+    const frames=[];
+    context.requestAnimationFrame=fn=>{frames.push(fn);return frames.length;};
+    const music=new BackgroundMusic();
+    music.initialized=true;
+    music.isPlaying=true;
+    music.players=[{volume:.2,ended:false,paused:false,pause(){}},{volume:0,play:()=>new Promise(resolve=>{ready=resolve;})}];
+    music._load=()=>{};
+    const transition=music._transitionTo(1);
+    music.stop();
+    const stopFrames=frames.length;
+    ready();
+    await transition;
+    assert.equal(frames.length,stopFrames);
+    assert.equal(music.isPlaying,false);
 });

@@ -1,0 +1,35 @@
+[
+  {
+    "key": "standard-4",
+    "variant": "standard",
+    "seats": 4,
+    "blocks": 96,
+    "hands": 24,
+    "seed": 221001
+  },
+  {
+    "key": "standard-10",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 24,
+    "seed": 221001
+  },
+  {
+    "key": "standard-6",
+    "variant": "standard",
+    "seats": 6,
+    "blocks": 96,
+    "hands": 24,
+    "seed": 221001
+  },
+  {
+    "key": "shortdeck-6",
+    "variant": "shortdeck",
+    "seats": 6,
+    "blocks": 96,
+    "hands": 24,
+    "seed": 221001,
+    "personas": "benchmarks/v1.5.6/shortdeck-personas.json"
+  }
+]

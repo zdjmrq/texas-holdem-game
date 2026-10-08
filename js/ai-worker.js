@@ -1,6 +1,6 @@
 'use strict';
 
-importScripts('probability-core.js', 'ai-core.js');
+importScripts('game-rules-core.js', 'probability-core.js', 'ai-shortdeck-stable.js', 'compiled-cfr.js', 'river-solver.js', 'ai-core.js');
 
 const brains = new Map();
 
@@ -11,7 +11,8 @@ function ensureBrain(key, meta = {}) {
             name:meta.name || 'AI',
             style:meta.style || 'SOLID',
             seatId:meta.seatId ?? 0,
-            profile:meta.profile || undefined
+            profile:meta.profile || undefined,
+            variant:meta.variant || 'standard'
         });
         brains.set(key, brain);
     }
@@ -22,6 +23,10 @@ function ensureBrain(key, meta = {}) {
 self.onmessage = event => {
     const message = event.data || {};
     try {
+        if (message.type === 'release') {
+            brains.delete(message.key);
+            return;
+        }
         const brain = ensureBrain(message.key, message.meta);
         if (message.type === 'observe') {
             brain.observeAction(message.event || {});

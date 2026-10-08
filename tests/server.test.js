@@ -144,6 +144,8 @@ test('local server keeps two clients authoritative, private, resumable and synch
 
     const a = await new TestClient(url).connect();
     const b = await new TestClient(url).connect();
+    const hello = await a.waitAfter(0, message => message.type === 'hello');
+    assert.equal(hello.appVersion, require('../package.json').version);
     clients.push(a, b);
 
     let markA = a.mark();

@@ -1,0 +1,43 @@
+[
+  {
+    "key": "standard-4",
+    "variant": "standard",
+    "seats": 4,
+    "blocks": 128,
+    "hands": 32,
+    "seed": 211001,
+    "profile": {}
+  },
+  {
+    "key": "standard-10",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 128,
+    "hands": 32,
+    "seed": 211001,
+    "profile": {}
+  },
+  {
+    "key": "shortdeck-legacy",
+    "variant": "shortdeck",
+    "seats": 6,
+    "blocks": 128,
+    "hands": 32,
+    "seed": 211001,
+    "profile": {},
+    "personas": "benchmarks/v1.5.6/shortdeck-personas.json"
+  },
+  {
+    "key": "shortdeck-participation",
+    "variant": "shortdeck",
+    "seats": 6,
+    "blocks": 128,
+    "hands": 32,
+    "seed": 211001,
+    "profile": {
+      "preflopParticipationWeight": 1,
+      "rangePercentileWeight": 1
+    },
+    "personas": "benchmarks/v1.5.6/shortdeck-personas.json"
+  }
+]

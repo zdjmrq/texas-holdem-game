@@ -1,0 +1,1523 @@
+{
+  "tables": 24,
+  "hands": 1536,
+  "decisions": 16331,
+  "errors": 0,
+  "timeouts": 0,
+  "riverSolves": 156,
+  "profile": null,
+  "precisionWeights": [
+    0
+  ],
+  "rankedWeights": [
+    0
+  ],
+  "jointWeights": [
+    0
+  ],
+  "sampling": {
+    "preflop": {
+      "decisions": 12074,
+      "minSamples": 240,
+      "maxSamples": 420,
+      "exact": 0
+    },
+    "flop": {
+      "decisions": 3048,
+      "minSamples": 320,
+      "maxSamples": 420,
+      "exact": 0
+    },
+    "turn": {
+      "decisions": 836,
+      "minSamples": 320,
+      "maxSamples": 420,
+      "exact": 0
+    },
+    "river": {
+      "decisions": 373,
+      "minSamples": 360,
+      "maxSamples": 990,
+      "exact": 187
+    }
+  },
+  "timing": {
+    "averageMs": 8.468543750290834,
+    "p95Ms": 17.75521600000502,
+    "maxMs": 221.5381699999998
+  },
+  "rows": [
+    {
+      "table": 0,
+      "depths": [
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 586,
+      "activeCounts": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 4,
+      "finalStacks": [
+        30050,
+        9750,
+        6400,
+        0,
+        0,
+        0,
+        3800,
+        0,
+        0,
+        0
+      ],
+      "styles": [
+        "MANIAC",
+        "LAG",
+        "CALLING_STATION",
+        "CALLING_STATION",
+        "MANIAC",
+        "TAG",
+        "MANIAC",
+        "SOLID",
+        "LAG",
+        "LAG"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 1,
+      "depths": [
+        10,
+        25,
+        50,
+        100,
+        10,
+        25,
+        50,
+        100,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 686,
+      "activeCounts": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 6,
+      "finalStacks": [
+        0,
+        17800,
+        0,
+        20400,
+        0,
+        12400,
+        2300,
+        24400,
+        0,
+        6700
+      ],
+      "styles": [
+        "MANIAC",
+        "LAG",
+        "MANIAC",
+        "CALLING_STATION",
+        "LAG",
+        "CALLING_STATION",
+        "CALLING_STATION",
+        "LAG",
+        "TAGFISH",
+        "LAG"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 2,
+      "depths": [
+        15,
+        15,
+        25,
+        25,
+        35,
+        35,
+        50,
+        50,
+        100,
+        100
+      ],
+      "played": 64,
+      "actions": 653,
+      "activeCounts": [
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 7,
+      "finalStacks": [
+        0,
+        16400,
+        0,
+        0,
+        3400,
+        16100,
+        6900,
+        18200,
+        7200,
+        21800
+      ],
+      "styles": [
+        "MANIAC",
+        "SOLID",
+        "LAG",
+        "CALLING_STATION",
+        "CALLING_STATION",
+        "MANIAC",
+        "SOLID",
+        "LAG",
+        "LAG",
+        "SOLID"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 3,
+      "depths": [
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 760,
+      "activeCounts": [
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 7,
+      "finalStacks": [
+        4900,
+        7300,
+        0,
+        12300,
+        2300,
+        0,
+        4300,
+        17400,
+        1500,
+        0
+      ],
+      "styles": [
+        "MANIAC",
+        "SOLID",
+        "CALLING_STATION",
+        "CALLING_STATION",
+        "MANIAC",
+        "SOLID",
+        "CALLING_STATION",
+        "TAG",
+        "TAGFISH",
+        "SOLID"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 4,
+      "depths": [
+        10,
+        25,
+        50,
+        100,
+        10,
+        25,
+        50,
+        100,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 637,
+      "activeCounts": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 4,
+      "finalStacks": [
+        17700,
+        0,
+        0,
+        42150,
+        0,
+        0,
+        0,
+        10750,
+        13400,
+        0
+      ],
+      "styles": [
+        "MANIAC",
+        "MANIAC",
+        "MANIAC",
+        "TAG",
+        "LAG",
+        "TAG",
+        "LAG",
+        "TAG",
+        "LAG",
+        "SOLID"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 5,
+      "depths": [
+        15,
+        15,
+        25,
+        25,
+        35,
+        35,
+        50,
+        50,
+        100,
+        100
+      ],
+      "played": 64,
+      "actions": 701,
+      "activeCounts": [
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 7,
+      "finalStacks": [
+        0,
+        5900,
+        0,
+        11300,
+        2100,
+        0,
+        16100,
+        14500,
+        28300,
+        11800
+      ],
+      "styles": [
+        "MANIAC",
+        "MANIAC",
+        "LAG",
+        "TAG",
+        "CALLING_STATION",
+        "CALLING_STATION",
+        "TAGFISH",
+        "CALLING_STATION",
+        "TAGFISH",
+        "MANIAC"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 6,
+      "depths": [
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 547,
+      "activeCounts": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 4,
+      "finalStacks": [
+        0,
+        0,
+        0,
+        4000,
+        14400,
+        20500,
+        0,
+        0,
+        0,
+        11100
+      ],
+      "styles": [
+        "MANIAC",
+        "TAGFISH",
+        "CALLING_STATION",
+        "TAG",
+        "MANIAC",
+        "MANIAC",
+        "TAG",
+        "CALLING_STATION",
+        "LAG",
+        "MANIAC"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 7,
+      "depths": [
+        10,
+        25,
+        50,
+        100,
+        10,
+        25,
+        50,
+        100,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 793,
+      "activeCounts": [
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 7,
+      "finalStacks": [
+        5500,
+        0,
+        11400,
+        18800,
+        0,
+        14500,
+        0,
+        4700,
+        8700,
+        20400
+      ],
+      "styles": [
+        "MANIAC",
+        "TAGFISH",
+        "MANIAC",
+        "TAG",
+        "LAG",
+        "SOLID",
+        "MANIAC",
+        "TAGFISH",
+        "TAGFISH",
+        "MANIAC"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 8,
+      "depths": [
+        15,
+        15,
+        25,
+        25,
+        35,
+        35,
+        50,
+        50,
+        100,
+        100
+      ],
+      "played": 64,
+      "actions": 609,
+      "activeCounts": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 5,
+      "finalStacks": [
+        0,
+        29900,
+        0,
+        14400,
+        0,
+        0,
+        0,
+        18300,
+        10700,
+        16700
+      ],
+      "styles": [
+        "MANIAC",
+        "CALLING_STATION",
+        "LAG",
+        "LAG",
+        "CALLING_STATION",
+        "TAG",
+        "CALLING_STATION",
+        "TAGFISH",
+        "LAG",
+        "TAGFISH"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 9,
+      "depths": [
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 699,
+      "activeCounts": [
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 7,
+      "finalStacks": [
+        5700,
+        6000,
+        9900,
+        6800,
+        6300,
+        8100,
+        0,
+        7200,
+        0,
+        0
+      ],
+      "styles": [
+        "MANIAC",
+        "CALLING_STATION",
+        "TAG",
+        "LAG",
+        "MANIAC",
+        "CALLING_STATION",
+        "SOLID",
+        "MANIAC",
+        "TAGFISH",
+        "TAGFISH"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 10,
+      "depths": [
+        10,
+        25,
+        50,
+        100,
+        10,
+        25,
+        50,
+        100,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 656,
+      "activeCounts": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 5,
+      "finalStacks": [
+        0,
+        15200,
+        0,
+        15900,
+        0,
+        0,
+        0,
+        22250,
+        18900,
+        11750
+      ],
+      "styles": [
+        "MANIAC",
+        "TAG",
+        "TAGFISH",
+        "LAG",
+        "LAG",
+        "MANIAC",
+        "CALLING_STATION",
+        "MANIAC",
+        "LAG",
+        "TAGFISH"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 11,
+      "depths": [
+        15,
+        15,
+        25,
+        25,
+        35,
+        35,
+        50,
+        50,
+        100,
+        100
+      ],
+      "played": 64,
+      "actions": 841,
+      "activeCounts": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 6,
+      "finalStacks": [
+        0,
+        0,
+        0,
+        8100,
+        8900,
+        0,
+        14900,
+        16700,
+        17700,
+        23700
+      ],
+      "styles": [
+        "MANIAC",
+        "LAG",
+        "SOLID",
+        "LAG",
+        "CALLING_STATION",
+        "SOLID",
+        "LAG",
+        "SOLID",
+        "TAGFISH",
+        "CALLING_STATION"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 12,
+      "depths": [
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 693,
+      "activeCounts": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 5,
+      "finalStacks": [
+        6400,
+        0,
+        21700,
+        4000,
+        0,
+        0,
+        6800,
+        0,
+        0,
+        11100
+      ],
+      "styles": [
+        "MANIAC",
+        "LAG",
+        "TAG",
+        "LAG",
+        "MANIAC",
+        "TAG",
+        "TAGFISH",
+        "SOLID",
+        "LAG",
+        "CALLING_STATION"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 13,
+      "depths": [
+        10,
+        25,
+        50,
+        100,
+        10,
+        25,
+        50,
+        100,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 679,
+      "activeCounts": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 5,
+      "finalStacks": [
+        0,
+        0,
+        29450,
+        0,
+        0,
+        7150,
+        28100,
+        15100,
+        4200,
+        0
+      ],
+      "styles": [
+        "MANIAC",
+        "SOLID",
+        "TAGFISH",
+        "SOLID",
+        "LAG",
+        "CALLING_STATION",
+        "TAG",
+        "LAG",
+        "TAGFISH",
+        "CALLING_STATION"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 14,
+      "depths": [
+        15,
+        15,
+        25,
+        25,
+        35,
+        35,
+        50,
+        50,
+        100,
+        100
+      ],
+      "played": 64,
+      "actions": 790,
+      "activeCounts": [
+        8,
+        9,
+        10
+      ],
+      "survivors": 8,
+      "finalStacks": [
+        0,
+        3600,
+        2500,
+        12300,
+        3200,
+        15900,
+        2900,
+        21500,
+        0,
+        28100
+      ],
+      "styles": [
+        "MANIAC",
+        "SOLID",
+        "SOLID",
+        "SOLID",
+        "CALLING_STATION",
+        "MANIAC",
+        "MANIAC",
+        "LAG",
+        "LAG",
+        "TAG"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 15,
+      "depths": [
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 653,
+      "activeCounts": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 5,
+      "finalStacks": [
+        8600,
+        0,
+        6150,
+        0,
+        12050,
+        0,
+        14600,
+        8600,
+        0,
+        0
+      ],
+      "styles": [
+        "MANIAC",
+        "MANIAC",
+        "TAG",
+        "SOLID",
+        "MANIAC",
+        "SOLID",
+        "TAG",
+        "TAG",
+        "CALLING_STATION",
+        "TAG"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 16,
+      "depths": [
+        10,
+        25,
+        50,
+        100,
+        10,
+        25,
+        50,
+        100,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 559,
+      "activeCounts": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 4,
+      "finalStacks": [
+        0,
+        39900,
+        15200,
+        26200,
+        0,
+        2700,
+        0,
+        0,
+        0,
+        0
+      ],
+      "styles": [
+        "MANIAC",
+        "MANIAC",
+        "TAGFISH",
+        "SOLID",
+        "LAG",
+        "TAG",
+        "SOLID",
+        "TAG",
+        "SOLID",
+        "TAG"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 17,
+      "depths": [
+        15,
+        15,
+        25,
+        25,
+        35,
+        35,
+        50,
+        50,
+        100,
+        100
+      ],
+      "played": 64,
+      "actions": 806,
+      "activeCounts": [
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 7,
+      "finalStacks": [
+        0,
+        4000,
+        1300,
+        31400,
+        0,
+        21900,
+        0,
+        10200,
+        13900,
+        7300
+      ],
+      "styles": [
+        "MANIAC",
+        "TAGFISH",
+        "SOLID",
+        "MANIAC",
+        "CALLING_STATION",
+        "CALLING_STATION",
+        "CALLING_STATION",
+        "CALLING_STATION",
+        "CALLING_STATION",
+        "LAG"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 18,
+      "depths": [
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 635,
+      "activeCounts": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 4,
+      "finalStacks": [
+        0,
+        0,
+        0,
+        17700,
+        25300,
+        3300,
+        0,
+        0,
+        3700,
+        0
+      ],
+      "styles": [
+        "MANIAC",
+        "TAGFISH",
+        "LAG",
+        "MANIAC",
+        "MANIAC",
+        "MANIAC",
+        "LAG",
+        "CALLING_STATION",
+        "SOLID",
+        "LAG"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 19,
+      "depths": [
+        10,
+        25,
+        50,
+        100,
+        10,
+        25,
+        50,
+        100,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 591,
+      "activeCounts": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 5,
+      "finalStacks": [
+        0,
+        0,
+        0,
+        24100,
+        0,
+        5300,
+        21400,
+        12500,
+        20700,
+        0
+      ],
+      "styles": [
+        "MANIAC",
+        "CALLING_STATION",
+        "CALLING_STATION",
+        "MANIAC",
+        "LAG",
+        "SOLID",
+        "TAGFISH",
+        "TAGFISH",
+        "CALLING_STATION",
+        "SOLID"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 20,
+      "depths": [
+        15,
+        15,
+        25,
+        25,
+        35,
+        35,
+        50,
+        50,
+        100,
+        100
+      ],
+      "played": 64,
+      "actions": 638,
+      "activeCounts": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 5,
+      "finalStacks": [
+        6400,
+        0,
+        0,
+        0,
+        26200,
+        0,
+        0,
+        10800,
+        11100,
+        35500
+      ],
+      "styles": [
+        "MANIAC",
+        "CALLING_STATION",
+        "MANIAC",
+        "MANIAC",
+        "CALLING_STATION",
+        "TAG",
+        "LAG",
+        "TAGFISH",
+        "SOLID",
+        "SOLID"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 21,
+      "depths": [
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 726,
+      "activeCounts": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 6,
+      "finalStacks": [
+        1500,
+        0,
+        12700,
+        0,
+        12200,
+        2800,
+        15900,
+        0,
+        0,
+        4900
+      ],
+      "styles": [
+        "MANIAC",
+        "TAG",
+        "LAG",
+        "MANIAC",
+        "MANIAC",
+        "CALLING_STATION",
+        "MANIAC",
+        "MANIAC",
+        "CALLING_STATION",
+        "SOLID"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 22,
+      "depths": [
+        10,
+        25,
+        50,
+        100,
+        10,
+        25,
+        50,
+        100,
+        25,
+        25
+      ],
+      "played": 64,
+      "actions": 683,
+      "activeCounts": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 6,
+      "finalStacks": [
+        0,
+        0,
+        42200,
+        10400,
+        0,
+        11300,
+        0,
+        12800,
+        4800,
+        2500
+      ],
+      "styles": [
+        "MANIAC",
+        "LAG",
+        "CALLING_STATION",
+        "TAGFISH",
+        "LAG",
+        "MANIAC",
+        "TAG",
+        "MANIAC",
+        "SOLID",
+        "MANIAC"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "table": 23,
+      "depths": [
+        15,
+        15,
+        25,
+        25,
+        35,
+        35,
+        50,
+        50,
+        100,
+        100
+      ],
+      "played": 64,
+      "actions": 710,
+      "activeCounts": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "survivors": 6,
+      "finalStacks": [
+        9000,
+        0,
+        9000,
+        0,
+        0,
+        0,
+        16200,
+        10700,
+        30000,
+        15100
+      ],
+      "styles": [
+        "MANIAC",
+        "LAG",
+        "MANIAC",
+        "TAGFISH",
+        "CALLING_STATION",
+        "SOLID",
+        "SOLID",
+        "SOLID",
+        "CALLING_STATION",
+        "MANIAC"
+      ],
+      "models": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    }
+  ]
+}

@@ -5,6 +5,25 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function() {
     'use strict';
 
+    function wagerUnit(input = {}) {
+        const config = input.config || input;
+        const shortDeck = input.isShortDeck || input.variant === 'shortdeck' || (config.ante != null && config.smallBlind == null);
+        const value = Number(input.wagerUnit ?? config.wagerUnit ?? (shortDeck ? config.ante : config.smallBlind));
+        return Math.max(1, Math.floor(Number.isFinite(value) && value > 0 ? value : (Number(input.bigBlind) || 2) / 2));
+    }
+
+    /** Only voluntary raises use this grid. Calls/all-ins pay the exact chip count. */
+    function raiseBounds(minimum, maximum, unit) {
+        unit = Math.max(1, Math.floor(Number(unit) || 1));
+        return { min:Math.ceil(minimum / unit) * unit, max:Math.floor(maximum / unit) * unit, unit };
+    }
+
+    function snapRaise(amount, minimum, maximum, unit) {
+        const bounds = raiseBounds(minimum, maximum, unit);
+        if (bounds.min > bounds.max || !Number.isFinite(Number(amount))) return null;
+        return Math.max(bounds.min, Math.min(bounds.max, Math.round(Number(amount) / bounds.unit) * bounds.unit));
+    }
+
     function decisionIdentity(variant, phase, actionOrdinal, seatId) {
         const normalizedVariant = variant === 'shortdeck' ? 'shortdeck' : 'standard';
         return `${normalizedVariant}:${phase || 'preflop'}:${Math.max(0, Number(actionOrdinal) || 0)}:${seatId}`;
@@ -64,5 +83,5 @@
         return { index:entries[0].index, refund:entries[0].amount - second };
     }
 
-    return { decisionIdentity, buildActionMeta, calculateSidePots, findUncalledRefund };
+    return { wagerUnit, raiseBounds, snapRaise, decisionIdentity, buildActionMeta, calculateSidePots, findUncalledRefund };
 });

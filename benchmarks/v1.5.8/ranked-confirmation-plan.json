@@ -1,0 +1,98 @@
+[
+  {
+    "key": "v158h-ranked-491001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 128,
+    "hands": 16,
+    "seed": 491001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "v158h-ranked-492001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 128,
+    "hands": 16,
+    "seed": 492001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "v158h-ranked-493001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 128,
+    "hands": 16,
+    "seed": 493001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "v158h-ranked-494001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 128,
+    "hands": 16,
+    "seed": 494001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "v158h-ranked-495001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 128,
+    "hands": 16,
+    "seed": 495001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "v158h-ranked-496001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 128,
+    "hands": 16,
+    "seed": 496001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "v158h-ranked-497001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 128,
+    "hands": 16,
+    "seed": 497001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "v158h-ranked-498001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 128,
+    "hands": 16,
+    "seed": 498001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  }
+]

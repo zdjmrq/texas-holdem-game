@@ -1,0 +1,18 @@
+{
+  "local": "ws://127.0.0.1:3000",
+  "selected": {
+    "protocolVersion": 2,
+    "type": "hello",
+    "serverId": "texas-holdem-game",
+    "serverName": "德州扑克服务",
+    "appVersion": "1.5.8"
+  },
+  "defaultPort": {
+    "protocolVersion": 2,
+    "type": "hello",
+    "serverId": "texas-holdem-game",
+    "serverName": "德州扑克服务",
+    "appVersion": "1.5.8"
+  },
+  "version": "1.5.8"
+}

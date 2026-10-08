@@ -9,6 +9,7 @@ const PokerGameRules = require('../js/game-rules-core');
 // across 13,728 random 7-card hands. The authoritative showdown keeps using
 // poker-rules.js so the settlement path is the single source of truth.
 const ProbabilityCore = require('../js/probability-core');
+const PokerAICore = require('../js/ai-core');
 
 const AI_NAMES = ['Alex', 'Blake', 'Casey', 'Drew', 'Emma', 'Finn', 'Grace', 'Hayes', 'Ivy', 'Jade'];
 const AI_AVATARS = ['😎', '🤠', '🕶️', '🎩', '👑', '🦊', '🐺', '🦅', '🐯', '🐉'];
@@ -21,6 +22,9 @@ class ServerPokerGame {
     constructor(config, players, options = {}) {
         this.config = { ...config };
         this.players = players;
+        if(config.isShortDeck)for(const p of players||[]){
+            if(p.aiRef&&!p.aiRef.isShortDeck){p.aiRef.isShortDeck=true;p.aiRef.sharedBrain=new PokerAICore.UnifiedPokerAI({name:p.aiRef.name,style:p.aiRef.style,seatId:p.seatId,profile:p.aiRef.config,variant:'shortdeck'});}
+        }
         this.random = options.random || Math.random;
         this.phase = 'idle';
         this.communityCards = [];
@@ -227,17 +231,19 @@ class ServerPokerGame {
         const toCall = Math.max(0, this.currentBet - ownBet);
         const canRaise = this.canRaise(idx);
         const maxRaiseTo = ownBet + player.stack;
+        const bounds = PokerGameRules.raiseBounds(this.minRaiseTo(), maxRaiseTo, PokerGameRules.wagerUnit(this));
         const actions = [];
         if (toCall === 0) actions.push('check');
         else actions.push('fold', 'call');
-        if (player.stack > 0 && canRaise && maxRaiseTo > this.minRaiseTo()) actions.push('raise');
+        if (player.stack > 0 && canRaise && bounds.min <= bounds.max && bounds.min < maxRaiseTo) actions.push('raise');
         if (player.stack > 0 && (maxRaiseTo <= this.currentBet || canRaise)) actions.push('allin');
         return {
             actions,
             toCall: Math.min(toCall, player.stack),
             canRaise,
-            minRaiseTo: this.minRaiseTo(),
-            maxRaiseTo
+            minRaiseTo: bounds.min,
+            maxRaiseTo,
+            wagerUnit: bounds.unit
         };
     }
 
@@ -275,7 +281,10 @@ class ServerPokerGame {
             player.roundBet = this.roundBets[idx];
             this.recordAction(idx);
         } else if (action === 'raise') {
-            let target = Math.floor(Number(amount) || 0);
+            const target = Number(amount);
+            if (!Number.isSafeInteger(target) || target % legal.wagerUnit !== 0) {
+                return { ok: false, error: `加注金额必须是 ${legal.wagerUnit} 的整数倍；零头筹码可使用全下` };
+            }
             if (target < legal.minRaiseTo || target > legal.maxRaiseTo) return { ok: false, error: '加注金额不在合法范围内' };
             const previous = this.currentBet;
             const paid = this.commit(idx, target - ownBet, 'raise');
@@ -340,8 +349,9 @@ class ServerPokerGame {
     }
 
     notifyAIsOfAction(actorIdx, action, meta = {}) {
+        meta = {...meta,...this.getHandPositionInfo(actorIdx),isSmallBlind:actorIdx===this.sbIdx,isBigBlind:actorIdx===this.bbIdx,
+            communityCards:(this.communityCards || []).map(card=>({...card}))};
         for (let idx = 0; idx < this.players.length; idx++) {
-            if (idx === actorIdx) continue;
             const ai = this.players[idx]?.aiRef;
             if (!ai) continue;
             ai.position = idx;
@@ -352,7 +362,7 @@ class ServerPokerGame {
                 if (typeof ai.recordOpponentAction === 'function') {
                     ai.recordOpponentAction(actorIdx, action, this.phase, this.handId, meta);
                 }
-                if (typeof ai.updateOpponentRange === 'function') {
+                if (idx !== actorIdx && typeof ai.updateOpponentRange === 'function') {
                     let rangeAction = action;
                     if (this.phase === 'preflop' && meta.aggressive) {
                         if (meta.preflopRaiseCountBefore >= 2) rangeAction = '4bet';
@@ -601,7 +611,12 @@ function chooseServerAiAction(game, idx) {
         decisionId: PokerGameRules.decisionIdentity(game.isShortDeck ? 'shortdeck' : 'standard', game.phase, game.actionsThisRound, idx),
         seed: `poker-table:${game.isShortDeck ? 'shortdeck' : 'standard'}`,
         variant: game.isShortDeck ? 'shortdeck' : 'standard',
+        startingStack:game.config.startingStack,
+        tablePlayerCount:game.players.length,
         communityCards: game.communityCards,
+        publicPlayers:game.players.map((p,seat)=>({seat,stack:p.stack,committed:p.chipsInPot,
+            roundBet:game.roundBets[seat] || 0,folded:p.folded,allIn:p.isAllIn,
+            positionFromButton:game.getHandPositionInfo(seat).positionFromButton,isSmallBlind:seat===game.sbIdx,isBigBlind:seat===game.bbIdx})),
         pot: game.pot,
         currentBet: game.currentBet,
         toCall: legal.toCall,
@@ -626,16 +641,17 @@ function chooseServerAiAction(game, idx) {
         isSmallBlind: idx === game.sbIdx,
         isBigBlind: idx === game.bbIdx,
         bigBlind: game.minimumBet,
+        wagerUnit: game.isShortDeck ? game.config.ante : game.config.smallBlind,
         phase: game.phase,
         timeBudgetMs: game.phase === 'river' || active.length >= 5 ? 150 : 80,
         evaluateCards: (cards, variant) => ProbabilityCore.evaluate(cards, variant === 'shortdeck')
     });
 }
 
-function createServerAi(seatId, startingStack) {
+function createServerAi(seatId, startingStack, random = Math.random, variant='standard') {
     const offset = Math.max(0, seatId - 1) % AI_NAMES.length;
     const styles = Object.values(AI_STYLES);
-    const aiRef = new AIPlayer(AI_NAMES[offset], styles[offset % styles.length], startingStack, seatId);
+    const aiRef = new AIPlayer(AI_NAMES[offset], styles[Math.floor(random()*styles.length)], startingStack, seatId,variant);
     return {
         id: `ai-${seatId}`,
         seatId,

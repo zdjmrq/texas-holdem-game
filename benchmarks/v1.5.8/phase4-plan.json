@@ -1,0 +1,59 @@
+[
+  {
+    "key": "v158d-risk",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 64,
+    "hands": 16,
+    "seed": 431001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "conditionalRiskWeight": 1
+    }
+  },
+  {
+    "key": "v158d-double",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 64,
+    "hands": 16,
+    "seed": 431001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "targetPrecisionWeight": 0.3333333333333333
+    }
+  },
+  {
+    "key": "v158d-risk-double",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 64,
+    "hands": 16,
+    "seed": 431001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "conditionalRiskWeight": 1,
+      "targetPrecisionWeight": 0.3333333333333333
+    }
+  },
+  {
+    "key": "v158d-quadruple",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 64,
+    "hands": 16,
+    "seed": 431001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "targetPrecisionWeight": 1
+    }
+  }
+]

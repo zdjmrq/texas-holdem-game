@@ -1,0 +1,49 @@
+[
+  {
+    "key": "target-25bb-validation",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 256,
+    "hands": 16,
+    "seed": 231001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25
+  },
+  {
+    "key": "target-25bb-calling",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 232001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "control": "calling"
+  },
+  {
+    "key": "target-25bb-tight",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 233001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "control": "tight"
+  },
+  {
+    "key": "target-25bb-pressure",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 234001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "control": "pressure"
+  }
+]

@@ -1,0 +1,438 @@
+{
+  "schema": 2,
+  "variant": "standard",
+  "seedBase": 483001,
+  "blocks": 2,
+  "handsPerRotation": 4,
+  "seats": 10,
+  "smallBlind": 100,
+  "bigBlind": 200,
+  "stackBb": 25,
+  "played": 16,
+  "decisions": 230,
+  "baseline": "external",
+  "profile": {},
+  "personaOverrides": null,
+  "profitBB100": {
+    "mean": 0,
+    "standardError": 0,
+    "ci95": [
+      0,
+      0
+    ]
+  },
+  "clusterProfitBB100": [
+    0,
+    0
+  ],
+  "timing": {
+    "averageMs": 6.381682608695645,
+    "p95Ms": 14.117899999999963,
+    "p99Ms": 22.843899999999962,
+    "maxMs": 24.498199999999997
+  },
+  "teamTiming": {
+    "candidate": {
+      "averageMs": 6.30494782608695,
+      "p95Ms": 13.875200000000007,
+      "maxMs": 22.843899999999962
+    },
+    "baseline": {
+      "averageMs": 6.458417391304339,
+      "p95Ms": 14.232700000000023,
+      "maxMs": 24.498199999999997
+    }
+  },
+  "timeouts": 0,
+  "exact": 4,
+  "errors": 0,
+  "personalities": {
+    "baseline:LAG": {
+      "decisions": 16,
+      "fold": 16,
+      "call": 0,
+      "check": 0,
+      "raise": 0,
+      "allin": 0,
+      "invested": 0,
+      "preflopOpportunities": 16,
+      "vpipHands": 0,
+      "pfrHands": 0,
+      "settledHands": 16,
+      "profitBb": -3
+    },
+    "candidate:SOLID": {
+      "decisions": 28,
+      "fold": 13,
+      "call": 3,
+      "check": 3,
+      "raise": 8,
+      "allin": 1,
+      "invested": 9400,
+      "preflopOpportunities": 16,
+      "vpipHands": 5,
+      "pfrHands": 4,
+      "settledHands": 16,
+      "profitBb": 27
+    },
+    "baseline:MANIAC": {
+      "decisions": 29,
+      "fold": 10,
+      "call": 2,
+      "check": 7,
+      "raise": 8,
+      "allin": 2,
+      "invested": 14100,
+      "preflopOpportunities": 16,
+      "vpipHands": 5,
+      "pfrHands": 4,
+      "settledHands": 16,
+      "profitBb": -37.5
+    },
+    "candidate:TAG": {
+      "decisions": 19,
+      "fold": 10,
+      "call": 3,
+      "check": 2,
+      "raise": 3,
+      "allin": 1,
+      "invested": 7000,
+      "preflopOpportunities": 12,
+      "vpipHands": 2,
+      "pfrHands": 1,
+      "settledHands": 12,
+      "profitBb": 14.5
+    },
+    "candidate:TAGFISH": {
+      "decisions": 15,
+      "fold": 11,
+      "call": 1,
+      "check": 3,
+      "raise": 0,
+      "allin": 0,
+      "invested": 600,
+      "preflopOpportunities": 12,
+      "vpipHands": 1,
+      "pfrHands": 0,
+      "settledHands": 12,
+      "profitBb": -4
+    },
+    "baseline:CALLING_STATION": {
+      "decisions": 8,
+      "fold": 7,
+      "call": 0,
+      "check": 0,
+      "raise": 1,
+      "allin": 0,
+      "invested": 1400,
+      "preflopOpportunities": 8,
+      "vpipHands": 1,
+      "pfrHands": 1,
+      "settledHands": 8,
+      "profitBb": 3
+    },
+    "candidate:LAG": {
+      "decisions": 16,
+      "fold": 16,
+      "call": 0,
+      "check": 0,
+      "raise": 0,
+      "allin": 0,
+      "invested": 0,
+      "preflopOpportunities": 16,
+      "vpipHands": 0,
+      "pfrHands": 0,
+      "settledHands": 16,
+      "profitBb": -3
+    },
+    "baseline:SOLID": {
+      "decisions": 28,
+      "fold": 13,
+      "call": 3,
+      "check": 3,
+      "raise": 8,
+      "allin": 1,
+      "invested": 9400,
+      "preflopOpportunities": 16,
+      "vpipHands": 5,
+      "pfrHands": 4,
+      "settledHands": 16,
+      "profitBb": 27
+    },
+    "candidate:MANIAC": {
+      "decisions": 29,
+      "fold": 10,
+      "call": 2,
+      "check": 7,
+      "raise": 8,
+      "allin": 2,
+      "invested": 14100,
+      "preflopOpportunities": 16,
+      "vpipHands": 5,
+      "pfrHands": 4,
+      "settledHands": 16,
+      "profitBb": -37.5
+    },
+    "baseline:TAG": {
+      "decisions": 19,
+      "fold": 10,
+      "call": 3,
+      "check": 2,
+      "raise": 3,
+      "allin": 1,
+      "invested": 7000,
+      "preflopOpportunities": 12,
+      "vpipHands": 2,
+      "pfrHands": 1,
+      "settledHands": 12,
+      "profitBb": 14.5
+    },
+    "baseline:TAGFISH": {
+      "decisions": 15,
+      "fold": 11,
+      "call": 1,
+      "check": 3,
+      "raise": 0,
+      "allin": 0,
+      "invested": 600,
+      "preflopOpportunities": 12,
+      "vpipHands": 1,
+      "pfrHands": 0,
+      "settledHands": 12,
+      "profitBb": -4
+    },
+    "candidate:CALLING_STATION": {
+      "decisions": 8,
+      "fold": 7,
+      "call": 0,
+      "check": 0,
+      "raise": 1,
+      "allin": 0,
+      "invested": 1400,
+      "preflopOpportunities": 8,
+      "vpipHands": 1,
+      "pfrHands": 1,
+      "settledHands": 8,
+      "profitBb": 3
+    }
+  },
+  "preflopSpots": {
+    "baseline:EP:unopened": {
+      "opportunities": 20,
+      "fold": 17,
+      "call": 1,
+      "check": 0,
+      "raise": 2,
+      "allin": 0,
+      "aggressive": 2
+    },
+    "candidate:EP:unopened": {
+      "opportunities": 20,
+      "fold": 17,
+      "call": 1,
+      "check": 0,
+      "raise": 2,
+      "allin": 0,
+      "aggressive": 2
+    },
+    "candidate:MP:unopened": {
+      "opportunities": 14,
+      "fold": 11,
+      "call": 0,
+      "check": 0,
+      "raise": 3,
+      "allin": 0,
+      "aggressive": 3
+    },
+    "baseline:MP:unopened": {
+      "opportunities": 14,
+      "fold": 11,
+      "call": 0,
+      "check": 0,
+      "raise": 3,
+      "allin": 0,
+      "aggressive": 3
+    },
+    "baseline:LP:unopened": {
+      "opportunities": 5,
+      "fold": 4,
+      "call": 0,
+      "check": 0,
+      "raise": 1,
+      "allin": 0,
+      "aggressive": 1
+    },
+    "candidate:LP:facingOpen": {
+      "opportunities": 7,
+      "fold": 4,
+      "call": 2,
+      "check": 0,
+      "raise": 1,
+      "allin": 0,
+      "aggressive": 1
+    },
+    "baseline:BL:facingOpen": {
+      "opportunities": 7,
+      "fold": 7,
+      "call": 0,
+      "check": 0,
+      "raise": 0,
+      "allin": 0,
+      "aggressive": 0
+    },
+    "candidate:BL:facingOpen": {
+      "opportunities": 7,
+      "fold": 7,
+      "call": 0,
+      "check": 0,
+      "raise": 0,
+      "allin": 0,
+      "aggressive": 0
+    },
+    "baseline:EP:facingOpen": {
+      "opportunities": 5,
+      "fold": 4,
+      "call": 1,
+      "check": 0,
+      "raise": 0,
+      "allin": 0,
+      "aggressive": 0
+    },
+    "baseline:MP:facingOpen": {
+      "opportunities": 6,
+      "fold": 4,
+      "call": 0,
+      "check": 0,
+      "raise": 2,
+      "allin": 0,
+      "aggressive": 2
+    },
+    "baseline:LP:facingOpen": {
+      "opportunities": 7,
+      "fold": 4,
+      "call": 2,
+      "check": 0,
+      "raise": 1,
+      "allin": 0,
+      "aggressive": 1
+    },
+    "candidate:BL:facing3bet": {
+      "opportunities": 6,
+      "fold": 6,
+      "call": 0,
+      "check": 0,
+      "raise": 0,
+      "allin": 0,
+      "aggressive": 0
+    },
+    "baseline:BL:facing3bet": {
+      "opportunities": 6,
+      "fold": 6,
+      "call": 0,
+      "check": 0,
+      "raise": 0,
+      "allin": 0,
+      "aggressive": 0
+    },
+    "candidate:MP:facing3bet": {
+      "opportunities": 6,
+      "fold": 5,
+      "call": 1,
+      "check": 0,
+      "raise": 0,
+      "allin": 0,
+      "aggressive": 0
+    },
+    "candidate:MP:facingOpen": {
+      "opportunities": 6,
+      "fold": 4,
+      "call": 0,
+      "check": 0,
+      "raise": 2,
+      "allin": 0,
+      "aggressive": 2
+    },
+    "candidate:EP:facingOpen": {
+      "opportunities": 5,
+      "fold": 4,
+      "call": 1,
+      "check": 0,
+      "raise": 0,
+      "allin": 0,
+      "aggressive": 0
+    },
+    "baseline:MP:facing3bet": {
+      "opportunities": 6,
+      "fold": 5,
+      "call": 1,
+      "check": 0,
+      "raise": 0,
+      "allin": 0,
+      "aggressive": 0
+    },
+    "candidate:LP:facing3bet": {
+      "opportunities": 4,
+      "fold": 4,
+      "call": 0,
+      "check": 0,
+      "raise": 0,
+      "allin": 0,
+      "aggressive": 0
+    },
+    "baseline:LP:facing3bet": {
+      "opportunities": 4,
+      "fold": 4,
+      "call": 0,
+      "check": 0,
+      "raise": 0,
+      "allin": 0,
+      "aggressive": 0
+    },
+    "candidate:EP:facing3bet": {
+      "opportunities": 2,
+      "fold": 0,
+      "call": 1,
+      "check": 0,
+      "raise": 1,
+      "allin": 0,
+      "aggressive": 1
+    },
+    "candidate:LP:unopened": {
+      "opportunities": 5,
+      "fold": 4,
+      "call": 0,
+      "check": 0,
+      "raise": 1,
+      "allin": 0,
+      "aggressive": 1
+    },
+    "baseline:EP:facing3bet": {
+      "opportunities": 2,
+      "fold": 0,
+      "call": 1,
+      "check": 0,
+      "raise": 1,
+      "allin": 0,
+      "aggressive": 1
+    },
+    "baseline:BL:unopened": {
+      "opportunities": 3,
+      "fold": 0,
+      "call": 1,
+      "check": 1,
+      "raise": 1,
+      "allin": 0,
+      "aggressive": 1
+    },
+    "candidate:BL:unopened": {
+      "opportunities": 3,
+      "fold": 0,
+      "call": 1,
+      "check": 1,
+      "raise": 1,
+      "allin": 0,
+      "aggressive": 1
+    }
+  },
+  "rssMiB": 251.69140625
+}

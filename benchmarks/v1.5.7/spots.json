@@ -1,0 +1,3218 @@
+{
+  "variant": "standard",
+  "step": 10,
+  "decisions": 23184,
+  "premiumOpenViolations": 0,
+  "results": [
+    {
+      "n": 2,
+      "position": "button",
+      "open": false,
+      "style": "TAG",
+      "candidate": {
+        "fold": 44,
+        "call": 21,
+        "check": 0,
+        "raise": 73,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 4,
+        "call": 74,
+        "check": 0,
+        "raise": 60,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 2,
+      "position": "button",
+      "open": false,
+      "style": "LAG",
+      "candidate": {
+        "fold": 44,
+        "call": 6,
+        "check": 0,
+        "raise": 88,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 1,
+        "call": 64,
+        "check": 0,
+        "raise": 73,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 2,
+      "position": "button",
+      "open": false,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 44,
+        "call": 13,
+        "check": 0,
+        "raise": 81,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 3,
+        "call": 67,
+        "check": 0,
+        "raise": 68,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 2,
+      "position": "button",
+      "open": false,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 33,
+        "call": 0,
+        "check": 0,
+        "raise": 105,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 2,
+        "call": 42,
+        "check": 0,
+        "raise": 94,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 2,
+      "position": "button",
+      "open": false,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 44,
+        "call": 23,
+        "check": 0,
+        "raise": 71,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 1,
+        "call": 80,
+        "check": 0,
+        "raise": 57,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 2,
+      "position": "button",
+      "open": false,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 41,
+        "call": 0,
+        "check": 0,
+        "raise": 97,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 2,
+        "call": 55,
+        "check": 0,
+        "raise": 81,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 2,
+      "position": "button",
+      "open": true,
+      "style": "TAG",
+      "candidate": {
+        "fold": 98,
+        "call": 22,
+        "check": 0,
+        "raise": 18,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 118,
+        "call": 0,
+        "check": 0,
+        "raise": 20,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 2,
+      "position": "button",
+      "open": true,
+      "style": "LAG",
+      "candidate": {
+        "fold": 101,
+        "call": 18,
+        "check": 0,
+        "raise": 19,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 115,
+        "call": 0,
+        "check": 0,
+        "raise": 23,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 2,
+      "position": "button",
+      "open": true,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 101,
+        "call": 20,
+        "check": 0,
+        "raise": 17,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 112,
+        "call": 0,
+        "check": 0,
+        "raise": 26,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 2,
+      "position": "button",
+      "open": true,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 102,
+        "call": 16,
+        "check": 0,
+        "raise": 20,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 118,
+        "call": 0,
+        "check": 0,
+        "raise": 20,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 2,
+      "position": "button",
+      "open": true,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 103,
+        "call": 26,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 114,
+        "call": 0,
+        "check": 0,
+        "raise": 24,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 2,
+      "position": "button",
+      "open": true,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 104,
+        "call": 26,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 116,
+        "call": 0,
+        "check": 0,
+        "raise": 22,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "first",
+      "open": false,
+      "style": "TAG",
+      "candidate": {
+        "fold": 95,
+        "call": 1,
+        "check": 0,
+        "raise": 42,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 0,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "first",
+      "open": false,
+      "style": "LAG",
+      "candidate": {
+        "fold": 73,
+        "call": 4,
+        "check": 0,
+        "raise": 61,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 0,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "first",
+      "open": false,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 85,
+        "call": 3,
+        "check": 0,
+        "raise": 50,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 0,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "first",
+      "open": false,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 62,
+        "call": 4,
+        "check": 0,
+        "raise": 72,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 0,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "first",
+      "open": false,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 95,
+        "call": 4,
+        "check": 0,
+        "raise": 39,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 0,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "first",
+      "open": false,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 64,
+        "call": 12,
+        "check": 0,
+        "raise": 62,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 0,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "first",
+      "open": true,
+      "style": "TAG",
+      "candidate": {
+        "fold": 108,
+        "call": 21,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "first",
+      "open": true,
+      "style": "LAG",
+      "candidate": {
+        "fold": 113,
+        "call": 16,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 1,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "first",
+      "open": true,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 109,
+        "call": 20,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "first",
+      "open": true,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 113,
+        "call": 15,
+        "check": 0,
+        "raise": 10,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "first",
+      "open": true,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 110,
+        "call": 19,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "first",
+      "open": true,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 114,
+        "call": 16,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 0,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "button",
+      "open": false,
+      "style": "TAG",
+      "candidate": {
+        "fold": 95,
+        "call": 3,
+        "check": 0,
+        "raise": 40,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 0,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "button",
+      "open": false,
+      "style": "LAG",
+      "candidate": {
+        "fold": 71,
+        "call": 1,
+        "check": 0,
+        "raise": 66,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 0,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "button",
+      "open": false,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 85,
+        "call": 1,
+        "check": 0,
+        "raise": 52,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 1,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "button",
+      "open": false,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 59,
+        "call": 3,
+        "check": 0,
+        "raise": 76,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 0,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "button",
+      "open": false,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 96,
+        "call": 2,
+        "check": 0,
+        "raise": 40,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 0,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "button",
+      "open": false,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 67,
+        "call": 13,
+        "check": 0,
+        "raise": 58,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 0,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "button",
+      "open": true,
+      "style": "TAG",
+      "candidate": {
+        "fold": 112,
+        "call": 17,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 130,
+        "call": 1,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "button",
+      "open": true,
+      "style": "LAG",
+      "candidate": {
+        "fold": 110,
+        "call": 19,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "button",
+      "open": true,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 113,
+        "call": 16,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "button",
+      "open": true,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 112,
+        "call": 16,
+        "check": 0,
+        "raise": 10,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "button",
+      "open": true,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 114,
+        "call": 15,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 4,
+      "position": "button",
+      "open": true,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 107,
+        "call": 23,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "first",
+      "open": false,
+      "style": "TAG",
+      "candidate": {
+        "fold": 112,
+        "call": 4,
+        "check": 0,
+        "raise": 22,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "first",
+      "open": false,
+      "style": "LAG",
+      "candidate": {
+        "fold": 109,
+        "call": 2,
+        "check": 0,
+        "raise": 27,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "first",
+      "open": false,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 109,
+        "call": 6,
+        "check": 0,
+        "raise": 23,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 133,
+        "call": 0,
+        "check": 0,
+        "raise": 5,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "first",
+      "open": false,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 98,
+        "call": 8,
+        "check": 0,
+        "raise": 32,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "first",
+      "open": false,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 116,
+        "call": 4,
+        "check": 0,
+        "raise": 18,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 132,
+        "call": 0,
+        "check": 0,
+        "raise": 6,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "first",
+      "open": false,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 103,
+        "call": 16,
+        "check": 0,
+        "raise": 19,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "first",
+      "open": true,
+      "style": "TAG",
+      "candidate": {
+        "fold": 122,
+        "call": 7,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 133,
+        "call": 0,
+        "check": 0,
+        "raise": 5,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "first",
+      "open": true,
+      "style": "LAG",
+      "candidate": {
+        "fold": 120,
+        "call": 9,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 135,
+        "call": 0,
+        "check": 0,
+        "raise": 3,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "first",
+      "open": true,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 122,
+        "call": 7,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 136,
+        "call": 0,
+        "check": 0,
+        "raise": 2,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "first",
+      "open": true,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 121,
+        "call": 7,
+        "check": 0,
+        "raise": 10,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 133,
+        "call": 0,
+        "check": 0,
+        "raise": 5,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "first",
+      "open": true,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 125,
+        "call": 4,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 132,
+        "call": 0,
+        "check": 0,
+        "raise": 6,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "first",
+      "open": true,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 121,
+        "call": 9,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 135,
+        "call": 0,
+        "check": 0,
+        "raise": 3,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "button",
+      "open": false,
+      "style": "TAG",
+      "candidate": {
+        "fold": 100,
+        "call": 10,
+        "check": 0,
+        "raise": 28,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 132,
+        "call": 0,
+        "check": 0,
+        "raise": 6,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "button",
+      "open": false,
+      "style": "LAG",
+      "candidate": {
+        "fold": 84,
+        "call": 19,
+        "check": 0,
+        "raise": 35,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 133,
+        "call": 0,
+        "check": 0,
+        "raise": 5,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "button",
+      "open": false,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 92,
+        "call": 13,
+        "check": 0,
+        "raise": 33,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 133,
+        "call": 0,
+        "check": 0,
+        "raise": 5,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "button",
+      "open": false,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 84,
+        "call": 15,
+        "check": 0,
+        "raise": 39,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 133,
+        "call": 0,
+        "check": 0,
+        "raise": 5,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "button",
+      "open": false,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 103,
+        "call": 10,
+        "check": 0,
+        "raise": 25,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 131,
+        "call": 0,
+        "check": 0,
+        "raise": 7,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "button",
+      "open": false,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 87,
+        "call": 24,
+        "check": 0,
+        "raise": 27,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 133,
+        "call": 0,
+        "check": 0,
+        "raise": 5,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "button",
+      "open": true,
+      "style": "TAG",
+      "candidate": {
+        "fold": 124,
+        "call": 5,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 134,
+        "call": 0,
+        "check": 0,
+        "raise": 4,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "button",
+      "open": true,
+      "style": "LAG",
+      "candidate": {
+        "fold": 124,
+        "call": 5,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 132,
+        "call": 0,
+        "check": 0,
+        "raise": 6,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "button",
+      "open": true,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 125,
+        "call": 4,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 132,
+        "call": 0,
+        "check": 0,
+        "raise": 6,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "button",
+      "open": true,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 121,
+        "call": 7,
+        "check": 0,
+        "raise": 10,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 132,
+        "call": 0,
+        "check": 0,
+        "raise": 6,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "button",
+      "open": true,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 124,
+        "call": 6,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 133,
+        "call": 0,
+        "check": 0,
+        "raise": 5,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 6,
+      "position": "button",
+      "open": true,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 123,
+        "call": 7,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 132,
+        "call": 0,
+        "check": 0,
+        "raise": 6,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "first",
+      "open": false,
+      "style": "TAG",
+      "candidate": {
+        "fold": 122,
+        "call": 2,
+        "check": 0,
+        "raise": 14,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "first",
+      "open": false,
+      "style": "LAG",
+      "candidate": {
+        "fold": 114,
+        "call": 7,
+        "check": 0,
+        "raise": 17,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "first",
+      "open": false,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 120,
+        "call": 5,
+        "check": 0,
+        "raise": 13,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "first",
+      "open": false,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 118,
+        "call": 4,
+        "check": 0,
+        "raise": 16,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "first",
+      "open": false,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 121,
+        "call": 4,
+        "check": 0,
+        "raise": 13,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "first",
+      "open": false,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 123,
+        "call": 4,
+        "check": 0,
+        "raise": 11,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "first",
+      "open": true,
+      "style": "TAG",
+      "candidate": {
+        "fold": 128,
+        "call": 1,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "first",
+      "open": true,
+      "style": "LAG",
+      "candidate": {
+        "fold": 128,
+        "call": 1,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "first",
+      "open": true,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 127,
+        "call": 2,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "first",
+      "open": true,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 128,
+        "call": 1,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "first",
+      "open": true,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 126,
+        "call": 3,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "first",
+      "open": true,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 125,
+        "call": 5,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "button",
+      "open": false,
+      "style": "TAG",
+      "candidate": {
+        "fold": 112,
+        "call": 8,
+        "check": 0,
+        "raise": 18,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "button",
+      "open": false,
+      "style": "LAG",
+      "candidate": {
+        "fold": 112,
+        "call": 11,
+        "check": 0,
+        "raise": 15,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "button",
+      "open": false,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 112,
+        "call": 10,
+        "check": 0,
+        "raise": 16,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "button",
+      "open": false,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 115,
+        "call": 4,
+        "check": 0,
+        "raise": 19,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 137,
+        "call": 0,
+        "check": 0,
+        "raise": 1,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "button",
+      "open": false,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 112,
+        "call": 11,
+        "check": 0,
+        "raise": 15,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "button",
+      "open": false,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 114,
+        "call": 10,
+        "check": 0,
+        "raise": 14,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "button",
+      "open": true,
+      "style": "TAG",
+      "candidate": {
+        "fold": 126,
+        "call": 4,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "button",
+      "open": true,
+      "style": "LAG",
+      "candidate": {
+        "fold": 126,
+        "call": 3,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "button",
+      "open": true,
+      "style": "SOLID",
+      "candidate": {
+        "fold": 124,
+        "call": 6,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "button",
+      "open": true,
+      "style": "MANIAC",
+      "candidate": {
+        "fold": 127,
+        "call": 1,
+        "check": 0,
+        "raise": 10,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "button",
+      "open": true,
+      "style": "TAGFISH",
+      "candidate": {
+        "fold": 127,
+        "call": 2,
+        "check": 0,
+        "raise": 9,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    },
+    {
+      "n": 10,
+      "position": "button",
+      "open": true,
+      "style": "CALLING_STATION",
+      "candidate": {
+        "fold": 127,
+        "call": 3,
+        "check": 0,
+        "raise": 8,
+        "allin": 0
+      },
+      "baseline": {
+        "fold": 138,
+        "call": 0,
+        "check": 0,
+        "raise": 0,
+        "allin": 0
+      },
+      "hands": 138
+    }
+  ],
+  "examples": [
+    {
+      "team": "baseline",
+      "n": 6,
+      "position": "first",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 6,
+      "position": "button",
+      "style": "LAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 6,
+      "position": "button",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 6,
+      "position": "button",
+      "style": "MANIAC",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 6,
+      "position": "button",
+      "style": "CALLING_STATION",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "TAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "TAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "TAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "TAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "TAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "TAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "LAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "LAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "LAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "LAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "LAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "LAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "MANIAC",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "MANIAC",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "MANIAC",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "MANIAC",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "MANIAC",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "MANIAC",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "TAGFISH",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "TAGFISH",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "TAGFISH",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "TAGFISH",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "TAGFISH",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "TAGFISH",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "CALLING_STATION",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "CALLING_STATION",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "CALLING_STATION",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "CALLING_STATION",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "CALLING_STATION",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "first",
+      "style": "CALLING_STATION",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "TAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "TAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "TAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "TAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "TAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "TAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "LAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "LAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "LAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "LAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "LAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "LAG",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "SOLID",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "MANIAC",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "MANIAC",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "MANIAC",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "MANIAC",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "MANIAC",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "TAGFISH",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "TAGFISH",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "TAGFISH",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "TAGFISH",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "TAGFISH",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "TAGFISH",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "CALLING_STATION",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "CALLING_STATION",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "CALLING_STATION",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "spades",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "CALLING_STATION",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "CALLING_STATION",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "hearts",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "team": "baseline",
+      "n": 10,
+      "position": "button",
+      "style": "CALLING_STATION",
+      "action": "fold",
+      "hand": [
+        {
+          "rank": "A",
+          "suit": "diamonds",
+          "value": 14
+        },
+        {
+          "rank": "A",
+          "suit": "clubs",
+          "value": 14
+        }
+      ]
+    }
+  ]
+}

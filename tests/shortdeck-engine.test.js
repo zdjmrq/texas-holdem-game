@@ -27,7 +27,7 @@ function loadBrowser() {
     });
     for (const relative of [
         'js/cards.js', 'js/game-rules-core.js', 'js/engine.js', 'js/probability-core.js',
-        'js/probability.js', 'js/ai-core.js', 'js/ai.js', 'js/game.js', 'js/shortdeck.js'
+        'js/probability.js', 'js/ai-shortdeck-stable.js', 'js/ai-core.js', 'js/ai.js', 'js/game.js', 'js/shortdeck.js'
     ]) {
         const filename = path.join(__dirname, '..', relative);
         vm.runInContext(fs.readFileSync(filename, 'utf8'), context, { filename });
@@ -346,7 +346,7 @@ test('short-deck AI decisions match the worker brain for the same public state',
     // Worker path replica: js/ai-worker.js builds the brain from meta
     // {name, style, seatId, profile: config} and injects the probability core.
     const brain = new browser.PokerAICore.UnifiedPokerAI({
-        name: ai.name, style: ai.style, seatId: state.currentPlayerIndex, profile: ai.config
+        name: ai.name, style: ai.style, seatId: state.currentPlayerIndex, profile: ai.config,variant:'shortdeck'
     });
     const worker = brain.decide({
         ...state,
@@ -372,7 +372,7 @@ test('a page that forgot js/engine.js fails with a precise message', () => {
     });
     for (const relative of [
         'js/cards.js', 'js/game-rules-core.js', 'js/probability-core.js',
-        'js/probability.js', 'js/ai-core.js', 'js/ai.js', 'js/game.js', 'js/shortdeck.js'
+        'js/probability.js', 'js/ai-shortdeck-stable.js', 'js/ai-core.js', 'js/ai.js', 'js/game.js', 'js/shortdeck.js'
     ]) {
         const filename = path.join(__dirname, '..', relative);
         vm.runInContext(fs.readFileSync(filename, 'utf8'), context, { filename });

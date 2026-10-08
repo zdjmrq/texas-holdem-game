@@ -215,6 +215,12 @@ class PlayerModel {
         if (meta.isCbetOpportunity) this.recordCbet(aggressive);
         if (meta.facedCbet) this.recordFacedCbet(folded);
         if (meta.faced3bet) this.recordFaced3bet(folded);
+        const limit = SHARED_AI_CORE?.MODEL_HAND_LIMIT || 256;
+        while (this.seenHandIds.size > limit) {
+            const oldest = this.seenHandIds.values().next().value;
+            this.seenHandIds.delete(oldest);
+            this.handFlags.delete(oldest);
+        }
     }
     recordCbet(made) { this.cbetOpp++; if (made) this.cbetMade++; }
     recordFacedCbet(folded) { this.facedCbet++; if (folded) this.foldedToCbet++; }
@@ -333,13 +339,13 @@ function getPreflopStrength(c1,c2,posCat,config) {
 let AI_WORKER_SEQUENCE = 0;
 
 class AIPlayer {
-    constructor(name, style, stack=20000, index=0) {
+    constructor(name, style, stack=20000, index=0, variant='standard') {
         this.name=name; this.style=style; this.config=STYLE_CONFIGS[style];
         this.stack=stack; this.holeCards=[]; this.chipsInPot=0;
         this.folded=false; this.isAllIn=false; this.hasActed=false;
         this.lastAction=null; this.position=index; this.numPlayers=6;
         this.bigBlind=80;
-        this.isShortDeck=false;
+        this.isShortDeck=variant==='shortdeck';
         this.opponentRanges={}; this.playerModels={};
         // Cache for Monte Carlo results within a single decision
         this._cachedEquity = null;
@@ -349,7 +355,8 @@ class AIPlayer {
             name,
             style,
             seatId: index,
-            profile: this.config
+            profile: this.config,
+            variant
         }) : null;
         this.lastDecisionTrace = null;
         this.workerKey = `ai-${++AI_WORKER_SEQUENCE}-${index}-${name}`;
@@ -833,7 +840,12 @@ class AIPlayer {
     }
 
     recordOpponentAction(seatIdx, action, street, handId, meta = {}) {
-        if (seatIdx===this.position) return;
+        if (seatIdx===this.position) {
+            if(this.sharedBrain?.observeSelfAction)this.sharedBrain.observeSelfAction({seatId:seatIdx,action,street,handId,meta});
+            if(this.sharedBrain?.variantProfiles?.standard?.riverCfrWeight>0&&typeof aiWorkerService!=='undefined'&&aiWorkerService)
+                aiWorkerService.observe(this.workerKey,{name:this.name,style:this.style,seatId:this.position,profile:this.config,variant:this.isShortDeck?'shortdeck':'standard'},{seatId:seatIdx,action,street,handId,meta});
+            return;
+        }
         if (!this.playerModels[seatIdx]) this.playerModels[seatIdx]=new PlayerModel(seatIdx);
         this.playerModels[seatIdx].recordAction(action,street,handId,meta);
         if (this.sharedBrain) {
@@ -842,7 +854,7 @@ class AIPlayer {
         }
         if (typeof aiWorkerService !== 'undefined' && aiWorkerService) {
             aiWorkerService.observe(this.workerKey, {
-                name:this.name, style:this.style, seatId:this.position, profile:this.config
+                name:this.name, style:this.style, seatId:this.position, profile:this.config,variant:this.isShortDeck?'shortdeck':'standard'
             }, { seatId:seatIdx, action, street, handId, meta });
         }
     }
@@ -866,7 +878,8 @@ class AIPlayer {
             name:this.name,
             style:this.style,
             seatId:gameState.currentPlayerIndex ?? this.position,
-            profile:this.config
+            profile:this.config,
+            variant:this.isShortDeck?'shortdeck':'standard'
         };
         try {
             this.hasActed = true;
@@ -875,6 +888,7 @@ class AIPlayer {
             this.lastDecisionTrace = result.trace || null;
             return this._legalize(result, gameState);
         } catch (error) {
+            if (this.disposed) return { action:'check', amount:0 };
             console.warn(`${this.name} AI worker fallback:`, error.message || error);
             return this._decideShared(gameState);
         }
@@ -886,7 +900,7 @@ class AIPlayer {
         this.sharedBrain.observeShowdown(seatIdx, info);
         if (typeof aiWorkerService !== 'undefined' && aiWorkerService) {
             aiWorkerService.showdown(this.workerKey, {
-                name:this.name, style:this.style, seatId:this.position, profile:this.config
+                name:this.name, style:this.style, seatId:this.position, profile:this.config,variant:this.isShortDeck?'shortdeck':'standard'
             }, seatIdx, info);
         }
     }
@@ -896,6 +910,15 @@ class AIPlayer {
         this.isAllIn=false; this.hasActed=false; this.lastAction=null;
         this.streetPlan=null;
         for (const r of Object.values(this.opponentRanges)) r.reset();
+    }
+
+    dispose() {
+        this.disposed = true;
+        if (typeof aiWorkerService !== 'undefined' && aiWorkerService) aiWorkerService.release(this.workerKey);
+        this.opponentRanges = {};
+        this.playerModels = {};
+        this.sharedBrain = null;
+        this.lastDecisionTrace = null;
     }
 
     /** Normalize a table-controller state and execute the shared strategy. */
@@ -967,6 +990,9 @@ class AIPlayer {
             if (!canRaise) return this._act(toCall > 0 ? (toCall >= stack ? 'allin' : 'call') : 'check', Math.min(toCall, stack));
             amount = Math.min(maxRaiseTo, Math.max(minRaiseTo, amount));
             if (amount >= maxRaiseTo) return this._act('allin', stack);
+            const rules = typeof module !== 'undefined' && module.exports ? require('./game-rules-core') : globalThis.PokerGameRules;
+            amount = rules.snapRaise(amount, minRaiseTo, maxRaiseTo, rules.wagerUnit(gs));
+            if (amount === null) return this._act(toCall > 0 ? 'call' : 'check', Math.min(toCall, stack));
         }
         if (action === 'allin' && ownBet + stack > currentBet && !canRaise) {
             return this._act(toCall >= stack ? 'allin' : (toCall > 0 ? 'call' : 'check'), Math.min(toCall, stack));
@@ -994,9 +1020,15 @@ class AIPlayer {
 // FACTORY
 // ═══════════════════════════════════════════════════════════════
 
-function createAIPlayers(count, startingStack = 20000) {
-    const players=[];
+function shuffledAIStyles(random = Math.random) {
     const styles=[...Object.values(AI_STYLES)];
+    for(let i=styles.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[styles[i],styles[j]]=[styles[j],styles[i]];}
+    return styles;
+}
+
+function createAIPlayers(count, startingStack = 20000, random = Math.random) {
+    const players=[];
+    const styles=shuffledAIStyles(random);
     for (let i=0;i<count;i++) {
         const style=styles[i%styles.length];
         const stack=Math.max(1, Math.floor(Number(startingStack) || 20000));
@@ -1015,6 +1047,7 @@ if (typeof module !== 'undefined' && module.exports) {
         AI_NAMES,
         AI_AVATARS,
         createAIPlayers,
+        shuffledAIStyles,
         PlayerModel,
         OpponentRange,
         analyzeBoardTexture,

@@ -1,0 +1,62 @@
+[
+  {
+    "width": 1280,
+    "height": 860,
+    "hits": [
+      {
+        "id": "",
+        "header": true,
+        "visibility": "visible",
+        "drag": "drag"
+      },
+      {
+        "id": "",
+        "header": true,
+        "visibility": "visible",
+        "drag": "drag"
+      },
+      {
+        "id": "appHeader",
+        "header": true,
+        "visibility": "visible",
+        "drag": "drag"
+      }
+    ],
+    "button": {
+      "id": "turnAlertBtn",
+      "drag": "no-drag",
+      "before": "true"
+    },
+    "after": "false"
+  },
+  {
+    "width": 900,
+    "height": 600,
+    "hits": [
+      {
+        "id": "",
+        "header": true,
+        "visibility": "visible",
+        "drag": "drag"
+      },
+      {
+        "id": "",
+        "header": true,
+        "visibility": "visible",
+        "drag": "drag"
+      },
+      {
+        "id": "musicBtn",
+        "header": true,
+        "visibility": "visible",
+        "drag": "no-drag"
+      }
+    ],
+    "button": {
+      "id": "turnAlertBtn",
+      "drag": "no-drag",
+      "before": "true"
+    },
+    "after": "false"
+  }
+]

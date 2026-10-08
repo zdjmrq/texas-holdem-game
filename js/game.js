@@ -487,7 +487,12 @@ class PokerGame {
                 decisionId: PokerGameRules.decisionIdentity('standard', this.phase, this.actionsThisRound, idx),
                 seed: 'poker-table:standard',
                 variant: 'standard',
+                startingStack:this.startingStack,
+                tablePlayerCount:this.players.length,
                 communityCards: this.communityCards,
+                publicPlayers:this.players.map((p,seat)=>({seat,stack:p.stack,committed:p.chipsInPot,
+                    roundBet:this.roundBets[seat] || 0,folded:p.folded,allIn:p.isAllIn,
+                    positionFromButton:this.getHandPositionInfo(seat).positionFromButton,isSmallBlind:seat===this.sbIndex,isBigBlind:seat===this.bbIndex})),
                 pot: this.pot,
                 currentBet: this.currentBet,
                 toCall,
@@ -514,6 +519,7 @@ class PokerGame {
                 isSmallBlind: idx === this.sbIndex,
                 isBigBlind: idx === this.bbIndex,
                 bigBlind: this.bigBlind,
+                wagerUnit: this.smallBlind,
                 phase: this.phase,
                 timeBudgetMs: this.phase === 'river' || activePlayers.length >= 5 ? 150 : 80
             };
@@ -540,6 +546,7 @@ class PokerGame {
             const decision = typeof ai.decideAsync === 'function'
                 ? await ai.decideAsync(gameState)
                 : ai.decide(gameState);
+            if (this.handGeneration !== currentGen || this.phase === 'idle') return;
             this.executeAction(idx, decision.action, decision.amount);
 
             this.isProcessing = false;

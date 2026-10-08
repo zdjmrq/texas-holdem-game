@@ -1,0 +1,24 @@
+[
+  {
+    "key": "confirmation-361001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 256,
+    "hands": 16,
+    "seed": 361001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25
+  },
+  {
+    "key": "confirmation-362001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 256,
+    "hands": 16,
+    "seed": 362001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25
+  }
+]

@@ -1,0 +1,62 @@
+[
+  {
+    "key": "river-cfr-baseline-531001",
+    "blocks": 96,
+    "hands": 16,
+    "seed": 531001,
+    "control": "",
+    "variant": "standard",
+    "seats": 10,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "riverCfrWeight": 1
+    }
+  },
+  {
+    "key": "river-cfr-baseline-532001",
+    "blocks": 96,
+    "hands": 16,
+    "seed": 532001,
+    "control": "",
+    "variant": "standard",
+    "seats": 10,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "riverCfrWeight": 1
+    }
+  },
+  {
+    "key": "river-cfr-tight-533001",
+    "blocks": 32,
+    "hands": 16,
+    "seed": 533001,
+    "control": "tight",
+    "variant": "standard",
+    "seats": 10,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "riverCfrWeight": 1
+    }
+  },
+  {
+    "key": "river-cfr-pressure-534001",
+    "blocks": 32,
+    "hands": 16,
+    "seed": 534001,
+    "control": "pressure",
+    "variant": "standard",
+    "seats": 10,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "riverCfrWeight": 1
+    }
+  }
+]

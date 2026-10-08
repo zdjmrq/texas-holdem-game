@@ -1,0 +1,50 @@
+[
+  {
+    "key": "v158f-precision-451001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 128,
+    "hands": 16,
+    "seed": 451001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "v158f-precision-452001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 128,
+    "hands": 16,
+    "seed": 452001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "v158f-precision-453001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 128,
+    "hands": 16,
+    "seed": 453001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "v158f-precision-454001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 128,
+    "hands": 16,
+    "seed": 454001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  }
+]

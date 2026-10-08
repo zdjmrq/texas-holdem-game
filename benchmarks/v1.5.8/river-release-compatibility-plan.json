@@ -1,0 +1,98 @@
+[
+  {
+    "key": "river-release-hu",
+    "variant": "standard",
+    "seats": 2,
+    "blocks": 16,
+    "hands": 8,
+    "seed": 551001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "river-release-four",
+    "variant": "standard",
+    "seats": 4,
+    "blocks": 16,
+    "hands": 8,
+    "seed": 552001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "river-release-six",
+    "variant": "standard",
+    "seats": 6,
+    "blocks": 16,
+    "hands": 8,
+    "seed": 553001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "river-release-ten-small",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 16,
+    "hands": 8,
+    "seed": 554001,
+    "small-blind": 40,
+    "big-blind": 80,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "river-release-ten-medium",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 16,
+    "hands": 8,
+    "seed": 555001,
+    "small-blind": 75,
+    "big-blind": 150,
+    "stack-bb": 25,
+    "profile": {}
+  },
+  {
+    "key": "river-release-ten-deep",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 16,
+    "hands": 8,
+    "seed": 556001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 100,
+    "profile": {}
+  },
+  {
+    "key": "river-release-ten-short",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 16,
+    "hands": 8,
+    "seed": 557001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 5,
+    "profile": {}
+  },
+  {
+    "key": "river-release-shortdeck-eight",
+    "variant": "shortdeck",
+    "seats": 8,
+    "blocks": 16,
+    "hands": 8,
+    "seed": 558001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {}
+  }
+]

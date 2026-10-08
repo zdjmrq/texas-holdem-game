@@ -54,12 +54,16 @@
         const target = event.target;
         const key = event.key.toLowerCase();
         if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+        const isTyping = target.isContentEditable || /^(TEXTAREA|SELECT)$/.test(target.tagName || '') ||
+            (target.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button'].includes(target.type));
+        if (isTyping) return;
 
         // The raise panel owns these keys even while the range input has focus.
         if (raiseSliderVisible) {
-            if (key === 'arrowleft' || key === 'arrowright') {
+            const isRaiseDigit = ['1', '2'].includes(key) && (!event.code || event.code === `Digit${key}`);
+            if (isRaiseDigit || ['arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(key)) {
                 event.preventDefault();
-                adjustRaiseAmount(key === 'arrowright' ? 1 : -1);
+                adjustRaiseAmount(['arrowright', 'arrowup', '2'].includes(key) ? 1 : -1);
             } else if (key === 'escape') {
                 event.preventDefault();
                 hideRaiseSlider();
@@ -109,9 +113,7 @@
         }
 
         // Typing and native controls keep their usual keyboard behavior.
-        if (target.isContentEditable || (/^(TEXTAREA|SELECT)$/.test(target.tagName || '') ||
-            (target.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button'].includes(target.type))) ||
-            (target.closest?.('button') && (key === 'enter' || key === ' '))) return;
+        if (target.closest?.('button') && (key === 'enter' || key === ' ')) return;
         const isOnlineTurn = playMode === 'online' && network.gameState?.isYourTurn && !network.pendingAction;
         const isLocalTurn = playMode === 'local' && game?.isPlayerTurn();
         if (!isOnlineTurn && !isLocalTurn) return;

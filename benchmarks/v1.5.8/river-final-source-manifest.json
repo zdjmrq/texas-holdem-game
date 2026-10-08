@@ -1,0 +1,17 @@
+{
+  "archive": "v158-river-final-source.tar.gz",
+  "sha256": "100b37dda40312725b7d55a1fcbba80ced4068a3ddaaa44f607a98184d7c7ada",
+  "coreSha256": "a7babd06e6f5456898487e9a8a45c26782844476070f695b1d656d967b3790f6",
+  "files": {
+    "js/ai-core.js": "a7babd06e6f5456898487e9a8a45c26782844476070f695b1d656d967b3790f6",
+    "js/compiled-cfr.js": "f5de6932053c55776940f54ad9f744f114d152575e9a847d93b429a21b389305",
+    "js/river-solver.js": "9fc9e94eab25b17e715d62638367869ca52357836f3dee2b53a320fc17539412",
+    "js/ai.js": "5a5ca65d4bc7181aa093ebee0ff86de10eaf9ebfe98a347dd0371aba0f113983",
+    "js/ai-worker.js": "f7e662bc7886a348b8c12be8b4894bd553ed50ef9e4663dc9d4cb59575bffb09",
+    "js/engine.js": "cd571475026aef813ab88c6d03891823832403754fdd7a3f3a4f5c5dea68203d",
+    "server/server-game.js": "0916f16b4572596d3e0334ea50e194e63fc1d09f752d54e9b96a81710750cc22",
+    "tools/ai-lab.js": "00663936683e389bcb63f86321e7943954182ab8a6e1bc419e1cf600b0159e1e",
+    "tools/ai-endurance.js": "7c20f9f119828808bf2a5f041b31f5e8e6028f3fd11c58d8098b3cc095674190",
+    "index.html": "3ec3582a77f4d122fc70a9b4b20bae633a82e7f137133dc2d422da8562cc631c"
+  }
+}

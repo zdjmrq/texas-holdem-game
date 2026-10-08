@@ -1,0 +1,150 @@
+{
+  "game": "Kuhn poker: two players, three ranks, one-chip bet",
+  "method": "full-tree tabular CFR, simultaneous updates, no neural network",
+  "iterations": 10000,
+  "informationSets": 12,
+  "elapsedMs": 166.0309,
+  "value": -0.05554639582927162,
+  "bestResponseValues": [
+    -0.054345107016821326,
+    0.05898067964677506
+  ],
+  "nashConv": 0.0046355726299537325,
+  "exploitability": 0.0023177863149768663,
+  "knownEquilibriumValue": -0.05555555555555555,
+  "policy": {
+    "0:0:": {
+      "player": 0,
+      "actions": [
+        "p",
+        "b"
+      ],
+      "probabilities": [
+        0.7922453071465073,
+        0.2077546928534927
+      ]
+    },
+    "1:1:p": {
+      "player": 1,
+      "actions": [
+        "p",
+        "b"
+      ],
+      "probabilities": [
+        0.9996227272727273,
+        0.00037727272727268213
+      ]
+    },
+    "0:0:pb": {
+      "player": 0,
+      "actions": [
+        "f",
+        "c"
+      ],
+      "probabilities": [
+        0.9999684441172771,
+        0.0000315558827227945
+      ]
+    },
+    "1:1:b": {
+      "player": 1,
+      "actions": [
+        "f",
+        "c"
+      ],
+      "probabilities": [
+        0.6607153696327364,
+        0.3392846303672637
+      ]
+    },
+    "1:2:p": {
+      "player": 1,
+      "actions": [
+        "p",
+        "b"
+      ],
+      "probabilities": [
+        0.000049999999999994026,
+        0.99995
+      ]
+    },
+    "1:2:b": {
+      "player": 1,
+      "actions": [
+        "f",
+        "c"
+      ],
+      "probabilities": [
+        0.000049999999999994026,
+        0.99995
+      ]
+    },
+    "0:1:": {
+      "player": 0,
+      "actions": [
+        "p",
+        "b"
+      ],
+      "probabilities": [
+        0.9996541666666667,
+        0.0003458333333332921
+      ]
+    },
+    "1:0:p": {
+      "player": 1,
+      "actions": [
+        "p",
+        "b"
+      ],
+      "probabilities": [
+        0.6654552724681917,
+        0.33454472753180836
+      ]
+    },
+    "0:1:pb": {
+      "player": 0,
+      "actions": [
+        "f",
+        "c"
+      ],
+      "probabilities": [
+        0.4492128250135111,
+        0.5507871749864888
+      ]
+    },
+    "1:0:b": {
+      "player": 1,
+      "actions": [
+        "f",
+        "c"
+      ],
+      "probabilities": [
+        0.99995,
+        0.000049999999999994026
+      ]
+    },
+    "0:2:": {
+      "player": 0,
+      "actions": [
+        "p",
+        "b"
+      ],
+      "probabilities": [
+        0.3874071644185256,
+        0.6125928355814744
+      ]
+    },
+    "0:2:pb": {
+      "player": 0,
+      "actions": [
+        "f",
+        "c"
+      ],
+      "probabilities": [
+        0.00006453158923254476,
+        0.9999354684107675
+      ]
+    }
+  },
+  "scope": "Method validation only; this policy cannot be used for ten-player Texas Holdem."
+}

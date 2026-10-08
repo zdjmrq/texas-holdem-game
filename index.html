@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
-    <title>德州扑克 v1.5.3</title>
-    <link rel="preload" href="assets/music/01.mp3" as="audio" type="audio/mpeg">
+    <title>德州扑克 v1.5.8</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -35,9 +34,11 @@
     </div>
 
     <div id="app">
+        <button id="headerHoverZone" aria-label="显示顶部工具栏" title="显示顶部工具栏"></button>
         <!-- Header -->
-        <div class="header">
-            <h1>♠ <span>Texas</span> Hold'em ♥ <small class="app-version">v1.5.3</small></h1>
+        <div class="header-home" id="headerHome">
+        <div class="header" id="appHeader">
+            <h1>♠ <span>Texas</span> Hold'em ♥ <small class="app-version">v1.5.8</small></h1>
             <div class="header-info">
                 <span>🎴 手牌 #<span class="hand-count" id="handCount">0</span></span>
                 <span class="blinds-info">
@@ -46,7 +47,7 @@
                 </span>
                 <span class="music-controls">
                     <button class="music-btn" id="musicBtn" data-ui-action="toggle-music" title="切换背景音乐">🎵 音乐关</button>
-                    <button class="music-btn" id="turnAlertBtn" data-ui-action="toggle-turn-alert" aria-pressed="true" title="关闭出手提示音">🔔 提示音开</button>
+                    <button class="music-btn" id="turnAlertBtn" data-ui-action="toggle-turn-alert" aria-pressed="true" title="关闭出手和结算提示音">🔔 提示音开</button>
                     <button class="music-btn skip-btn" id="skipBtn" data-ui-action="skip-song" title="下一首">⏭️</button>
                     <button class="music-btn playback-mode-btn" id="playbackModeBtn" data-ui-action="cycle-playback-mode"
                             title="当前：顺序播放">🔁 顺序</button>
@@ -68,11 +69,13 @@
                 </span>
             </div>
         </div>
+        </div>
 
         <!-- Game Status -->
         <div class="game-status" id="gameStatus">点击「开始游戏」开始德州扑克对局！</div>
 
         <!-- Poker Table -->
+        <p class="strategy-focus-note" id="strategyFocusNote">Bot 策略重点优化：标准十人桌 · 起始 5000 · 盲注 100/200 · 单挑河牌范围博弈</p>
         <div class="table-container" id="tableContainer">
             <div class="table-felt"></div>
             <div class="table-decor d1">♠</div>
@@ -272,7 +275,7 @@
                 </div>
                 <div class="action-explain" id="actionExplain"></div>
                 <div class="raise-slider-container" id="raiseSlider" aria-label="选择加注额度">
-                    <input type="range" id="raiseRange" min="80" max="1000" value="120" step="10"
+                    <input type="range" id="raiseRange" min="80" max="1000" value="120" step="40" title="数字 1 / ← / ↓ 减少，数字 2 / → / ↑ 增加"
                            aria-label="加注到的总金额"
                            data-ui-input="raise">
                     <span class="raise-amount-display" id="raiseAmountDisplay">加注到 $60</span>
@@ -349,6 +352,9 @@
     <script src="js/engine.js"></script>
     <script src="js/probability-core.js"></script>
     <script src="js/probability.js"></script>
+    <script src="js/ai-shortdeck-stable.js"></script>
+    <script src="js/compiled-cfr.js"></script>
+    <script src="js/river-solver.js"></script>
     <script src="js/ai-core.js"></script>
     <script src="js/ai-worker-client.js"></script>
     <script src="js/ai.js"></script>

@@ -5,6 +5,7 @@ const { WebSocketServer, WebSocket } = require('ws');
 const { ServerPokerGame, chooseServerAiAction, createServerAi } = require('./server-game');
 
 const PROTOCOL_VERSION = 2;
+const APP_VERSION = require('../package.json').version;
 const STACK_LEVELS = [5000, 10000, 20000, 50000, 100000];
 const BLIND_LEVELS = [[10,20], [20,40], [40,80], [50,100], [100,200], [200,400]];
 const AI_DELAY_LEVELS = [800, 1800, 3200];
@@ -207,6 +208,7 @@ class PokerRoomServer {
             type:'hello',
             serverId:'texas-holdem-game',
             serverName:'德州扑克服务',
+            appVersion:APP_VERSION,
             protocolVersion:PROTOCOL_VERSION
         });
     }
@@ -385,7 +387,7 @@ class PokerRoomServer {
         room.players = room.players.filter(item => !item.left && (item.isHuman || item.stack > 0));
         const occupied = new Set(room.players.map(item => item.seatId));
         for (let seat = 0; seat < room.config.maxPlayers; seat++) {
-            if (!occupied.has(seat)) room.players.push(createServerAi(seat, room.config.startingStack));
+            if (!occupied.has(seat)) room.players.push(createServerAi(seat, room.config.startingStack,Math.random,room.config.isShortDeck?'shortdeck':'standard'));
         }
         room.players.sort((a, b) => a.seatId - b.seatId);
         room.game = new ServerPokerGame(room.config, room.players, { random: this.random });
@@ -459,7 +461,7 @@ class PokerRoomServer {
             const current = room.players[index];
             if (!current.isHuman || !current.left) continue;
             if (current.resumeToken) this.sessions.delete(current.resumeToken);
-            room.players.splice(index, 1, createServerAi(current.seatId, room.config.startingStack));
+            room.players.splice(index, 1, createServerAi(current.seatId, room.config.startingStack,Math.random,room.config.isShortDeck?'shortdeck':'standard'));
         }
         room.players.sort((a, b) => a.seatId - b.seatId);
         room.game.players = room.players;

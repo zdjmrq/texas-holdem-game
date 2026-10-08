@@ -375,7 +375,7 @@ class ShortDeckAIPlayer extends AIPlayer {
         const core = sharedAICore();
         const Brain = (core && core.UnifiedPokerAI) || this.sharedBrain?.constructor;
         if (Brain) {
-            this.sharedBrain = new Brain({ name, style, seatId: index, profile: this.config });
+            this.sharedBrain = new Brain({ name, style, seatId: index, profile: this.config,variant:'shortdeck' });
         }
     }
 
@@ -438,12 +438,8 @@ class ShortDeckAIPlayer extends AIPlayer {
     }
 }
 
-function createSDAIPlayers(count, startingStack = 20000) {
-    const styles = [...Object.values(AI_STYLES)];
-    for (let i = styles.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [styles[i], styles[j]] = [styles[j], styles[i]];
-    }
+function createSDAIPlayers(count, startingStack = 20000, random = Math.random) {
+    const styles = shuffledAIStyles(random);
     return Array.from({ length: count }, (_, i) => {
         const stack = Math.max(1, Math.floor(Number(startingStack) || 20000));
         const p = new ShortDeckAIPlayer(AI_NAMES[i % AI_NAMES.length], styles[i % styles.length],
@@ -806,6 +802,9 @@ class ShortDeckGame {
                 seed: 'poker-table:shortdeck',
                 variant: 'shortdeck',
                 communityCards: this.communityCards,
+                publicPlayers:this.players.map((p,seat)=>({seat,stack:p.stack,committed:p.chipsInPot,
+                    roundBet:this.roundBets[seat] || 0,folded:p.folded,allIn:p.isAllIn,
+                    positionFromButton:this.getHandPositionInfo(seat).positionFromButton,isSmallBlind:seat===this.sbIndex,isBigBlind:seat===this.bbIndex})),
                 pot: this.pot,
                 currentBet: this.currentBet,
                 toCall,
@@ -832,6 +831,7 @@ class ShortDeckGame {
                 isSmallBlind: false,
                 isBigBlind: false,
                 bigBlind: this.minBet,
+                wagerUnit: this.ante,
                 phase: this.phase,
                 isShortDeck: true,
                 timeBudgetMs: this.phase === 'river' || active.length >= 5 ? 150 : 80
@@ -854,6 +854,7 @@ class ShortDeckGame {
             const decision = typeof ai.decideAsync === 'function'
                 ? await ai.decideAsync(gameState)
                 : ai.decide(gameState);
+            if (this.handGeneration !== gen || this.phase === 'idle') return;
             this.executeAction(idx, decision.action, decision.amount);
             this.isProcessing = false;
 

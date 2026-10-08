@@ -1,0 +1,244 @@
+{
+  "name": "low",
+  "features": {
+    "gpu": {
+      "2d_canvas": "unavailable_software",
+      "direct_rendering_display_compositor": "disabled_off_ok",
+      "gpu_compositing": "disabled_software",
+      "multiple_raster_threads": "enabled_on",
+      "opengl": "disabled_off",
+      "rasterization": "disabled_software",
+      "raw_draw": "disabled_off_ok",
+      "skia_graphite": "disabled_off",
+      "trees_in_viz": "disabled_off",
+      "video_decode": "disabled_software",
+      "video_encode": "disabled_software",
+      "webgl": "unavailable_software",
+      "webgpu": "unavailable_software",
+      "webnn": "unavailable_software"
+    },
+    "metrics": [
+      {
+        "type": "Browser",
+        "memory": {
+          "workingSetSize": 143680,
+          "peakWorkingSetSize": 143688,
+          "privateBytes": 74460
+        },
+        "cpu": {
+          "cumulativeCPUUsage": 1.25,
+          "percentCPUUsage": 0,
+          "idleWakeupsPerSecond": 0
+        }
+      },
+      {
+        "type": "GPU",
+        "memory": {
+          "workingSetSize": 164172,
+          "peakWorkingSetSize": 164172,
+          "privateBytes": 34052
+        },
+        "cpu": {
+          "cumulativeCPUUsage": 0.484375,
+          "percentCPUUsage": 0,
+          "idleWakeupsPerSecond": 0
+        }
+      },
+      {
+        "type": "Utility",
+        "memory": {
+          "workingSetSize": 42620,
+          "peakWorkingSetSize": 42684,
+          "privateBytes": 11820
+        },
+        "cpu": {
+          "cumulativeCPUUsage": 0.078125,
+          "percentCPUUsage": 0,
+          "idleWakeupsPerSecond": 0
+        }
+      },
+      {
+        "type": "Tab",
+        "memory": {
+          "workingSetSize": 209252,
+          "peakWorkingSetSize": 209252,
+          "privateBytes": 61988
+        },
+        "cpu": {
+          "cumulativeCPUUsage": 2.3125,
+          "percentCPUUsage": 0,
+          "idleWakeupsPerSecond": 0
+        }
+      }
+    ]
+  },
+  "scrolled": {
+    "scrollY": 220,
+    "headerTop": -116.05000305175781,
+    "drag": "drag",
+    "buttons": true
+  },
+  "frames": {
+    "samples": 562,
+    "mean": 9.593594306049821,
+    "p95": 16.699999999999818,
+    "max": 125,
+    "over34": 5
+  },
+  "music": {
+    "latencies": [
+      35.09999996423721,
+      12.699999988079071,
+      11.699999988079071,
+      12.699999988079071,
+      13.099999964237213
+    ],
+    "changes": 0,
+    "before": [
+      [
+        544.6015625,
+        74,
+        399.1015625,
+        28.5
+      ],
+      [
+        544.6015625,
+        74.5,
+        96,
+        27.5
+      ],
+      [
+        646.6015625,
+        74.5,
+        93.765625,
+        27.5
+      ],
+      [
+        746.3671875,
+        74,
+        37.2265625,
+        28.5
+      ],
+      [
+        789.59375,
+        74.5,
+        70,
+        27.5
+      ],
+      [
+        865.59375,
+        80.75,
+        78.109375,
+        15
+      ]
+    ],
+    "after": [
+      [
+        544.6015625,
+        74,
+        399.1015625,
+        28.5
+      ],
+      [
+        544.6015625,
+        74.5,
+        96,
+        27.5
+      ],
+      [
+        646.6015625,
+        74.5,
+        93.765625,
+        27.5
+      ],
+      [
+        746.3671875,
+        74,
+        37.2265625,
+        28.5
+      ],
+      [
+        789.59375,
+        74.5,
+        70,
+        27.5
+      ],
+      [
+        865.59375,
+        80.75,
+        78.109375,
+        15
+      ]
+    ],
+    "stable": true,
+    "animation": "none",
+    "label": "🎵 音乐开"
+  },
+  "after": [
+    {
+      "type": "Browser",
+      "memory": {
+        "workingSetSize": 148164,
+        "peakWorkingSetSize": 173588,
+        "privateBytes": 75768
+      },
+      "cpu": {
+        "cumulativeCPUUsage": 2.719307,
+        "percentCPUUsage": 0.6274743759527376,
+        "idleWakeupsPerSecond": 0
+      }
+    },
+    {
+      "type": "GPU",
+      "memory": {
+        "workingSetSize": 148224,
+        "peakWorkingSetSize": 256176,
+        "privateBytes": 34404
+      },
+      "cpu": {
+        "cumulativeCPUUsage": 3.036572,
+        "percentCPUUsage": 1.0899209592422634,
+        "idleWakeupsPerSecond": 0
+      }
+    },
+    {
+      "type": "Utility",
+      "memory": {
+        "workingSetSize": 42708,
+        "peakWorkingSetSize": 42708,
+        "privateBytes": 11908
+      },
+      "cpu": {
+        "cumulativeCPUUsage": 0.088773,
+        "percentCPUUsage": 0.004547191848535123,
+        "idleWakeupsPerSecond": 0
+      }
+    },
+    {
+      "type": "Tab",
+      "memory": {
+        "workingSetSize": 210496,
+        "peakWorkingSetSize": 284464,
+        "privateBytes": 94980
+      },
+      "cpu": {
+        "cumulativeCPUUsage": 8.789543,
+        "percentCPUUsage": 2.765970914085098,
+        "idleWakeupsPerSecond": 0
+      }
+    },
+    {
+      "type": "Utility",
+      "memory": {
+        "workingSetSize": 76472,
+        "peakWorkingSetSize": 76472,
+        "privateBytes": 10568
+      },
+      "cpu": {
+        "cumulativeCPUUsage": 0.215942,
+        "percentCPUUsage": 0,
+        "idleWakeupsPerSecond": 0
+      }
+    }
+  ]
+}

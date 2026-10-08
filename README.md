@@ -19,7 +19,10 @@ Windows 用户可以从 [GitHub Releases](https://github.com/zdjmrq/texas-holdem
 - 胜率分析辅助理解当前牌面；概率是参考，不保证结果。
 - 点击自己的手牌可隐藏或显示，隐藏时分析面板也会保护牌面信息。
 - 背景音乐支持切歌、音量调节和播放模式选择。
-- 顶部提示音开关可控制轮到你行动时的提醒。
+- 桌外背景为雾蓝几何纹理。小窗口或顶部栏滚出画面后，移到窗口顶端即可显示工具栏并拖动；移开后收起。
+- 顶部提示音开关控制出手和结算提醒；结算弹窗出现时播放两声提示音。
+- 等待你出手或确认下一手时，后台窗口会闪烁任务栏，托盘图标会闪红色；回到游戏或完成操作后停止。
+- 普通下注/加注到的总额按小盲整数倍计算，短牌按前注整数倍。跟注和全下使用实际整数筹码，允许平分底池产生的零头。
 
 ## 键盘操作
 
@@ -31,7 +34,8 @@ Windows 用户可以从 [GitHub Releases](https://github.com/zdjmrq/texas-holdem
 | C | 过牌；不能过牌时跟注 |
 | R | 打开加注面板，焦点移到金额滑块 |
 | A | 全下 |
-| ← / → | 加注面板打开时调整金额 |
+| 顶排数字 1 / 2 | 加注面板打开时减少 / 增加金额，每次一个小盲（短牌为一个前注） |
+| ← / →、↓ / ↑ | 加注面板打开时减少 / 增加金额 |
 | Enter / 空格 | 加注面板打开时确认加注；若选中面板内「取消」则取消 |
 | Esc | 取消加注 |
 | N | 摊牌后进入下一手 |
@@ -71,10 +75,21 @@ npm run server
 
 ## 开发与测试
 
+v1.5.8 默认启用显卡加速，以保证滚动和动画的流畅度。低内存渲染可通过 `德州扑克.exe --poker-low-memory` 启动，便携版提供「低内存启动.cmd」；这种模式会增加 CPU 绘制负担，可能降低滚动帧率。音乐关闭时不预加载歌曲，重开游戏会释放旧 AI 后台状态。为保证满桌座位完整，小窗口保留牌桌最低高度，可继续上下滚动。
+
+机器人继续采用程序算法，不加载神经网络。v1.5.8 重点优化标准十人桌、起始 5000、盲注 100/200（25 BB），按当前有效筹码深度调整；页面以淡色小字标注重点。该配置默认加入单挑河牌范围博弈求解：公开范围、合法组合排除撞牌、有限完整回应树和表格式 CFR，独立 16,384 手相对 v1.5.7 提升 +1.79 BB/100（95% 区间 +1.13～+2.46）。其他街与多人底池继续按范围权益、合法下注收益、风险和对手回应决策。本地、Worker 与联网使用同一核心；短牌保留已验证的 v1.5.6 策略。Bot 名字和人格独立，新桌随机分配，之后每手保持。这不等于职业真人或完整十人 GTO 验证。
+
+先写策略再实现的设计和 GitHub/真人牌手资料见 [AI_STRATEGY_SPEC_v1.5.8.md](AI_STRATEGY_SPEC_v1.5.8.md)，改动及内存优化代价见 [CHANGELOG_v1.5.8.md](CHANGELOG_v1.5.8.md)，独立验收数据、失败实验与局限见 [AI_BENCHMARK_REPORT_v1.5.8.md](AI_BENCHMARK_REPORT_v1.5.8.md)。
+
 ```bash
 npm test              # 规则、AI、概率、界面和网络回归测试
 npm run test:ai-smoke  # AI 自对局检查
 npm run test:all       # 运行以上两项
+npm run test:ai-lab -- --baseline=/path/to/old/ai-core.js --blocks=64 --hands=32 --variant=standard --out=results/run.json
+npm run test:ai-tournament -- --baseline=/path/to/old/ai-core.js --workers=4 --out=results/tournament
+npm run test:ai-acceptance -- --baseline=/path/to/old/ai-core.js --workers=4 --out=results/acceptance
 ```
 
 界面与游戏逻辑位于 `js/`，样式位于 `css/`，联机服务位于 `server/`，测试位于 `tests/`。AI 策略说明见 [AI_STRATEGY_DESIGN.md](AI_STRATEGY_DESIGN.md)，Android 构建说明见 [RELEASE_ANDROID.md](RELEASE_ANDROID.md)。
+
+后台待操作提示按是否已看过提醒：回到前台即停止这次闪红，未处理也不会重复提醒；下一次新提示重新提醒。顶部悬停触发区域为当前工具栏高度约 85%，Bot 下注、动作与思考点保留座位空间，避免整桌跳动。

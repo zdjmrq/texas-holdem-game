@@ -213,10 +213,15 @@ function createDomShim() {
         AudioContext: function () {
             const ctx = {
                 state: 'suspended', currentTime: 0, destination: {}, resumed: 0, closed: 0,
+                oscillators: [],
                 resume() { ctx.resumed++; ctx.state = 'running'; return Promise.resolve(); },
                 close() { ctx.closed++; return Promise.resolve(); },
-                createOscillator() { return { frequency: {}, connect() {}, start() {}, stop() {} }; },
-                createGain() { return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
+                createOscillator() {
+                    const osc = { frequency:{}, connect() {}, disconnect() {}, start(t) { this.started = t; }, stop(t) { this.stopped = t; } };
+                    ctx.oscillators.push(osc);
+                    return osc;
+                },
+                createGain() { return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, disconnect() {} }; }
             };
             audioContexts.push(ctx);
             return ctx;
@@ -298,7 +303,7 @@ test('ui: arrow keys adjust a raise and Space confirms it from the slider', () =
         window.__originalConfirmRaise = confirmRaise;
         confirmRaise = function () { window.__raiseConfirms++; raiseSliderVisible = false; };
     `);
-    const slider = { tagName: 'INPUT', isContentEditable: false };
+    const slider = { tagName: 'INPUT', type:'range', isContentEditable: false };
     keydown('ArrowRight', slider);
     keydown('ArrowRight', slider);
     keydown('ArrowRight', slider);
@@ -308,6 +313,101 @@ test('ui: arrow keys adjust a raise and Space confirms it from the slider', () =
     keydown(' ', slider);
     assert.equal(run('__raiseConfirms'), 1, 'Space confirms even with the range input focused');
     run('confirmRaise = window.__originalConfirmRaise;');
+});
+
+test('ui: top-row 1/2 and arrows adjust raises without stealing function keys, numpad or typed digits', () => {
+    const e = createDomShim();
+    const execute = code => vm.runInContext(code, e.context);
+    execute(`raiseSliderVisible = true;
+        Object.assign(document.getElementById('raiseRange'), {min:'200', max:'400', step:'40', value:'280'});`);
+    function key(key, code, target={tagName:'INPUT',type:'range',closest:()=>null}) {
+        let prevented = false;
+        for (const h of e.document._ev.keydown) h({key, code, target, preventDefault(){prevented=true;}});
+        return prevented;
+    }
+    assert.equal(key('1', 'Digit1'), true);
+    assert.equal(e.byId('raiseRange').value, '240');
+    key('2', 'Digit2'); key('ArrowUp'); key('ArrowRight');
+    assert.equal(e.byId('raiseRange').value, '360');
+    key('ArrowDown'); key('ArrowLeft');
+    assert.equal(e.byId('raiseRange').value, '280');
+    for (let i=0;i<20;i++) key('1', 'Digit1');
+    assert.equal(e.byId('raiseRange').value, '200');
+    for (let i=0;i<20;i++) key('2', 'Digit2');
+    assert.equal(e.byId('raiseRange').value, '400');
+    assert.equal(key('F1'), false);
+    assert.equal(key('F2'), false);
+    assert.equal(key('1', 'Numpad1'), false);
+    assert.equal(key('1','Digit1',{tagName:'INPUT',type:'text',closest:()=>null}),false);
+    assert.equal(key('1','Digit1',{tagName:'DIV',isContentEditable:true,closest:()=>null}),false);
+    assert.equal(e.byId('raiseRange').value,'400');
+    execute('raiseSliderVisible = false;');
+    assert.equal(key('1', 'Digit1'), false);
+    assert.equal(key('2', 'Digit2'), false);
+});
+
+test('ui: music loading/playing events keep a stable label without replacing its text on each skip', () => {
+    const e = createDomShim();
+    const execute = code => vm.runInContext(code, e.context);
+    execute("updateMusicButton(true, 'playing');");
+    const initialWrites = e.counts.textContent;
+    const button = e.byId('musicBtn');
+    for (let i = 0; i < 8; i++) {
+        execute(`bgMusic.currentPattern = ${i % 4}; updateMusicButton(true, 'loading'); updateMusicButton(true, 'playing');`);
+        assert.equal(button.textContent, '🎵 音乐开');
+        assert.equal(button.attrs['aria-pressed'], 'true');
+        assert.equal(button.dataset.playbackState, 'playing');
+    }
+    assert.equal(e.counts.textContent, initialWrites, 'track changes must not rebuild the visible label');
+    execute("updateMusicButton(false, 'error');");
+    assert.equal(button.textContent, '⚠️ 音乐关');
+    assert.match(button.title, /重试/);
+    execute("updateMusicButton(false, 'off');");
+    assert.equal(button.textContent, '🎵 音乐关');
+});
+
+test('ui: every settlement path sounds once per displayed result and respects the mute switch', () => {
+    const e = createDomShim();
+    const execute = code => vm.runInContext(code, e.context);
+    execute(`window.__settlementCount = 0;
+        const originalSettlement = playSettlementAlert;
+        playSettlementAlert = () => { window.__settlementCount++; originalSettlement(); };`);
+    execute(`showMessage('赢了', '全部弃牌'); showMessage('赢了', '重复显示');`);
+    assert.equal(execute('__settlementCount'), 1);
+    assert.equal(e.audioContexts[0].oscillators.length, 2);
+    assert.equal(e.audioContexts[0].oscillators[1].started, .18);
+    for (const call of [
+        `showAIMessage('Bot', '胜出')`,
+        `showShowdown({winner:{isHuman:true,name:'You'},pot:120,results:[]})`,
+        `showOnlineShowdown({winners:[{id:'me',isHuman:true}],pot:120,results:[],reason:'fold'})`
+    ]) execute(`document.getElementById('showdownModal').classList.remove('show'); ${call};`);
+    assert.equal(execute('__settlementCount'), 4);
+    assert.equal(e.audioContexts[0].oscillators.length, 8);
+    execute(`turnAlertsEnabled = false; document.getElementById('showdownModal').classList.remove('show'); showAIMessage('Bot', '胜出');`);
+    assert.equal(e.audioContexts[0].oscillators.length, 8);
+});
+
+test('ui: native attention tracks turns, settlement readiness and acknowledgement even when sounds are muted', () => {
+    const e = createDomShim();
+    const signals = [];
+    e.context.windowControls = {setAttention:(pending, reason) => signals.push({pending,reason})};
+    const button = e.document.createElement('button');
+    button.classList.add('modal-btn');
+    e.byId('showdownModal').appendChild(button);
+    const execute = code => vm.runInContext(code, e.context);
+    execute(`turnAlertsEnabled = false; playMode = 'online'; network.connected = true;
+        network.gameState = {isYourTurn:true}; network.pendingAction = null; syncDesktopAttention();`);
+    assert.equal(signals.at(-1).pending, true);
+    execute(`network.pendingAction = {requestId:1}; syncDesktopAttention();`);
+    assert.equal(signals.at(-1).pending, false);
+    execute(`network.gameState.isYourTurn = false; showMessage('结束', '请确认');`);
+    assert.deepEqual(signals.at(-1), {pending:true,reason:'settlement'});
+    button.disabled = true;
+    execute('syncDesktopAttention();');
+    assert.equal(signals.at(-1).pending, false);
+    button.disabled = false;
+    execute(`document.getElementById('showdownModal').classList.remove('show'); playMode='local'; game.phase='idle'; syncDesktopAttention();`);
+    assert.equal(signals.at(-1).pending, false);
 });
 
 test('ui: the local turn alert plays once for each decision', () => {
@@ -406,6 +506,17 @@ test('ui: seat list reuses DOM nodes instead of rebuilding them every frame', ()
     run('game.players.pop();');
     run('renderAIPlayers()');
     assert.equal(container.children.length, seats.length - 1);
+});
+
+test('ui: returning to the start screen releases every removed seat from its resize observer', () => {
+    const fresh = createDomShim();
+    vm.runInContext("startNewGame(); renderAIPlayers();", fresh.context);
+    const oldSeats = fresh.byId('aiPlayersContainer').children.slice();
+    fresh.context.unobservedSeats = [];
+    vm.runInContext("seatResizeObserver = { unobserve:seat=>unobservedSeats.push(seat) }; goToStartScreen();", fresh.context);
+    assert.ok(oldSeats.length > 0);
+    assert.deepEqual(fresh.context.unobservedSeats, oldSeats);
+    assert.equal(fresh.byId('aiPlayersContainer').children.length, 0);
 });
 
 test('ui: last action label is not rewritten (CSS animation) on unchanged frames', () => {

@@ -1,0 +1,53 @@
+{
+  "version": "1.5.7",
+  "target": {
+    "seats": 10,
+    "startingStack": 5000,
+    "smallBlind": 100,
+    "bigBlind": 200
+  },
+  "totalHands": 105830,
+  "confirmation": {
+    "hands": 16384,
+    "blocks": 512,
+    "meanBB100": 4.57987060546875,
+    "standardError": 0.9491204621775094,
+    "ci95": [
+      2.7195944996008317,
+      6.440146711336669
+    ]
+  },
+  "coverage": {
+    "jobs": 176,
+    "hands": 8704
+  },
+  "endurance": {
+    "tables": 96,
+    "hands": 12134,
+    "decisions": 100844
+  },
+  "performance": {
+    "gpu": {
+      "workingMiB": 1045.6796875,
+      "privateMiB": 751.96875
+    },
+    "low": {
+      "workingMiB": 623.953125,
+      "privateMiB": 236.7265625
+    }
+  },
+  "sourceHashes": {
+    "js/ai-core.js": "4e67a14ec7f151ba519589213122f20736b2c60c3d4cc33cbbe77a7a015b8332",
+    "js/ai-shortdeck-stable.js": "f69ff4780c59ce4b0b2c72bb061773455a5e5f33a11518879809589760498ce3",
+    "js/ai.js": "a38a0efdcc7a0009a5f9fed3631ed125c4a245644f525b6950e3f461ab4d806e",
+    "js/shortdeck.js": "a256e40010e3f5c9bdf2cb6046e68446aa13cf0e78b8670c98bf7fb46d71d5d3",
+    "js/engine.js": "1e151e8b0fc562dae857def891532044f5150504109fa7805b925f48e61274ce",
+    "js/game.js": "10f535605c93e574c1137319f3386cc107368dd7bcba3139ca19514def959324",
+    "js/probability-core.js": "0a46bccd6aff49771229c512f55bfe00ba7f29f360d973c32c4238f7a92e5b10",
+    "js/game-rules-core.js": "954e3829a1cdf2223db54daf1323e8c6373496f3d5101ffcc9d216a2a024b8db",
+    "server/server-game.js": "124cefa07c76f01cb53049dd52c4070f1953476c2f1ee55094a096b45483c875",
+    "server/poker-rules.js": "640a975141dd7cc565192902bd46a4e3e8ca45fde96f6d226572a9d77fbf675b",
+    "tools/ai-lab.js": "1cb0ae77c120ca0b65a5d97bbed3dede19386552a3c45c387f6fe096a2f0639c",
+    "tools/ai-matrix.js": "9a3d410494c03143ab2e274bbcb59f8d807e0e020df8433f02af76ac8ffbb345"
+  }
+}

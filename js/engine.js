@@ -296,7 +296,18 @@
             case 'bet': {
                 // amount is total bet (including call portion)
                 const currentContrib = roundBet(game, playerIndex);
-                const totalBet = Math.min(amount, player.stack + currentContrib);
+                const maxTotal = player.stack + currentContrib;
+                const requested = Number(amount);
+                if (requested === maxTotal) {
+                    executeAction(game, playerIndex, 'allin', 0);
+                    return;
+                }
+                const totalBet = requested >= getMinRaiseTo(game)
+                    ? rules().snapRaise(requested, getMinRaiseTo(game), maxTotal, rules().wagerUnit(game)) : null;
+                if (totalBet === null) {
+                    executeAction(game, playerIndex, toCall > 0 ? 'call' : 'check', 0);
+                    return;
+                }
                 const additionalAmount = totalBet - currentContrib;
 
                 if (!canPlayerRaise(game, playerIndex)) {
@@ -445,12 +456,14 @@
 
     /** Notify all AI players about an action taken by any player. */
     function notifyAIsOfAction(game, playerIndex, action, actionMeta = {}) {
+        const position=getHandPositionInfo(game,playerIndex);
+        actionMeta = {...actionMeta, ...position,isSmallBlind:playerIndex===game.sbIndex,isBigBlind:playerIndex===game.bbIndex,
+            communityCards:(game.communityCards || []).map(card=>({...card}))};
         const actionStreet = game.phase;
         const actorIsBlind = (playerIndex === game.sbIndex || playerIndex === game.bbIndex);
         const isPreFlop = game.phase === 'preflop';
 
         for (let i = 0; i < game.players.length; i++) {
-            if (i === playerIndex) continue; // Don't self-report
             const p = game.players[i];
             if (!p || p.isHuman) continue; // Only notify AI players
             const ai = p.aiRef;
@@ -462,7 +475,7 @@
             }
 
             // Update opponent range estimation
-            if (typeof ai.updateOpponentRange === 'function') {
+            if (i !== playerIndex && typeof ai.updateOpponentRange === 'function') {
                 let rangeAction = action;
                 if (action === 'small blind' || action === 'big blind') rangeAction = 'call';
                 else if (isPreFlop && actionMeta.aggressive) {
@@ -498,7 +511,8 @@
             const canRaise = canPlayerRaise(game, seat);
             if (canRaise) {
                 // Minimum raise
-                const raiseTotal = getMinRaiseTo(game);
+                const raiseTotal = rules().raiseBounds(getMinRaiseTo(game),
+                    roundBet(game, seat) + player.stack, rules().wagerUnit(game)).min;
                 const raiseAmount = raiseTotal - roundBet(game, seat);
 
                 if (raiseAmount < player.stack) {
@@ -814,6 +828,10 @@
 
     /** Reset game */
     function resetGame(game) {
+        // Invalidate suspended AI turns before releasing their state.
+        game.handGeneration++;
+        game.isProcessing = false;
+        for (const player of game.aiPlayers || []) (player.aiRef || player).dispose?.();
         game.players = [];
         game.humanPlayer = null;
         game.aiPlayers = [];

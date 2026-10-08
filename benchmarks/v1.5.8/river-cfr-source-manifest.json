@@ -1,0 +1,15 @@
+{
+  "archive": "v158-runtime-cfr-source.tar.gz",
+  "sha256": "383dda89f812f9996fca32f36c9ebadd5f2b5c349ee1023ccb2d7fb12bc1f634",
+  "coreSha256": "f90828310c01c7beddbc0608581739444faac1f929091aea941d01ed26dc9c41",
+  "files": {
+    "js/compiled-cfr.js": "f5de6932053c55776940f54ad9f744f114d152575e9a847d93b429a21b389305",
+    "js/river-solver.js": "9fc9e94eab25b17e715d62638367869ca52357836f3dee2b53a320fc17539412",
+    "js/ai-core.js": "f90828310c01c7beddbc0608581739444faac1f929091aea941d01ed26dc9c41",
+    "js/ai.js": "5a5ca65d4bc7181aa093ebee0ff86de10eaf9ebfe98a347dd0371aba0f113983",
+    "js/ai-worker.js": "f7e662bc7886a348b8c12be8b4894bd553ed50ef9e4663dc9d4cb59575bffb09",
+    "js/engine.js": "cd571475026aef813ab88c6d03891823832403754fdd7a3f3a4f5c5dea68203d",
+    "server/server-game.js": "0916f16b4572596d3e0334ea50e194e63fc1d09f752d54e9b96a81710750cc22",
+    "tools/ai-lab.js": "00663936683e389bcb63f86321e7943954182ab8a6e1bc419e1cf600b0159e1e"
+  }
+}

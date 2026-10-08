@@ -1,0 +1,72 @@
+{
+  "enabled": false,
+  "hands": 180,
+  "snapshots": [
+    {
+      "hand": 0,
+      "heapMiB": 4.406768798828125,
+      "arrayBuffersMiB": 0.13109874725341797,
+      "rssMiB": 36.22265625,
+      "opponentModels": 0,
+      "selfModelHands": 0,
+      "selfRangeHistory": 0
+    },
+    {
+      "hand": 30,
+      "heapMiB": 5.253074645996094,
+      "arrayBuffersMiB": 0.13109874725341797,
+      "rssMiB": 84.109375,
+      "opponentModels": 1,
+      "selfModelHands": 0,
+      "selfRangeHistory": 0
+    },
+    {
+      "hand": 60,
+      "heapMiB": 5.2535552978515625,
+      "arrayBuffersMiB": 0.13109874725341797,
+      "rssMiB": 84,
+      "opponentModels": 1,
+      "selfModelHands": 0,
+      "selfRangeHistory": 0
+    },
+    {
+      "hand": 90,
+      "heapMiB": 5.298133850097656,
+      "arrayBuffersMiB": 0.13109874725341797,
+      "rssMiB": 108.36328125,
+      "opponentModels": 1,
+      "selfModelHands": 0,
+      "selfRangeHistory": 0
+    },
+    {
+      "hand": 120,
+      "heapMiB": 5.345161437988281,
+      "arrayBuffersMiB": 0.13109874725341797,
+      "rssMiB": 108.64453125,
+      "opponentModels": 1,
+      "selfModelHands": 0,
+      "selfRangeHistory": 0
+    },
+    {
+      "hand": 150,
+      "heapMiB": 5.349098205566406,
+      "arrayBuffersMiB": 0.13109874725341797,
+      "rssMiB": 108.65234375,
+      "opponentModels": 1,
+      "selfModelHands": 0,
+      "selfRangeHistory": 0
+    },
+    {
+      "hand": 180,
+      "heapMiB": 5.352180480957031,
+      "arrayBuffersMiB": 0.13109874725341797,
+      "rssMiB": 108.59375,
+      "opponentModels": 1,
+      "selfModelHands": 0,
+      "selfRangeHistory": 0
+    }
+  ],
+  "averageMs": 5.050963333333332,
+  "maxMs": 19.891499999999994,
+  "scope": "Node retained heap with forced GC; not desktop total working-set or peak allocation; 180 targeted heads-up rivers"
+}

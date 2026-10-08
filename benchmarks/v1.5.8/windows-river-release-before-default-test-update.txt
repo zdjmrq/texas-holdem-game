@@ -1,0 +1,226 @@
+
+> texas-holdem@1.5.8 test
+> node --test --test-timeout=30000 tests/*.test.js
+
+✔ shared strategy is deterministic for identical public information and seed (206.6299ms)
+✔ online AI is an adapter around the same AIPlayer and shared core (28.36ms)
+✔ range-weighted equity falls against a tighter, stronger range (259.6423ms)
+✔ opponent response model bluffs less into callers and more into over-folders (2.0331ms)
+✔ bounded mixing never selects a strategically dominated candidate (1.3112ms)
+✔ six-way complex decisions stay inside the foreground performance envelope (71.8759ms)
+✔ production short-deck brains retain the validated stable policy across local, worker and server adapters (35.0485ms)
+✔ full tables open premium hands without treating every unacted seat as a certain caller (301.8879ms)
+✔ a medium pair facing an ordinary opening retains a profitable flat rather than automatic three-betting (24.5721ms)
+✔ nominal blinds scale the same standard preflop decision and utility (69.6763ms)
+✔ position respects full-ring UTG, six-max HJ, blinds and heads-up button (0.3807ms)
+✔ the ten-player 5000 100/200 preset opens normally and tracks current depth rather than always assuming 25 BB (32.4394ms)
+✔ an all-in hero does not pay a fictional further raise penalty on either street (0.7835ms)
+✔ public raise levels update three-bet and four-bet ranges without misclassifying all-in calls (0.4368ms)
+✔ sample-dependent callers weight conditional equity by the chance that the sample continues (0.9397ms)
+✔ observed opening and three-bet ranges learn from public opportunities with separate priors (1.5476ms)
+✔ new tables randomize style independently of names while a new hand preserves style and brain (5.4747ms)
+✔ server decision input ignores other hole cards, actual deck order and opponent personality (24.2118ms)
+✔ joint caller payments preserve covariance, ties and hero side-pot cap (3.5263ms)
+✔ conditional exact river equity preserves the original unequal combination weights (1.4066ms)
+✔ joint caller return matches exhaustive independent action branches with unequal stacks (13.9721ms)
+✔ postflop continuation selects strong current-board combinations and excludes future-card information (6.3537ms)
+✔ real exact river simulation exports weighted hypothetical combinations without sampling private hands (59.1272ms)
+✔ professional styles retain differences without the deliberately passive first-in limps (0.8382ms)
+✔ target style discipline preserves names/styles and leaves other initial configurations unchanged (699.1439ms)
+✔ conditional risk counts continuing opponents and removes risk on the all-fold branch (0.8436ms)
+✔ target precision doubles or quadruples fixed samples only for the requested initial table (24.9719ms)
+✔ terminal calls realize all contestable equity and retain future factors while betting remains possible (66.8091ms)
+✔ ranked continuation keeps weighted marginal rates and ties, without using simulated future outcomes (1.4021ms)
+✔ ranked continuation uses present board scores and is limited to the requested initial configuration (17.9339ms)
+✔ terminal call decisions follow an independent pot-odds oracle across prices and equities (2.1019ms)
+✔ terminal classification requires known public seats and distinguishes a closing river call from a possible squeeze (0.2288ms)
+✔ terminal call bypasses a fixed starting range gate while still rejecting a bad price (78.8461ms)
+✔ river range enumeration gives exact nuts and board ties, with no sampling error (21.7255ms)
+✔ draws require a future card and hole-card contribution; nut blockers are distinct (1.8228ms)
+✔ public flop raises update board-specific range weights and preserve historical boards (1.794ms)
+✔ all-in opponents cannot be bluffed off and side-pot eligibility caps the available reward (3.2647ms)
+✔ normalized observations strip opponent private information and explicit persona parameters survive (0.5769ms)
+✔ validated variant presets switch with the rules while explicit lab options stay authoritative (11.8155ms)
+✔ a short all-in winning the main pot does not erase equity in a separate side pot (0.617ms)
+✔ unacted opponents remain unconditioned instead of all being assigned strong opening ranges (32.629ms)
+✔ all-in calls remain calls in range updates and behavior statistics (0.8129ms)
+✔ preflop and postflop fold observations remain separate and affect the corresponding street (1.1457ms)
+✔ range width uses actual combination percentiles rather than a linear hand-score threshold (4.0536ms)
+✔ conditional caller equity excludes folded winners and divides ties correctly (0.6552ms)
+✔ expected future calls weight each stack separately and never add chips from an all-in seat (0.5128ms)
+✔ replacement soundtrack is ordered and named 1 through 4 (3.3087ms)
+✔ music controls default to off, volume 50 and sequential playback (2.9249ms)
+✔ playback modes choose sequential, repeated and non-repeating random tracks (0.4004ms)
+✔ a delayed manual skip keeps the old song audible until the next track can play (1.7871ms)
+✔ stopping music while a skip is loading cannot restart the stale fade (0.6683ms)
+✔ full-tree CFR reproduces Kuhn poker value and limits a consistent-information-set best response (231.9371ms)
+✔ opponent private ranks cannot separate an acting player information set (1.8537ms)
+✔ best-response audit detects a weak policy rather than a deal-specific clairvoyant response (0.5804ms)
+✔ bounded river tree reproduces Kuhn payoff and convergence as an independent game implementation (366.0675ms)
+✔ bounded river tree respects integer sizes, raise increments, unequal effective caps and split pots (0.6836ms)
+✔ desktop attention remembers a seen message and only rearms for a new decision (3.5123ms)
+✔ settlement tray click restores the game and destruction releases timers/listeners (0.8619ms)
+✔ shared evaluator preserves standard and short-deck ranking differences (5.9535ms)
+✔ preflop equity responds to the real opponent count (145.782ms)
+✔ river heads-up calculation is exact and tie equity is split (4.5473ms)
+✔ improvement cards are hidden preflop and ordinary high-card changes are excluded (1.059ms)
+✔ nine-opponent analysis stays comfortably off the foreground budget (92.9936ms)
+[poker-server] AI observation failed: injected observer failure
+[poker-server] AI observation failed: injected observer failure
+[poker-server] AI observation failed: injected observer failure
+✔ a failing AI observer cannot escape action handling (6.6199ms)
+✔ equity sampling terminates when an opponent belief is folded (26.4045ms)
+✔ the decision is reproducible and does not depend on the sampling budget (20.6337ms)
+✔ sampling and bounded mixing reproduce a legal, competitive decision (14.1895ms)
+✔ server AI equities use short-deck hand ranking without an injected global (125.4934ms)
+✔ a non 5-card straightHigh input is rejected instead of answered wrongly (0.4555ms)
+✔ the two hand evaluators stay in agreement (2.5467ms)
+✔ side pot amounts always equal the total pot (0.9263ms)
+✔ an uncalled wager is refunded before the pot is settled (11.5242ms)
+✔ server AI decisions stay inside a tight event-loop budget (55.7601ms)
+✔ joint range abstraction excludes shared cards and preserves conditional showdown weights (4.3189ms)
+✔ latent showdown utility does not let the policy observe an opponent hand inside an abstract bucket (0.953ms)
+✔ public-range builder has no hidden deal dependency and normalizes mutually legal river hands (338.7555ms)
+✔ compiled CFR matches the independent full-tree oracle and Kuhn equilibrium (548.5285ms)
+✔ runtime river public ranges reproduce the independent card-removal abstraction (72.7017ms)
+✔ river state adapter accounts for prior bets, closes a check and enforces integer raise sizes (0.4385ms)
+✔ real Bot river solve uses public observations and ignores hidden cards, deck and personalities (122.2865ms)
+✖ own public range is separate from opponent beliefs and resets between hands (2.3138ms)
+✔ river CFR is scoped to the ten-player preset, and rejects side pots and all-in terminals (69.7619ms)
+✔ browser and Node execute identical compiled solver and Bot policy (349.6761ms)
+✔ standard and short-deck wheel straights use the correct high card (3.8178ms)
+✔ suited wheel is not royal and short deck keeps flush above full house (2.0723ms)
+✔ split-pot equity is divided by every tied player (32.5537ms)
+✔ side pots contain folded contributions (1.534ms)
+✔ cumulative short all-ins reopen A but not C (0.395ms)
+✔ short stack can make a sub-minimum all-in but cannot submit an impossible raise (0.8417ms)
+✔ a unique uncalled wager is returned before a fold pot is awarded (0.6209ms)
+✔ a local fold win is settled and announced only once (1.2832ms)
+✔ AI respects real stack/raise bounds and executes a remembered check-raise plan (126.3607ms)
+✔ blind-position AI still evaluates postflop value bets (16.3973ms)
+✔ AI recognizes short-deck wheel draws and heads-up button position (0.9543ms)
+✔ AI can make a delayed turn c-bet after the flop checks through (11.8878ms)
+✔ opponent model counts hands and betting opportunities without action inflation (0.8246ms)
+✔ table position ignores busted empty seats (0.5912ms)
+✔ disconnect folding never skips a different current actor or leaves a free-check player in the hand (0.5662ms)
+✔ a failed next-hand attempt preserves the result so reconnect can resume readiness (0.594ms)
+✔ a player leaving during the ready countdown is replaced without stalling (328.8675ms)
+✔ room config accepts only the host AI speed levels (1.8091ms)
+✔ default per-IP capacity fits a full ten-seat room plus reconnects (73.3986ms)
+✔ local server keeps two clients authoritative, private, resumable and synchronized across hands (1315.901ms)
+✔ public room limits and message throttling reject excess load cleanly (8.0386ms)
+✔ public server rejects disallowed browser origins before accepting a socket (6.451ms)
+✔ js/engine.js is usable from Node and from the browser and matches game-rules-core (3.4913ms)
+✔ ShortDeckGame delegates its betting kernel to the shared engine (0.7586ms)
+✔ side pots include folded chips and are identical for both variants (0.665ms)
+✔ short-deck showdown pays the main pot and the side pot from all-in stacks (3.0011ms)
+✔ an uncalled wager is refunded identically by both variants (1.1049ms)
+✔ a short-deck fold win returns the uncalled portion of the last bet (16.4511ms)
+✔ flush versus full house: short deck flips the winner, standard does not (11.9386ms)
+✔ A-6-7-8-9 is a short-deck wheel but only a high card in standard poker (0.422ms)
+✔ the short-deck wheel beats three of a kind at showdown, standard high card does not (1.8141ms)
+✔ ShortDeckAIPlayer feeds one config source to the worker and to the in-process brain (1.7191ms)
+✔ ShortDeckAIPlayer always evaluates with the short-deck ranking (64.8673ms)
+✔ short-deck AI decisions match the worker brain for the same public state (37.478ms)
+✔ a page that forgot js/engine.js fails with a precise message (6.9418ms)
+✔ client network: 1008/4001/1013 (and 1000) are terminal and must not auto-reconnect (12.7127ms)
+✔ client network: transport failures still auto-reconnect (13.0227ms)
+✔ client network: manual reconnect entry point stays available (5.0875ms)
+✔ ui: index.html scripts all load in order (shim environment is healthy) (1.5191ms)
+✔ ui: window.game is a live getter, never a stale instance (12.7534ms)
+✔ ui: keyboard shortcuts ignore keystrokes typed into inputs (9.185ms)
+✔ ui: arrow keys adjust a raise and Space confirms it from the slider (0.834ms)
+✔ ui: top-row 1/2 and arrows adjust raises without stealing function keys, numpad or typed digits (18.1138ms)
+✔ ui: music loading/playing events keep a stable label without replacing its text on each skip (17.1368ms)
+✔ ui: every settlement path sounds once per displayed result and respects the mute switch (15.8979ms)
+✔ ui: native attention tracks turns, settlement readiness and acknowledgement even when sounds are muted (16.1573ms)
+✔ ui: the local turn alert plays once for each decision (5.9997ms)
+✔ ui: hiding cards respects the analysis panel expansion state (1.939ms)
+✔ ui: applyRoomConfigFromServer only rebuilds settings when the config changed (1.5635ms)
+✔ ui: seat list reuses DOM nodes instead of rebuilding them every frame (4.7096ms)
+✔ ui: returning to the start screen releases every removed seat from its resize observer (23.8764ms)
+✔ ui: last action label is not rewritten (CSS animation) on unchanged frames (3.1397ms)
+✔ ui: chip amounts go through formatChips (no hand-rolled toLocaleString) (4.2571ms)
+✔ ui: turn alert resumes (and later releases) the AudioContext (3.8279ms)
+✔ ui: turn alerts default on, can be muted independently, and persist (0.4879ms)
+✔ css: dead rules stay deleted and live seat/ability rules stay (0.6429ms)
+✔ js: dead doCreateRoom export and debug.js shadowed toast are gone (1.7637ms)
+✔ ui: Tab focus on cards, buttons or range does not swallow poker shortcuts (13.5444ms)
+✔ ui: active raise confirmation overrides old Tab focus and suppresses native activation (10.5061ms)
+✔ ui: Enter and Space on the raise Cancel button cancel without betting (10.1588ms)
+✔ desktop service discovery rejects old-version services while accepting the matching release (113.7473ms)
+✔ raise grid rounds up the minimum and down the maximum without rounding all-in stacks (1.6348ms)
+✔ authoritative server rejects fractional/off-grid raises but preserves odd all-ins and calls (5.6872ms)
+✔ local betting kernel snaps raises and disposes AI state while cancelling suspended turns (1.4534ms)
+✔ AI candidates use the blind grid before evaluating value, with exact all-in exceptions (1.3691ms)
+✔ response branches sum to one and a heads-up called branch has exactly one caller (1.0467ms)
+✔ opponent histories stay bounded over 2000 hands and probabilities remain consistent (4.3432ms)
+✔ AI worker release removes the old brain instead of creating a cleanup brain (11.9486ms)
+ℹ tests 151
+ℹ suites 0
+ℹ pass 150
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1845.8556
+
+✖ failing tests:
+
+test at tests\river-solver.test.js:34:1
+✖ own public range is separate from opponent beliefs and resets between hands (2.3138ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + OpponentBelief {
+  +   adaptiveRangeWeight: 0,
+  +   aggression: 0.42,
+  +   capped: false,
+  +   confidence: 0.19,
+  +   evidenceWeight: 0.7,
+  +   folded: false,
+  +   history: [
+  +     {
+  +       action: 'raise',
+  +       board: [],
+  +       fraction: 0,
+  +       pot: 0,
+  +       street: 'preflop',
+  +       toCall: 0
+  +     }
+  +   ],
+  +   lastStreet: 'preflop',
+  +   openingPosition: 'LP',
+  +   percentileWeight: 0,
+  +   polarization: 0.12,
+  +   preflopSharpness: 0,
+  +   preflopSnapshot: {
+  +     capped: false,
+  +     openingPosition: 'LP',
+  +     polarization: 0.12,
+  +     rangeAction: 'open',
+  +     rangeWidth: 0.33381818181818185,
+  +     strengthShift: 0.075
+  +   },
+  +   publicStats: null,
+  +   rangeAction: 'open',
+  +   rangeWidth: 0.33381818181818185,
+  +   seatId: 0,
+  +   strengthShift: 0.075
+  + }
+  - undefined
+  
+      at TestContext.<anonymous> (D:\德州扑克\repo\tests\river-solver.test.js:37:80)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { seatId: 0, rangeWidth: 0.33381818181818185, strengthShift: 0.075, polarization: 0.12, capped: false, folded: false, confidence: 0.19, lastStreet: 'preflop', history: [ [Object] ], preflopSnapshot: { rangeWidth: 0.33381818181818185, strengthShift: 0.075, polarization: 0.12, capped: false, rangeAction: 'open', openingPosition: 'LP' }, aggression: 0.42, evidenceWeight: 0.7, percentileWeight: 0, preflopSharpness: 0, adaptiveRangeWeight: 0, publicStats: null, rangeAction: 'open', openingPosition: 'LP' },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

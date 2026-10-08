@@ -45,6 +45,9 @@ function runVariant(isShortDeck, hands = 12) {
             assert.ok(decision, `AI seat ${idx} returned no decision`);
             assert.ok(legalBefore.actions.includes(decision.action),
                 `${decision.action} is not in ${legalBefore.actions.join(',')}`);
+            assert.ok(Number.isSafeInteger(decision.amount), 'AI chip amounts must be integers');
+            if (decision.action === 'raise') assert.equal(decision.amount % legalBefore.wagerUnit, 0,
+                'voluntary raises must use the small-blind/ante grid');
             const result = game.act(idx, decision.action, decision.amount);
             assert.equal(result.ok, true, result.error);
             actions++;

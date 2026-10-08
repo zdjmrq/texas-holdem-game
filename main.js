@@ -1,13 +1,20 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const { WebSocket } = require('ws');
 const { startLocalPokerServer } = require('./server/local-server');
+const { DesktopAttention } = require('./desktop-attention');
+const APP_VERSION = require('./package.json').version;
 
 let localPokerServer = null;
 let localServerUrl = 'ws://127.0.0.1:3000';
 let mainWindow = null;
+let desktopAttention = null;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
+
+// Keep compositor scrolling accelerated. Software rendering is an explicit
+// option for machines that prefer a smaller GPU working set.
+if (process.argv.includes('--poker-low-memory')) app.disableHardwareAcceleration();
 
 // The authoritative room server runs inside this process, so a single escaped
 // error (a malformed client message, a bug in one AI's bookkeeping) would
@@ -43,7 +50,7 @@ function probePokerServer(url, timeoutMs = 900) {
         socket.on('message', data => {
             try {
                 const hello = JSON.parse(data.toString('utf8'));
-                finish(hello.type === 'hello' && hello.serverId === 'texas-holdem-game' && hello.protocolVersion === 2, socket);
+                finish(hello.type === 'hello' && hello.serverId === 'texas-holdem-game' && hello.protocolVersion === 2 && hello.appVersion === APP_VERSION, socket);
             } catch (_) { finish(false, socket); }
         });
         socket.on('error', () => finish(false, socket));
@@ -77,6 +84,10 @@ ipcMain.handle('window:toggle-maximize', event => {
     return win.isMaximized();
 });
 ipcMain.handle('server:get-local-url', () => localServerUrl);
+ipcMain.on('window:attention', (event, pending, reason, messageKey) => {
+    if (senderWindow(event) === mainWindow) desktopAttention?.setPending(pending === true, reason,
+        typeof messageKey === 'string' ? messageKey.slice(0, 200) : null);
+});
 
 app.whenReady().then(async () => {
     if (!hasSingleInstanceLock) return;
@@ -114,8 +125,16 @@ app.whenReady().then(async () => {
     win.setTitle('Texas Hold\'em ♠♥♣♦');
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', event => event.preventDefault());
+    desktopAttention = new DesktopAttention(win, {
+        Tray, Menu, nativeImage, app,
+        iconPath:path.join(__dirname, 'icon.ico'),
+        alertIconPath:path.join(__dirname, 'assets', 'attention-icon.png')
+    });
+    win.webContents.on('did-start-loading', () => desktopAttention?.setPending(false));
 
     win.on('closed', () => {
+        desktopAttention?.destroy();
+        desktopAttention = null;
         mainWindow = null;
         app.quit();
     });

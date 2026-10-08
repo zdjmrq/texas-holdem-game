@@ -1,0 +1,60 @@
+[
+  {
+    "key": "v158i-allin-521001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 521001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "terminalCallWeight": 1
+    }
+  },
+  {
+    "key": "v158i-closed-river-521001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 521001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "terminalCallWeight": 1,
+      "riverCallWeight": 1
+    }
+  },
+  {
+    "key": "v158i-allin-522001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 522001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "terminalCallWeight": 1
+    }
+  },
+  {
+    "key": "v158i-closed-river-522001",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 522001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "terminalCallWeight": 1,
+      "riverCallWeight": 1
+    }
+  }
+]

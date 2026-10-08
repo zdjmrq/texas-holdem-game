@@ -43,8 +43,7 @@ class BackgroundMusic {
             this.ctx = this.audio;
             this.initialized = true;
             this._load(0, this.currentPattern);
-            // Prioritize the first song. It is requested while the player is in
-            // the menu instead of only after the game has already started.
+            // Request the first song only when music is actually enabled.
             if (this.audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
                 this._onFirstTrackReady();
             } else {
@@ -77,6 +76,10 @@ class BackgroundMusic {
             this.queuedPattern = null;
             this._transitionTo(next, 350, false);
         });
+        player.addEventListener('timeupdate', () => {
+            if (this.isPlaying && index === this.activePlayer && Number.isFinite(player.duration) &&
+                player.duration - player.currentTime <= 15) this._preloadFollowing('auto');
+        });
         player.addEventListener('error', () => {
             if (!this.isPlaying || index !== this.activePlayer) return;
             this._emitState('error');
@@ -102,18 +105,18 @@ class BackgroundMusic {
         }
     }
 
-    _preloadFollowing() {
+    _preloadFollowing(preload = 'metadata') {
         if (!this.initialized) return;
         if (this.playbackMode === 'repeat-one') {
             this.queuedPattern = this.currentPattern;
             return;
         }
         const standby = 1 - this.activePlayer;
-        const next = this._pickNextPattern();
+        const next = this.queuedPattern ?? this._pickNextPattern();
         this.queuedPattern = next;
-        // These are local assets. Fully buffering the upcoming song after the
-        // first one is playable avoids a pause at the track boundary.
-        this._load(standby, next, 'auto');
+        // Keep only metadata for the next local song until near the boundary.
+        // The final 15 seconds still allow enough lead time for a crossfade.
+        this._load(standby, next, preload);
         this.players[standby].volume = 0;
     }
 
@@ -174,27 +177,33 @@ class BackgroundMusic {
         this.ctx = nextPlayer;
         this._emitState('loading');
 
-        const playPromise = nextPlayer.play();
-        if (playPromise?.catch) playPromise.catch(error => console.warn('Music playback unavailable:', error));
         const target = this._targetVolume(patternIndex);
         const oldStart = oldPlayer.ended || !crossfade ? 0 : oldPlayer.volume;
-        const started = performance.now();
-        const tick = now => {
-            if (token !== this.transitionToken) return;
-            const progress = duration <= 0 ? 1 : Math.min(1, (now - started) / duration);
-            const eased = progress * progress * (3 - 2 * progress);
-            nextPlayer.volume = target * eased;
-            if (crossfade && !oldPlayer.ended) oldPlayer.volume = oldStart * (1 - eased);
-            if (progress < 1) {
-                this.fadeFrame = requestAnimationFrame(tick);
-                return;
-            }
-            oldPlayer.pause();
-            oldPlayer.volume = 0;
-            this.fadeFrame = 0;
-            this._preloadFollowing();
+        const beginFade = () => {
+            if (token !== this.transitionToken || !this.isPlaying) return;
+            const started = performance.now();
+            const tick = now => {
+                if (token !== this.transitionToken) return;
+                const progress = duration <= 0 ? 1 : Math.min(1, (now - started) / duration);
+                const eased = progress * progress * (3 - 2 * progress);
+                nextPlayer.volume = target * eased;
+                if (crossfade && !oldPlayer.ended) oldPlayer.volume = oldStart * (1 - eased);
+                if (progress < 1) {
+                    this.fadeFrame = requestAnimationFrame(tick);
+                    return;
+                }
+                oldPlayer.pause();
+                oldPlayer.volume = 0;
+                this.fadeFrame = 0;
+                this._preloadFollowing();
+            };
+            this.fadeFrame = requestAnimationFrame(tick);
         };
-        this.fadeFrame = requestAnimationFrame(tick);
+        // Metadata-only preloading can delay a manual skip on a slow disk.
+        // Keep the old track audible until play() confirms the new one started.
+        const playPromise = nextPlayer.play();
+        if (playPromise?.then) return playPromise.then(beginFade).catch(error => console.warn('Music playback unavailable:', error));
+        beginFade();
     }
 
     start() {

@@ -1,0 +1,60 @@
+[
+  {
+    "key": "v158c-competence",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 401001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "competenceWeight": 1
+    }
+  },
+  {
+    "key": "v158c-blend",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 401001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "competenceWeight": 0.5
+    }
+  },
+  {
+    "key": "v158c-competence-joint",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 401001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "competenceWeight": 1,
+      "jointCallReturnWeight": 1
+    }
+  },
+  {
+    "key": "v158c-blend-joint",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 401001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "competenceWeight": 0.5,
+      "jointCallReturnWeight": 1
+    }
+  }
+]

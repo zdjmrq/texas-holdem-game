@@ -1,0 +1,61 @@
+[
+  {
+    "key": "v158e-terminal",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 441001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "terminalRealizationWeight": 1
+    }
+  },
+  {
+    "key": "v158e-terminal-risk",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 441001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "terminalRealizationWeight": 1,
+      "conditionalRiskWeight": 1
+    }
+  },
+  {
+    "key": "v158e-terminal-double",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 441001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "terminalRealizationWeight": 1,
+      "targetPrecisionWeight": 0.3333333333333333
+    }
+  },
+  {
+    "key": "v158e-terminal-joint",
+    "variant": "standard",
+    "seats": 10,
+    "blocks": 96,
+    "hands": 16,
+    "seed": 441001,
+    "small-blind": 100,
+    "big-blind": 200,
+    "stack-bb": 25,
+    "profile": {
+      "terminalRealizationWeight": 1,
+      "jointCallReturnWeight": 1
+    }
+  }
+]

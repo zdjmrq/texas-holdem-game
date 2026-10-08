@@ -54,7 +54,7 @@ test('shared strategy is deterministic for identical public information and seed
     const da = a.decide(postflopState());
     const db = b.decide(postflopState());
     assert.deepEqual(da, db);
-    assert.equal(a.lastDecisionTrace.strategyVersion, 'unified-v1');
+    assert.equal(a.lastDecisionTrace.strategyVersion, 'unified-v2');
     assert.deepEqual(a.lastDecisionTrace.equity, b.lastDecisionTrace.equity);
 });
 
@@ -69,7 +69,7 @@ test('online AI is an adapter around the same AIPlayer and shared core', () => {
     const idx = game.currentPlayerIdx;
     const decision = chooseServerAiAction(game, idx);
     assert.ok(game.legalActions(idx).actions.includes(decision.action));
-    assert.equal(players[idx].aiRef.lastDecisionTrace.strategyVersion, 'unified-v1');
+    assert.equal(players[idx].aiRef.lastDecisionTrace.strategyVersion, 'unified-v2');
 });
 
 test('range-weighted equity falls against a tighter, stronger range', () => {

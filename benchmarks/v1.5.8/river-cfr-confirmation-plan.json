@@ -1,0 +1,66 @@
+{
+  "sourceCoreSha256": "f90828310c01c7beddbc0608581739444faac1f929091aea941d01ed26dc9c41",
+  "criterion": "fresh-seed pooled clustered nominal 95% interval above zero; no seed significantly negative; errors and timeouts zero; fixed candidate no interim tuning",
+  "jobs": [
+    {
+      "key": "river-cfr-confirm-541001",
+      "blocks": 128,
+      "hands": 16,
+      "seed": 541001,
+      "control": "",
+      "variant": "standard",
+      "seats": 10,
+      "small-blind": 100,
+      "big-blind": 200,
+      "stack-bb": 25,
+      "profile": {
+        "riverCfrWeight": 1
+      }
+    },
+    {
+      "key": "river-cfr-confirm-542001",
+      "blocks": 128,
+      "hands": 16,
+      "seed": 542001,
+      "control": "",
+      "variant": "standard",
+      "seats": 10,
+      "small-blind": 100,
+      "big-blind": 200,
+      "stack-bb": 25,
+      "profile": {
+        "riverCfrWeight": 1
+      }
+    },
+    {
+      "key": "river-cfr-confirm-543001",
+      "blocks": 128,
+      "hands": 16,
+      "seed": 543001,
+      "control": "",
+      "variant": "standard",
+      "seats": 10,
+      "small-blind": 100,
+      "big-blind": 200,
+      "stack-bb": 25,
+      "profile": {
+        "riverCfrWeight": 1
+      }
+    },
+    {
+      "key": "river-cfr-confirm-544001",
+      "blocks": 128,
+      "hands": 16,
+      "seed": 544001,
+      "control": "",
+      "variant": "standard",
+      "seats": 10,
+      "small-blind": 100,
+      "big-blind": 200,
+      "stack-bb": 25,
+      "profile": {
+        "riverCfrWeight": 1
+      }
+    }
+  ]
+}
