@@ -1,7 +1,9 @@
 {
-  "file": "D:\\\u5fb7\u5dde\u6251\u514b\\v1.5.8\\\u5fb7\u5dde\u6251\u514b-v1.5.8-\u7b97\u6cd5\u5347\u7ea7\u7248.zip",
-  "bytes": 169639276,
-  "sha256": "e5ff54a88806b8e4f6c04c6ba70777d691ee71b0227946e78eb4e05251eba30f",
+  "file": "D:\\德州扑克\\v1.5.8\\德州扑克-v1.5.8-算法升级版.zip",
+  "bytes": 165186237,
+  "sha256": "96b9a853b6e06e32eefd80911c24d35e2158eea2cc1875b702ac103ea775e18b",
   "coreSha256": "a7babd06e6f5456898487e9a8a45c26782844476070f695b1d656d967b3790f6",
-  "zipEntries": 174
+  "zipEntries": 173,
+  "uiSha256": "7bd4d403147fd803d69f0b05bda7b3952dfb12de3ed63b74f0803a5c2916b201",
+  "playerStandardPreflopRaiseDefaultBB": 3
 }
