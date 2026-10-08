@@ -2367,7 +2367,7 @@ let raiseSliderVisible = false;
 function showRaiseSlider() {
     const container = document.getElementById('raiseSlider');
 
-    let minRaise, maxRaise, bigBlind, unit;
+    let minRaise, maxRaise, bigBlind, unit, isStandardPreflop;
 
     if (playMode === 'online' && network.gameState) {
         const gs = network.gameState;
@@ -2378,6 +2378,7 @@ function showRaiseSlider() {
         minRaise = Math.max(0, Number(legal.minRaiseTo) || 0);
         maxRaise = Math.max(0, Number(legal.maxRaiseTo) || 0);
         unit = Number(legal.wagerUnit) || PokerGameRules.wagerUnit(config);
+        isStandardPreflop = !gs.isShortDeck && gs.phase === 'preflop';
     } else {
         if (!game || !game.isPlayerTurn()) return;
         const raiseAction = game.getAvailableActions().find(action => action.type === 'raise');
@@ -2386,6 +2387,7 @@ function showRaiseSlider() {
         minRaise = raiseAction.amount;
         maxRaise = (game.roundBets[0] || 0) + (game.humanPlayer ? game.humanPlayer.stack : 0);
         unit = PokerGameRules.wagerUnit(game);
+        isStandardPreflop = !(game instanceof ShortDeckGame) && game.phase === 'preflop';
     }
 
     if (!Number.isFinite(minRaise) || !Number.isFinite(maxRaise) || minRaise > maxRaise) return;
@@ -2396,7 +2398,8 @@ function showRaiseSlider() {
     slider.min = bounds.min;
     slider.max = bounds.max;
     slider.step = bounds.unit;
-    slider.value = PokerGameRules.snapRaise(minRaise + bigBlind * 2, bounds.min, bounds.max, bounds.unit);
+    const defaultRaise = isStandardPreflop ? bigBlind * 3 : minRaise + bigBlind * 2;
+    slider.value = PokerGameRules.snapRaise(defaultRaise, bounds.min, bounds.max, bounds.unit);
 
     container.classList.add('show');
     raiseSliderVisible = true;
