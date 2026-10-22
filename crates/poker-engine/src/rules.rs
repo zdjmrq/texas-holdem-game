@@ -118,10 +118,10 @@ pub fn calculate_side_pots(
     }
     let accounted: u64 = pots.iter().map(|pot| pot.amount).sum();
     let remainder = total_pot.saturating_sub(accounted);
-    if remainder > 0 {
-        if let Some(first) = pots.first_mut() {
-            first.amount += remainder;
-        }
+    if remainder > 0
+        && let Some(first) = pots.first_mut()
+    {
+        first.amount += remainder;
     }
     pots
 }
