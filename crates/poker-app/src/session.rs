@@ -359,6 +359,18 @@ impl TableSession {
             legal: &legal,
             variant: self.game.config().variant,
             players,
+            current_bet: self.game.current_bet(),
+            dealer_pos: self.game.dealer_pos(),
+            sb_idx: self.game.sb_idx(),
+            bb_idx: self.game.bb_idx(),
+            actions_this_round: self.game.actions_this_round(),
+            preflop_raise_count: self.game.preflop_raise_count(),
+            last_aggressor: self.game.last_aggressor(),
+            last_aggressor_street: self.game.last_aggressor_street(),
+            preflop_aggressor: self.game.preflop_aggressor(),
+            flop_had_aggression: self.game.flop_had_aggression(),
+            starting_stack: self.game.config().starting_stack,
+            big_blind: self.game.minimum_bet(),
         };
         self.ai.decide(&view)
     }

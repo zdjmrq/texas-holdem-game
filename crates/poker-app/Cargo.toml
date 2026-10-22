@@ -33,6 +33,8 @@ poker-prob = { workspace = true }
 poker-protocol = { workspace = true }
 poker-client = { workspace = true }
 poker-server = { workspace = true }
+# Real AI: the v1.5.8 decision pipeline port (standard + short deck + river CFR).
+poker-ai = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

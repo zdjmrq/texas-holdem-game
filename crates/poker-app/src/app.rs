@@ -195,7 +195,7 @@ impl PokerApp {
         let seed = self.cli.scenario_seed();
         let config = TableConfig::fast(&self.settings, seed.clone());
         let human_name = self.settings.player_name.clone();
-        let ai = ai_bridge::create_policy(&seed, config.variant.is_short_deck());
+        let ai = ai_bridge::create_policy(&seed, config.variant.is_short_deck(), config.starting_stack);
         let mut session = TableSession::new(&config, &human_name, ai);
         if !session.start() {
             self.hint = Some("无法开始对局：玩家数量不足".to_owned());
@@ -235,7 +235,7 @@ impl PokerApp {
         self.settings = self.settings.clone().sanitized();
         let config = TableConfig::from_settings(&self.settings, "poker-app-session");
         let human_name = self.settings.player_name.clone();
-        let ai = ai_bridge::create_policy("poker-app-session", config.variant.is_short_deck());
+        let ai = ai_bridge::create_policy("poker-app-session", config.variant.is_short_deck(), config.starting_stack);
         let mut session = TableSession::new(&config, &human_name, ai);
         let started = session.start();
         self.session = Some(session);

@@ -22,6 +22,30 @@ pub struct AiView<'a> {
     pub legal: &'a LegalActions,
     pub variant: Variant,
     pub players: &'a [Player],
+    /// Current bet to match this round.
+    pub current_bet: u64,
+    /// Dealer button seat (-1 before the first hand).
+    pub dealer_pos: i32,
+    /// Small blind seat (-1 when absent).
+    pub sb_idx: i32,
+    /// Big blind seat (-1 when absent).
+    pub bb_idx: i32,
+    /// Actions taken in the current betting round.
+    pub actions_this_round: u32,
+    /// Pre-flop raise count.
+    pub preflop_raise_count: u32,
+    /// Last aggressor seat (-1 when none).
+    pub last_aggressor: i32,
+    /// Street of the last aggressor.
+    pub last_aggressor_street: Option<Phase>,
+    /// Pre-flop aggressor seat (-1 when none).
+    pub preflop_aggressor: i32,
+    /// Whether the flop saw aggression.
+    pub flop_had_aggression: bool,
+    /// Starting stack of the table.
+    pub starting_stack: u64,
+    /// Big blind, or the short-deck minimum bet.
+    pub big_blind: u64,
 }
 
 /// A pluggable opponent policy.
@@ -195,6 +219,18 @@ mod tests {
             legal,
             variant: Variant::Standard,
             players,
+            current_bet: 100,
+            dealer_pos: 0,
+            sb_idx: 1,
+            bb_idx: 2,
+            actions_this_round: 2,
+            preflop_raise_count: 1,
+            last_aggressor: 2,
+            last_aggressor_street: Some(Phase::Preflop),
+            preflop_aggressor: 2,
+            flop_had_aggression: false,
+            starting_stack: 5_000,
+            big_blind: 100,
         }
     }
 

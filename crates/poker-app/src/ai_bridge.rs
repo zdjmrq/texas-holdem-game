@@ -1,29 +1,26 @@
-//! Adapter layer between the app and the real poker-ai crate.
+//! Adapter between the app and the real poker-ai crate.
 //!
-//! poker-ai is intentionally NOT a dependency yet: Phase 4 is still being
-//! migrated in parallel and must not break the default app build. The shape of
-//! the integration is fixed here so wiring the real crate later is a localised
-//! change:
+//! The app owns one AiPolicy for the whole local table; this module keeps one
+//! long-lived poker_ai::AIPlayer per AI seat (cross-hand behavioural models
+//! persist) and maps the app's decision view into a
+//! poker_ai::input::RawDecisionContext.
 //!
-//! 1. add `poker-ai = { workspace = true, optional = true }` to Cargo.toml and
-//!    map feature real-ai to it (`real-ai = ["dep:poker-ai"]`);
-//! 2. implement PokerAiBackend for a thin adapter that maps BridgeInput into
-//!    the poker-ai decision input and maps its chosen action back to Action;
-//! 3. return PokerAiBridge::with_backend(...) from create_policy when the
-//!    feature is enabled. Until then the deterministic policy is the fallback.
-//!
-//! The feature is a no-op today, so `cargo build` / `cargo test` (default
-//! features) stay green.
+//! Contract: docs/specs/ai-server-adapter.md. The adapter only ever sees public
+//! table state plus the acting seat's own hole cards. If poker-ai ever returns
+//! an action outside the engine's legal set, the deterministic policy is used as
+//! a safety fallback so the table can never get stuck.
+
+use std::collections::HashMap;
 
 use poker_core::{Card, Variant};
-use poker_engine::{Action, ActionType, LegalActions, Phase};
+use poker_engine::{Action, ActionType, LegalActions, Phase, Player};
 
 use crate::ai::{AiPolicy, AiView, DeterministicAi};
 
-/// Feature flag: whether the real-ai integration is compiled in.
+/// Whether the real-ai backend is wired in (always true in this build).
 #[must_use]
 pub fn real_ai_feature_enabled() -> bool {
-    cfg!(feature = "real-ai")
+    true
 }
 
 /// Owned copy of the decision-time state, shaped for a future poker-ai adapter.
@@ -41,6 +38,21 @@ pub struct BridgeInput {
     pub legal: LegalActions,
     pub variant: Variant,
     pub player_count: usize,
+    /// Seats at the table (including folded/busted seats).
+    pub players: Vec<Player>,
+    pub current_bet: u64,
+    pub dealer_pos: i32,
+    pub sb_idx: i32,
+    pub bb_idx: i32,
+    pub actions_this_round: u32,
+    pub preflop_raise_count: u32,
+    pub last_aggressor: i32,
+    pub last_aggressor_street: Option<Phase>,
+    pub preflop_aggressor: i32,
+    pub flop_had_aggression: bool,
+    pub starting_stack: u64,
+    /// Big blind, or the short-deck minimum bet.
+    pub big_blind: u64,
 }
 
 impl BridgeInput {
@@ -59,6 +71,19 @@ impl BridgeInput {
             legal: view.legal.clone(),
             variant: view.variant,
             player_count: view.players.len(),
+            players: view.players.to_vec(),
+            current_bet: view.current_bet,
+            dealer_pos: view.dealer_pos,
+            sb_idx: view.sb_idx,
+            bb_idx: view.bb_idx,
+            actions_this_round: view.actions_this_round,
+            preflop_raise_count: view.preflop_raise_count,
+            last_aggressor: view.last_aggressor,
+            last_aggressor_street: view.last_aggressor_street,
+            preflop_aggressor: view.preflop_aggressor,
+            flop_had_aggression: view.flop_had_aggression,
+            starting_stack: view.starting_stack,
+            big_blind: view.big_blind,
         }
     }
 }
@@ -139,17 +164,245 @@ fn is_legal(action: Action, legal: &LegalActions) -> bool {
     true
 }
 
-/// Policy factory used by TableSession. Enables the real backend when the
-/// feature is compiled in and an adapter exists; otherwise deterministic.
-#[must_use]
-pub fn create_policy(seed: &str, short_deck: bool) -> Box<dyn AiPolicy> {
-    let _ = (seed, short_deck);
-    if real_ai_feature_enabled() {
-        log::warn!(
-            "real-ai feature enabled but the poker-ai adapter is not wired yet (Phase 4 in progress); using the deterministic fallback"
-        );
+/// Production backend: one poker-ai AIPlayer per seat, built lazily.
+pub struct PokerAiBackendImpl {
+    short_deck: bool,
+    starting_stack: u64,
+    brains: HashMap<usize, poker_ai::AIPlayer>,
+}
+
+impl PokerAiBackendImpl {
+    /// Creates the backend for a standard or short-deck table.
+    #[must_use]
+    pub fn new(short_deck: bool, starting_stack: u64) -> Self {
+        Self {
+            short_deck,
+            starting_stack,
+            brains: HashMap::new(),
+        }
     }
-    Box::new(PokerAiBridge::without_backend())
+
+    fn brain(&mut self, seat: usize) -> &mut poker_ai::AIPlayer {
+        let short_deck = self.short_deck;
+        let starting_stack = self.starting_stack;
+        self.brains.entry(seat).or_insert_with(|| {
+            let variant = if short_deck { Variant::ShortDeck } else { Variant::Standard };
+            let source = if short_deck {
+                poker_ai::ProfileSource::ShortDeckLocalStyle
+            } else {
+                poker_ai::ProfileSource::StandardStyle
+            };
+            let styles = poker_ai::Style::ALL;
+            let style = styles[seat % styles.len()];
+            poker_ai::AIPlayer::new(
+                &format!("AI{seat}"),
+                style,
+                starting_stack as f64,
+                seat,
+                variant,
+                source,
+            )
+        })
+    }
+}
+
+impl PokerAiBackend for PokerAiBackendImpl {
+    fn name(&self) -> &str {
+        "poker-ai v1.5.8 port"
+    }
+
+    fn decide(&mut self, input: &BridgeInput) -> Option<Action> {
+        let brain = self.brain(input.seat);
+        brain.set_hole_cards(&input.hole_cards);
+        let context = build_raw_context(input).normalize();
+        let decision = brain.decide(&context);
+        Some(match decision.action {
+            ActionType::Fold => Action::Fold,
+            ActionType::Check => Action::Check,
+            ActionType::Call => Action::Call,
+            ActionType::Raise => {
+                if decision.amount == 0 {
+                    Action::Call
+                } else {
+                    Action::Raise { to: decision.amount }
+                }
+            }
+            ActionType::AllIn => Action::AllIn,
+        })
+    }
+}
+
+fn poker_ai_legal_action(action: ActionType) -> poker_ai::input::LegalAction {
+    match action {
+        ActionType::Fold => poker_ai::input::LegalAction::Fold,
+        ActionType::Check => poker_ai::input::LegalAction::Check,
+        ActionType::Call => poker_ai::input::LegalAction::Call,
+        ActionType::Raise => poker_ai::input::LegalAction::Raise,
+        ActionType::AllIn => poker_ai::input::LegalAction::AllIn,
+    }
+}
+
+fn street(phase: Phase) -> Option<poker_ai::input::Street> {
+    match phase {
+        Phase::Preflop => Some(poker_ai::input::Street::Preflop),
+        Phase::Flop => Some(poker_ai::input::Street::Flop),
+        Phase::Turn => Some(poker_ai::input::Street::Turn),
+        Phase::River => Some(poker_ai::input::Street::River),
+        Phase::Idle | Phase::Showdown => None,
+    }
+}
+
+fn position_from_button(input: &BridgeInput, seat: usize) -> Option<i32> {
+    let n = input.players.len() as i32;
+    if n == 0 || input.dealer_pos < 0 {
+        return None;
+    }
+    let mut seats: Vec<usize> = input
+        .players
+        .iter()
+        .enumerate()
+        .filter(|(_, player)| player.dealt_in)
+        .map(|(index, _)| index)
+        .collect();
+    seats.sort_by_key(|candidate| (*candidate as i32 - input.dealer_pos + n) % n);
+    seats
+        .iter()
+        .position(|candidate| *candidate == seat)
+        .map(|index| i32::try_from(index).unwrap_or(0))
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_raw_context(input: &BridgeInput) -> poker_ai::input::RawDecisionContext {
+    use poker_ai::input::{PublicPlayer, RawDecisionContext, RawLegalActions, SeatRef};
+
+    let seat = input.seat;
+    let own_round_bet = input.players.get(seat).map_or(0, |player| player.round_bet);
+    let in_hand: Vec<usize> = input
+        .players
+        .iter()
+        .enumerate()
+        .filter(|(_, player)| !player.folded && player.dealt_in)
+        .map(|(index, _)| index)
+        .collect();
+    let opponents: Vec<usize> = in_hand
+        .iter()
+        .copied()
+        .filter(|candidate| *candidate != seat)
+        .collect();
+    let num_opponents = opponents.len();
+    let effective_stack = opponents
+        .iter()
+        .map(|candidate| {
+            input.players[*candidate]
+                .stack
+                .saturating_add(input.players[*candidate].round_bet)
+        })
+        .max()
+        .map_or(input.stack, |max_opponent| input.stack.min(max_opponent));
+    let previous_street = match input.phase {
+        Phase::Flop => Some(Phase::Preflop),
+        Phase::Turn => Some(Phase::Flop),
+        Phase::River => Some(Phase::Turn),
+        _ => None,
+    };
+    let is_previous_street_aggressor = input.last_aggressor == i32::try_from(seat).unwrap_or(-1)
+        && input.last_aggressor_street.is_some()
+        && input.last_aggressor_street == previous_street;
+    let is_delayed_cbet_candidate = input.phase == Phase::Turn
+        && input.preflop_aggressor == i32::try_from(seat).unwrap_or(-1)
+        && !input.flop_had_aggression;
+    let public_players: Vec<PublicPlayer> = input
+        .players
+        .iter()
+        .enumerate()
+        .map(|(index, player)| PublicPlayer {
+            seat: index,
+            stack: player.stack as f64,
+            committed: player.chips_in_pot as f64,
+            round_bet: player.round_bet as f64,
+            position_from_button: position_from_button(input, index),
+            is_small_blind: input.sb_idx == i32::try_from(index).unwrap_or(-1),
+            is_big_blind: input.bb_idx == i32::try_from(index).unwrap_or(-1),
+            folded: player.folded,
+            all_in: player.is_all_in,
+        })
+        .collect();
+    let active_opponents: Vec<SeatRef> = opponents
+        .iter()
+        .map(|candidate| SeatRef::Number(*candidate))
+        .collect();
+    let variant_name = if input.variant.is_short_deck() { "shortdeck" } else { "standard" };
+    RawDecisionContext {
+        hand_id: input.hand_id,
+        decision_id: poker_engine::rules::decision_identity(
+            input.variant,
+            input.phase.as_str(),
+            input.actions_this_round,
+            seat,
+        ),
+        seed: Some(format!("poker-table:{variant_name}")),
+        variant: Some(variant_name.to_owned()),
+        is_short_deck: input.variant.is_short_deck(),
+        street: street(input.phase),
+        phase: Some(input.phase.as_str().to_owned()),
+        hero_seat: Some(seat),
+        current_player_index: Some(seat),
+        hole_cards: input.hole_cards.clone(),
+        community_cards: input.community_cards.clone(),
+        pot: input.pot as f64,
+        current_bet: input.current_bet as f64,
+        to_call: Some(input.to_call as f64),
+        your_bet: Some(own_round_bet as f64),
+        hero_round_bet: Some(own_round_bet as f64),
+        stack: Some(input.stack as f64),
+        hero_stack: Some(input.stack as f64),
+        effective_stack: Some(effective_stack as f64),
+        min_raise_to: Some(input.legal.min_raise_to as f64),
+        max_raise_to: Some(input.legal.max_raise_to as f64),
+        can_raise: Some(input.legal.can_raise),
+        can_check: Some(input.legal.contains(ActionType::Check)),
+        legal_actions: Some(RawLegalActions::List(
+            input
+                .legal
+                .actions
+                .iter()
+                .copied()
+                .map(poker_ai_legal_action)
+                .collect(),
+        )),
+        active_opponent_seats: active_opponents,
+        num_opponents: Some(num_opponents),
+        num_opponents_active: Some(num_opponents),
+        player_count: Some(in_hand.len().max(2)),
+        table_player_count: Some(input.player_count),
+        starting_stack: Some(input.starting_stack as f64),
+        position_from_button: position_from_button(input, seat),
+        is_small_blind: input.sb_idx == i32::try_from(seat).unwrap_or(-1),
+        is_big_blind: input.bb_idx == i32::try_from(seat).unwrap_or(-1),
+        preflop_raise_count: Some(input.preflop_raise_count),
+        is_previous_street_aggressor,
+        is_delayed_cbet_candidate,
+        big_blind: Some(input.big_blind as f64),
+        wager_unit: Some(input.legal.wager_unit as f64),
+        time_budget_ms: Some(if input.phase == Phase::River || num_opponents >= 4 {
+            150.0
+        } else {
+            80.0
+        }),
+        public_players,
+        ..RawDecisionContext::default()
+    }
+}
+
+/// Policy factory used by TableSession: the real poker-ai backend for both
+/// variants, with the deterministic policy as an illegal-action safety net.
+#[must_use]
+pub fn create_policy(seed: &str, short_deck: bool, starting_stack: u64) -> Box<dyn AiPolicy> {
+    let _ = seed;
+    Box::new(PokerAiBridge::with_backend(Box::new(PokerAiBackendImpl::new(
+        short_deck,
+        starting_stack,
+    ))))
 }
 
 #[cfg(test)]
@@ -194,6 +447,18 @@ mod tests {
             legal,
             variant: Variant::Standard,
             players,
+            current_bet: 100,
+            dealer_pos: 0,
+            sb_idx: 1,
+            bb_idx: 2,
+            actions_this_round: 2,
+            preflop_raise_count: 1,
+            last_aggressor: 2,
+            last_aggressor_street: Some(Phase::Preflop),
+            preflop_aggressor: 2,
+            flop_had_aggression: false,
+            starting_stack: 5_000,
+            big_blind: 100,
         }
     }
 
@@ -216,8 +481,8 @@ mod tests {
     }
 
     #[test]
-    fn feature_is_disabled_by_default() {
-        assert!(!real_ai_feature_enabled());
+    fn real_backend_is_compiled_in() {
+        assert!(real_ai_feature_enabled());
     }
 
     #[test]
@@ -293,7 +558,7 @@ mod tests {
             .collect();
         let legal = legal();
         let players = players();
-        let mut policy = create_policy("seed", false);
+        let mut policy = create_policy("seed", false, 5_000);
         let action = policy.decide(&view(&hole, &board, &legal, &players));
         assert!(legal.contains(action.action_type()));
         let _ = crate::ai::fallback_action(&legal);
