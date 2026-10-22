@@ -186,7 +186,11 @@ impl PokerAiBackendImpl {
         let short_deck = self.short_deck;
         let starting_stack = self.starting_stack;
         self.brains.entry(seat).or_insert_with(|| {
-            let variant = if short_deck { Variant::ShortDeck } else { Variant::Standard };
+            let variant = if short_deck {
+                Variant::ShortDeck
+            } else {
+                Variant::Standard
+            };
             let source = if short_deck {
                 poker_ai::ProfileSource::ShortDeckLocalStyle
             } else {
@@ -224,7 +228,9 @@ impl PokerAiBackend for PokerAiBackendImpl {
                 if decision.amount == 0 {
                     Action::Call
                 } else {
-                    Action::Raise { to: decision.amount }
+                    Action::Raise {
+                        to: decision.amount,
+                    }
                 }
             }
             ActionType::AllIn => Action::AllIn,
@@ -331,7 +337,11 @@ fn build_raw_context(input: &BridgeInput) -> poker_ai::input::RawDecisionContext
         .iter()
         .map(|candidate| SeatRef::Number(*candidate))
         .collect();
-    let variant_name = if input.variant.is_short_deck() { "shortdeck" } else { "standard" };
+    let variant_name = if input.variant.is_short_deck() {
+        "shortdeck"
+    } else {
+        "standard"
+    };
     RawDecisionContext {
         hand_id: input.hand_id,
         decision_id: poker_engine::rules::decision_identity(
@@ -399,10 +409,9 @@ fn build_raw_context(input: &BridgeInput) -> poker_ai::input::RawDecisionContext
 #[must_use]
 pub fn create_policy(seed: &str, short_deck: bool, starting_stack: u64) -> Box<dyn AiPolicy> {
     let _ = seed;
-    Box::new(PokerAiBridge::with_backend(Box::new(PokerAiBackendImpl::new(
-        short_deck,
-        starting_stack,
-    ))))
+    Box::new(PokerAiBridge::with_backend(Box::new(
+        PokerAiBackendImpl::new(short_deck, starting_stack),
+    )))
 }
 
 #[cfg(test)]
