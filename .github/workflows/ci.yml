@@ -6,12 +6,15 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
-  test:
+  fmt-clippy-test:
     strategy:
       fail-fast: false
       matrix:
+        # Windows is the target platform for the product; Linux is the
+        # development/automation platform used by the Rust rewrite.
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
@@ -23,3 +26,30 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+
+  golden-oracle:
+    # Re-generates every golden corpus from the pinned reference JS project and
+    # fails when the committed corpus differs (determinism + provenance check).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check out reference JS project at the pinned commit
+        run: |
+          mkdir -p reference
+          git clone https://github.com/zdjmrq/texas-holdem-game.git reference/texas-holdem-game
+          cd reference/texas-holdem-game
+          git checkout e0c6c6f88d3e64324e1d83bfc700dd3a77f71b90
+          npm ci --omit=dev
+      - name: Regenerate golden corpora
+        run: |
+          node oracle/golden-eval.js
+          node oracle/golden-engine.js
+          node oracle/golden-equity.js
+          node oracle/golden-ai.js
+          node oracle/golden-protocol.js
+      - name: Fail on any corpus drift
+        run: git diff --exit-code -- tests/golden
