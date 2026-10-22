@@ -1,55 +1,73 @@
-//! Command line options for the spike binary.
-//!
-//! Hand-rolled parsing on purpose: the spike should not pull in clap before the real app
-//! architecture (and its CLI surface) is decided.
+//! Command line options for the desktop app.
 
 use std::path::PathBuf;
 
-/// How the spike provides CJK glyphs.
+/// Deterministic demo scenario used by screenshot automation and manual smoke tests.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FontMode {
-    /// Use eframe's on-demand system font fallback (fontique: DirectWrite / fontconfig).
-    SystemFallback,
-    /// Explicitly load a known system CJK font file (handles TTC face indices).
-    ExplicitSystem,
-    /// Load a font file from assets/fonts/ (the packaged-font path used by the release build).
-    Bundled,
+pub enum Scenario {
+    /// Home screen with the default settings.
+    Home,
+    /// Table screen, pre-flop, waiting for the human (or AI) to act.
+    Table,
+    /// Table screen after the flop has been dealt.
+    TableFlop,
+    /// Table screen for the 6+ short-deck variant.
+    TableShortDeck,
+    /// Table screen with the settlement dialog of a finished hand.
+    Settlement,
+    /// Settings screen.
+    Settings,
 }
 
-impl FontMode {
+impl Scenario {
     pub fn parse(value: &str) -> Option<Self> {
         match value {
-            "system-fallback" | "system" | "fallback" => Some(Self::SystemFallback),
-            "explicit" | "explicit-system" | "system-file" => Some(Self::ExplicitSystem),
-            "bundled" | "bundle" => Some(Self::Bundled),
+            "home" => Some(Self::Home),
+            "table" | "preflop" => Some(Self::Table),
+            "table-flop" | "flop" => Some(Self::TableFlop),
+            "table-shortdeck" | "shortdeck" => Some(Self::TableShortDeck),
+            "settlement" | "result" => Some(Self::Settlement),
+            "settings" => Some(Self::Settings),
             _ => None,
         }
     }
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::SystemFallback => "system-fallback",
-            Self::ExplicitSystem => "explicit-system",
-            Self::Bundled => "bundled",
+            Self::Home => "home",
+            Self::Table => "table",
+            Self::TableFlop => "table-flop",
+            Self::TableShortDeck => "table-shortdeck",
+            Self::Settlement => "settlement",
+            Self::Settings => "settings",
         }
     }
 }
 
-/// Parsed command line for the Phase 0 spike.
+/// Parsed command line.
 #[derive(Debug, Clone)]
 pub struct CliOptions {
-    /// Save a PNG screenshot of the window to this path and exit.
+    /// Render a few frames, save a PNG and exit.
     pub screenshot: Option<PathBuf>,
-    /// Frame index at which the screenshot is requested (default: 30, about 0.5 s at 60 fps).
+    /// Frame index at which the screenshot is requested.
     pub screenshot_frame: u64,
-    pub font_mode: FontMode,
-    /// Start with an undecorated window and the custom title bar.
+    /// Start with an undecorated window (custom title bar).
     pub frameless: bool,
-    /// Start playing the embedded background track on launch.
-    pub auto_play: bool,
-    /// Headless: decode the embedded mp3 and list audio devices, then exit.
+    /// Low-memory mode placeholder (Phase 7 will reduce animations / preloads).
+    pub low_memory: bool,
+    /// Do not initialise audio at all.
+    pub no_audio: bool,
+    /// Jump directly into a deterministic demo scenario.
+    pub scenario: Option<Scenario>,
+    /// Start with the human hole cards hidden (screenshot / smoke testing).
+    pub hide_cards: bool,
+    /// Open the raise panel once the human is to act (screenshot / smoke testing).
+    pub open_raise: bool,
+    /// Seed for the deterministic demo scenario.
+    pub seed: Option<String>,
+    /// Headless: decode the bundled mp3 and print audio device info, then exit.
     pub audio_probe: bool,
-    /// Headless: play the embedded mp3 for N seconds on the default device, then exit.
+    /// Headless: play the bundled mp3 for N seconds on the default device, then exit.
     pub audio_play_secs: Option<f32>,
     pub help: bool,
 }
@@ -58,10 +76,14 @@ impl Default for CliOptions {
     fn default() -> Self {
         Self {
             screenshot: None,
-            screenshot_frame: 30,
-            font_mode: FontMode::SystemFallback,
+            screenshot_frame: 60,
             frameless: false,
-            auto_play: false,
+            low_memory: false,
+            no_audio: false,
+            scenario: None,
+            hide_cards: false,
+            open_raise: false,
+            seed: None,
             audio_probe: false,
             audio_play_secs: None,
             help: false,
@@ -70,21 +92,32 @@ impl Default for CliOptions {
 }
 
 impl CliOptions {
+    /// The seed used by deterministic scenarios.
+    pub fn scenario_seed(&self) -> String {
+        self.seed
+            .clone()
+            .unwrap_or_else(|| "poker-app-demo".to_owned())
+    }
+
     pub fn usage() -> &'static str {
         "\
-poker-app - Phase 0 egui risk spike
+poker-app - Texas Hold'em desktop app (egui/eframe)
 
 USAGE:
     poker-app [OPTIONS]
 
 OPTIONS:
-    --screenshot <PATH>       Render a few frames, save a PNG, then exit
-    --screenshot-frame <N>    Frame index used for the screenshot (default: 30)
-    --font-mode <MODE>        system-fallback | explicit | bundled   (default: system-fallback)
-    --frameless               Undecorated window + custom title bar / edge resize
-    --auto-play               Start the embedded 01.mp3 on launch
-    --audio-test              Headless: decode mp3 + print audio device info, then exit
-    --audio-play [SECONDS]    Headless: play the embedded mp3 for N seconds (default: 2)
+    --screenshot <PATH>       Render frames, save a PNG and exit (screenshot mode)
+    --screenshot-frame <N>    Frame index used for the screenshot (default: 60)
+    --scenario <NAME>         Deterministic demo state: home | table | table-flop | table-shortdeck | settlement | settings
+    --seed <SEED>             Deck/AI seed for deterministic scenarios (default: poker-app-demo)
+    --hide-cards              Start with the human hole cards hidden
+    --open-raise              Open the raise panel once it is the human's turn
+    --frameless               Start with the custom title bar (undecorated window)
+    --low-memory              Low-memory mode placeholder (Phase 7)
+    --no-audio                Do not initialise audio
+    --audio-test              Headless: decode mp3 + audio device info, then exit
+    --audio-play [SECONDS]    Headless: play the bundled mp3 for N seconds (default: 2)
     -h, --help                Print this help"
     }
 
@@ -104,21 +137,22 @@ OPTIONS:
                         .and_then(|value| value.parse().ok())
                         .unwrap_or(options.screenshot_frame);
                 }
-                "--font-mode" => {
+                "--scenario" => {
                     if let Some(value) = args.next() {
-                        match FontMode::parse(&value) {
-                            Some(mode) => options.font_mode = mode,
-                            None => eprintln!(
-                                "[poker-app] unknown --font-mode {value:?}, keeping default"
-                            ),
+                        match Scenario::parse(&value) {
+                            Some(scenario) => options.scenario = Some(scenario),
+                            None => eprintln!("[poker-app] unknown --scenario {value:?}"),
                         }
                     }
                 }
+                "--seed" => options.seed = args.next(),
+                "--hide-cards" => options.hide_cards = true,
+                "--open-raise" => options.open_raise = true,
                 "--frameless" => options.frameless = true,
-                "--auto-play" => options.auto_play = true,
+                "--low-memory" => options.low_memory = true,
+                "--no-audio" => options.no_audio = true,
                 "--audio-test" => options.audio_probe = true,
                 "--audio-play" => {
-                    // The duration is optional: "--audio-play 3" or plain "--audio-play".
                     let requested = args.peek().and_then(|value| value.parse::<f32>().ok());
                     match requested {
                         Some(seconds) => {
@@ -132,11 +166,13 @@ OPTIONS:
                 other => {
                     if let Some(value) = other.strip_prefix("--screenshot=") {
                         options.screenshot = Some(PathBuf::from(value));
-                    } else if let Some(value) = other.strip_prefix("--font-mode=") {
-                        match FontMode::parse(value) {
-                            Some(mode) => options.font_mode = mode,
-                            None => eprintln!("[poker-app] unknown --font-mode {value:?}"),
+                    } else if let Some(value) = other.strip_prefix("--scenario=") {
+                        match Scenario::parse(value) {
+                            Some(scenario) => options.scenario = Some(scenario),
+                            None => eprintln!("[poker-app] unknown --scenario {value:?}"),
                         }
+                    } else if let Some(value) = other.strip_prefix("--seed=") {
+                        options.seed = Some(value.to_owned());
                     } else if let Some(value) = other.strip_prefix("--screenshot-frame=") {
                         options.screenshot_frame =
                             value.parse().unwrap_or(options.screenshot_frame);

@@ -1,424 +1,1096 @@
-//! The Phase 0 spike window.
-//!
-//! This is deliberately a single, loud window: every risky egui capability the Windows port
-//! depends on gets a visible section (fonts, IME events, animation, audio, window controls,
-//! platform shell) so a Windows tester can confirm or reject the stack in under a minute.
+//! Root application: screen routing, settings, audio, analysis, table session
+//! and the egui UI for every screen (home / table / settings / online placeholder).
 
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use eframe::egui;
+use eframe::egui::{self, Color32, RichText};
+use poker_engine::{Action, ActionType, Phase};
 
-use crate::audio::{self, AudioEngine, DecodeProbe};
-use crate::cli::CliOptions;
-use crate::fonts::{self, FontInstallReport};
+use crate::ai::DeterministicAi;
+use crate::analysis::{AnalysisService, AnalysisSummary, analysis_key};
+use crate::assets;
+use crate::audio::AudioManager;
+use crate::cli::{CliOptions, Scenario};
+use crate::fonts;
 use crate::platform::{PlatformShell, ShellEvent};
 use crate::screenshot::ScreenshotState;
-use crate::shell;
+use crate::session::{TableConfig, TableSession, advance_ai_steps, autoplay_hand};
+use crate::settings::{
+    AI_DELAYS_MS, MAX_PLAYERS, PlayMode, SHORT_DECK_ANTES, STACKS, STANDARD_BLINDS, Settings,
+    VariantSetting,
+};
+use crate::table_ctrl::{self, AnalysisMask, RaisePanel, TableCommand};
+use crate::ui::table::{self, SeatView, TableSnapshot, TableUiAction};
 
-/// Runtime state of the spike application.
-pub struct SpikeApp {
-    cli: CliOptions,
-    icon: Option<egui::IconData>,
-    font_report: FontInstallReport,
-    audio_probe: Result<DecodeProbe, String>,
-    audio: Option<AudioEngine>,
-    audio_error: Option<String>,
-    audio_playing: bool,
-    input_text: String,
-    ime_events: Vec<String>,
-    platform: PlatformShell,
-    screenshot: Option<ScreenshotState>,
-    frame_index: u64,
-    first_frame_time: Option<f64>,
-    attention_until: Option<f64>,
-    status: String,
+/// Top-level screens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Screen {
+    Home,
+    Table,
+    Settings,
+    Online,
 }
 
-impl SpikeApp {
+/// The application.
+pub struct PokerApp {
+    cli: CliOptions,
+    settings: Settings,
+    last_saved_settings: Settings,
+    screen: Screen,
+    session: Option<TableSession>,
+    analysis: AnalysisService,
+    current_analysis: Option<Arc<AnalysisSummary>>,
+    analysis_key_value: Option<u64>,
+    audio: AudioManager,
+    platform: PlatformShell,
+    font_report: fonts::FontReport,
+    screenshot: Option<ScreenshotState>,
+    raise_panel: RaisePanel,
+    frame_index: u64,
+    last_prompt_turn: Option<(u64, u64)>,
+    last_settled_hand: Option<u64>,
+    attention_until: Option<f64>,
+    hint: Option<String>,
+    open_raise_requested: bool,
+}
+
+impl PokerApp {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         cli: CliOptions,
+        mut settings: Settings,
+        warning: Option<String>,
         icon: Option<egui::IconData>,
     ) -> Self {
+        let _ = &icon;
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
-
-        let font_report = fonts::install(&cc.egui_ctx, cli.font_mode);
+        cc.egui_ctx.all_styles_mut(|style| {
+            style.spacing.item_spacing = egui::vec2(8.0, 6.0);
+            style.spacing.button_padding = egui::vec2(10.0, 5.0);
+        });
+        let font_report = fonts::install(&cc.egui_ctx);
         println!("[poker-app] {}", font_report.summary());
-        println!(
-            "[poker-app] desktop env: DISPLAY={:?} WAYLAND_DISPLAY={:?}",
-            std::env::var("DISPLAY").ok(),
-            std::env::var("WAYLAND_DISPLAY").ok()
-        );
+        println!("[poker-app] music tracks: {}", assets::music_tracks().len());
 
-        let audio_probe = audio::decode_probe(3.0);
-        match &audio_probe {
-            Ok(probe) => println!("[poker-app] mp3 decode probe: OK {}", probe.summary()),
-            Err(error) => eprintln!("[poker-app] mp3 decode probe: FAILED {error}"),
+        if cli.frameless {
+            settings.custom_titlebar = true;
         }
-
-        let (audio, audio_error) = match AudioEngine::open() {
-            Ok(engine) => {
-                println!("[poker-app] audio device: {}", engine.device_summary());
-                (Some(engine), None)
-            }
-            Err(error) => {
-                eprintln!("[poker-app] audio device unavailable: {error}");
-                (None, Some(error))
-            }
-        };
-
         let platform = PlatformShell::init(icon.as_ref());
         println!("[poker-app] platform: {}", platform.description());
-
         let screenshot = cli
             .screenshot
             .clone()
             .map(|path| ScreenshotState::new(path, cli.screenshot_frame));
-
+        let audio = AudioManager::new(cli.no_audio);
+        let open_raise_requested = cli.open_raise;
+        let last_saved_settings = settings.clone();
         let mut app = Self {
             cli,
-            icon,
-            font_report,
-            audio_probe,
+            settings,
+            last_saved_settings,
+            screen: Screen::Home,
+            session: None,
+            analysis: AnalysisService::new(),
+            current_analysis: None,
+            analysis_key_value: None,
             audio,
-            audio_error,
-            audio_playing: false,
-            input_text: "德州扑克全下 All-in：♠A ♥K ♣Q ♦J".to_owned(),
-            ime_events: Vec::new(),
             platform,
+            font_report,
             screenshot,
+            raise_panel: RaisePanel::default(),
             frame_index: 0,
-            first_frame_time: None,
+            last_prompt_turn: None,
+            last_settled_hand: None,
             attention_until: None,
-            status: "启动完成".to_owned(),
+            hint: warning,
+            open_raise_requested,
         };
-        if app.cli.auto_play {
-            app.start_music();
+        app.sync_audio_settings();
+        app.setup_scenario();
+        if app.cli.hide_cards {
+            app.settings.hide_hole_cards = true;
         }
         app
     }
 
-    fn content(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        ui.add_space(4.0);
-        ui.heading("德州扑克 Rust 重制版 — egui Phase 0 风险 Spike");
-        ui.label("验证目标：中文字体渲染 · 中文 IME · 60fps 动画 · mp3 播放 · 无边框/托盘/任务栏闪烁方案");
-        ui.horizontal_wrapped(|ui| {
-            ui.label(
-                egui::RichText::new(
-                    "牌面符号 ♠ ♥ ♣ ♦ ｜ 动作 弃牌 过牌 跟注 加注 全下 ｜ 模式 标准德州 / 短牌",
-                )
-                .size(15.0),
-            );
-        });
-        ui.separator();
-
-        self.runtime_section(ui, ctx);
-        ui.separator();
-        self.font_section(ui);
-        self.ime_section(ui, ctx);
-        ui.separator();
-        self.animation_section(ui, ctx);
-        ui.separator();
-        self.audio_section(ui);
-        ui.separator();
-        self.window_section(ui, ctx, frame);
-        ui.separator();
-        self.platform_section(ui, ctx);
-        ui.separator();
-
-        ui.horizontal_wrapped(|ui| {
-            ui.label(egui::RichText::new(format!("状态：{}", self.status)).weak());
-            ui.label(
-                egui::RichText::new("｜ 详细结论与 Windows 待测清单：docs/spikes/egui-spike.md")
-                    .weak(),
-            );
-        });
-        ui.add_space(6.0);
-    }
-
-    fn runtime_section(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.heading("运行环境");
-        let content = ctx.content_rect();
-        let native_ppp = ctx.input(|input| input.viewport().native_pixels_per_point);
-        let maximized = ctx.input(|input| input.viewport().maximized);
-        let focused = ctx.input(|input| input.viewport().focused);
-        let elapsed = self
-            .first_frame_time
-            .map(|start| ctx.input(|input| input.time) - start)
-            .unwrap_or(0.0);
-        egui::Grid::new("spike_runtime_grid")
-            .num_columns(2)
-            .striped(true)
-            .show(ui, |ui| {
-                ui.label("窗口内容尺寸");
-                ui.label(format!(
-                    "{:.0} x {:.0} pt",
-                    content.width(),
-                    content.height()
-                ));
-                ui.end_row();
-                ui.label("pixels_per_point");
-                ui.label(format!("{:.2}", ctx.pixels_per_point()));
-                ui.end_row();
-                ui.label("native_pixels_per_point");
-                ui.label(format!("{native_ppp:?}"));
-                ui.end_row();
-                ui.label("maximized / focused");
-                ui.label(format!("{maximized:?} / {focused:?}"));
-                ui.end_row();
-                ui.label("帧计数 / 运行时间");
-                ui.label(format!("{} / {elapsed:.1}s", self.frame_index));
-                ui.end_row();
-                ui.label("窗口边框");
-                ui.label(if self.cli.frameless {
-                    "无边框（自定义标题栏 + BeginResize）"
-                } else {
-                    "系统边框（可通过下方按钮切换）"
-                });
-                ui.end_row();
-            });
-    }
-
-    fn font_section(&mut self, ui: &mut egui::Ui) {
-        ui.heading("中文字体");
-        ui.label(format!(
-            "字体方案：{}（mode={}）",
-            self.font_report.mode.label(),
-            self.font_report.installed
-        ));
-        ui.label(&self.font_report.description);
-        if let Some(path) = &self.font_report.path {
-            ui.label(format!(
-                "字体文件：{}（{} 字节）",
-                path.display(),
-                self.font_report.font_bytes
-            ));
-        }
-        ui.label(
-            "字形检查：德州扑克 · 皇家同花顺 · 底池 · 边池 · 全下 · 庄家 · 盲注 · 汉字 龘 龖 犇",
-        );
-        ui.label("若以上出现方块/豆腐块，说明所选字体策略在该机器上不可用。");
-    }
-
-    fn ime_section(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.heading("中文输入法（IME）");
-        ui.label(
-            "在 Windows 上切换到微软拼音，点击输入框输入中文；下方会显示 egui 收到的 IME 事件。",
-        );
-        ui.add(
-            egui::TextEdit::singleline(&mut self.input_text)
-                .desired_width(f32::INFINITY)
-                .hint_text("点击这里输入中文…"),
-        );
-        ui.horizontal(|ui| {
-            let focused = ctx.input(|input| input.viewport().focused);
-            ui.label(format!("窗口焦点：{focused:?}"));
-            if ui.button("清空 IME 事件").clicked() {
-                self.ime_events.clear();
-            }
-        });
-        if self.ime_events.is_empty() {
-            ui.label("（尚未捕获 IME 事件；Linux/WSLg 没有系统输入法，需要在 Windows 上实测）");
-        } else {
-            for event in self.ime_events.iter().rev().take(6) {
-                ui.monospace(event);
-            }
-        }
-    }
-
-    fn animation_section(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.heading("动画 / 帧率");
-        let time = ctx.input(|input| input.time);
-        let progress = (0.5 + 0.5 * (time * 1.2).sin()) as f32;
-        ui.add(
-            egui::ProgressBar::new(progress)
-                .show_percentage()
-                .animate(true),
-        );
-        ui.horizontal(|ui| {
-            ui.spinner();
-            let elapsed = self
-                .first_frame_time
-                .map(|start| time - start)
-                .unwrap_or(0.0);
-            ui.label(format!(
-                "动画运行中：第 {} 帧，已运行 {:.1}s（每帧 request_repaint_after(16ms)）",
-                self.frame_index, elapsed
-            ));
-        });
-        ui.label(
-            "Windows 验收时应观察：进度条是否平滑、窗口拖动/缩放时是否掉帧、启动后是否持续重绘。",
-        );
-    }
-
-    fn audio_section(&mut self, ui: &mut egui::Ui) {
-        ui.heading("音频（rodio 0.23 + symphonia mp3）");
-        match &self.audio_probe {
-            Ok(probe) => {
-                ui.label(format!("内置 01.mp3 解码探针：{}", probe.summary()));
-            }
-            Err(error) => {
-                ui.colored_label(egui::Color32::RED, format!("内置 mp3 解码失败：{error}"));
-            }
-        }
-        match (&self.audio, &self.audio_error) {
-            (Some(engine), _) => {
-                ui.label(format!("音频设备：{}", engine.device_summary()));
-            }
-            (None, Some(error)) => {
-                ui.colored_label(egui::Color32::RED, format!("音频设备不可用：{error}"));
-            }
-            (None, None) => {}
-        }
-        ui.horizontal(|ui| {
-            let label = if self.audio_playing {
-                "暂停背景音乐 01.mp3"
-            } else {
-                "播放背景音乐 01.mp3"
-            };
-            if ui.button(label).clicked() {
-                self.toggle_music();
-            }
-            if ui.button("停止").clicked() {
-                if let Some(engine) = self.audio.as_mut() {
-                    engine.stop();
-                }
-                self.audio_playing = false;
-                self.status = "背景音乐已停止".to_owned();
-            }
-            ui.label(if self.audio_playing {
-                "状态：播放中（循环）"
-            } else {
-                "状态：未播放"
-            });
-        });
-    }
-
-    fn window_section(
-        &mut self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        _frame: &mut eframe::Frame,
-    ) {
-        ui.heading("窗口 / 无边框 / 任务栏提醒");
-        ui.horizontal_wrapped(|ui| {
-            if ui.button("最小化").clicked() {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-            }
-            if ui.button("最大化 / 还原").clicked() {
-                let maximized = ctx.input(|input| input.viewport().maximized.unwrap_or(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
-            }
-            if ui.button("切换系统边框").clicked() {
-                self.cli.frameless = !self.cli.frameless;
-                ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(!self.cli.frameless));
-                self.status = if self.cli.frameless {
-                    "已切换为无边框窗口（自定义标题栏生效）".to_owned()
-                } else {
-                    "已切换为系统边框窗口".to_owned()
-                };
-            }
-            if ui.button("任务栏闪烁 / 请求注意").clicked() {
-                self.trigger_attention(ctx);
-            }
-            if ui.button("停止闪烁").clicked() {
-                shell::clear_attention(ctx);
-                self.attention_until = None;
-                self.platform.set_alert_icon(false);
-                self.status = "已清除任务栏闪烁请求".to_owned();
-            }
-            if ui.button("关闭窗口").clicked() {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            }
-        });
-        ui.label(
-            "Windows 实现：egui ViewportCommand::RequestUserAttention(Critical/Reset) -> winit ->              FlashWindowEx(FLASHW_ALL | FLASHW_TIMERNOFG)；回到前台自动停止，Reset 可提前停止。",
-        );
-        if let Some(until) = self.attention_until {
-            let remaining = (until - ctx.input(|input| input.time)).max(0.0);
-            ui.label(format!("闪烁请求剩余 {remaining:.1}s（到时自动 Reset）"));
-        }
-    }
-
-    fn platform_section(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
-        ui.heading("平台壳 / 托盘");
-        ui.label(self.platform.description());
-        let icon_state = if self.icon.is_some() {
-            "窗口图标：已从内嵌 32x32 PNG 加载"
-        } else {
-            "窗口图标：加载失败（回退 egui 默认图标）"
-        };
-        ui.label(icon_state);
-        ui.label("托盘图标（tray-icon 0.26）与单实例锁（single-instance 0.3）只在 cfg(windows) 下编译；Linux 构建不包含这些代码。");
-        if self.screenshot.is_some() {
-            ui.label("截图模式：渲染稳定后将自动保存 PNG 并退出。");
-        }
-    }
-
-    fn trigger_attention(&mut self, ctx: &egui::Context) {
-        shell::request_attention(ctx, true);
-        let now = ctx.input(|input| input.time);
-        self.attention_until = Some(now + 4.0);
-        self.platform.set_alert_icon(true);
-        self.status =
-            "已请求任务栏/窗口闪烁（4 秒后自动停止；Windows 上由 winit 调用 FlashWindowEx）"
-                .to_owned();
-    }
-
-    fn start_music(&mut self) {
-        let Some(engine) = self.audio.as_mut() else {
-            self.status = "无法播放：音频设备不可用".to_owned();
+    fn setup_scenario(&mut self) {
+        let Some(scenario) = self.cli.scenario else {
             return;
         };
-        match engine.toggle() {
-            Ok(active) => {
-                self.audio_playing = active;
-                self.status = format!("背景音乐已启动：{active}");
+        match scenario {
+            Scenario::Home => {
+                self.screen = Screen::Home;
             }
-            Err(error) => {
-                self.audio_playing = false;
-                self.status = format!("背景音乐启动失败：{error}");
+            Scenario::Settings => {
+                self.screen = Screen::Settings;
             }
+            Scenario::Table
+            | Scenario::TableFlop
+            | Scenario::TableShortDeck
+            | Scenario::Settlement => {
+                if scenario == Scenario::TableShortDeck {
+                    self.settings.variant = VariantSetting::ShortDeck;
+                    self.settings.players = self.settings.players.min(8);
+                }
+                self.start_session_fast();
+                match scenario {
+                    Scenario::Table | Scenario::TableShortDeck => {
+                        if let Some(session) = &mut self.session {
+                            advance_ai_steps(session, 200);
+                        }
+                    }
+                    Scenario::TableFlop => self.autoplay_to_flop(),
+                    Scenario::Settlement => {
+                        if let Some(session) = &mut self.session {
+                            autoplay_hand(session);
+                        }
+                    }
+                    _ => {}
+                }
+                self.screen = Screen::Table;
+            }
+        }
+        println!("[poker-app] scenario: {}", scenario.label());
+    }
+
+    fn start_session_fast(&mut self) {
+        let seed = self.cli.scenario_seed();
+        let config = TableConfig::fast(&self.settings, seed);
+        let human_name = self.settings.player_name.clone();
+        let mut session = TableSession::new(&config, &human_name, Box::new(DeterministicAi));
+        if !session.start() {
+            self.hint = Some("无法开始对局：玩家数量不足".to_owned());
+        }
+        self.session = Some(session);
+        self.raise_panel.close();
+        self.analysis_key_value = None;
+        self.current_analysis = None;
+        self.last_prompt_turn = None;
+        self.last_settled_hand = None;
+    }
+
+    fn autoplay_to_flop(&mut self) {
+        let Some(session) = &mut self.session else {
+            return;
+        };
+        for _ in 0..400 {
+            if session.last_settlement().is_some() || session.game().community_cards().len() >= 3 {
+                break;
+            }
+            if session.is_human_turn() {
+                let legal = session.legal_actions();
+                let Some(action) = table_ctrl::primary_action(&legal) else {
+                    break;
+                };
+                if session.human_act(action).is_err() {
+                    break;
+                }
+            } else if !session.advance_ai_immediately() {
+                break;
+            }
+        }
+    }
+
+    fn start_local_game(&mut self) {
+        self.settings.player_name = crate::settings::sanitize_name(&self.settings.player_name);
+        self.settings = self.settings.clone().sanitized();
+        let config = TableConfig::from_settings(&self.settings, "poker-app-session");
+        let human_name = self.settings.player_name.clone();
+        let mut session = TableSession::new(&config, &human_name, Box::new(DeterministicAi));
+        let started = session.start();
+        self.session = Some(session);
+        self.screen = Screen::Table;
+        self.raise_panel.close();
+        self.analysis_key_value = None;
+        self.current_analysis = None;
+        self.last_prompt_turn = None;
+        self.last_settled_hand = None;
+        self.hint = Some(if started {
+            format!(
+                "本地对局开始：{}，{} 人，{}",
+                self.settings.variant.label(),
+                self.settings.players,
+                self.settings.stakes_label()
+            )
+        } else {
+            "无法开始对局：玩家人数不足".to_owned()
+        });
+    }
+
+    fn back_home(&mut self) {
+        self.screen = Screen::Home;
+        self.session = None;
+        self.raise_panel.close();
+        self.analysis_key_value = None;
+        self.current_analysis = None;
+        self.last_prompt_turn = None;
+        self.last_settled_hand = None;
+        self.platform.set_alert_icon(false);
+        // Ask the per-frame attention handler to clear any pending flash.
+        self.attention_until = Some(0.0);
+    }
+
+    fn sync_audio_settings(&mut self) {
+        self.audio.set_volume(self.settings.music_volume);
+        self.audio.set_mode(self.settings.play_mode);
+        self.audio.set_sound_enabled(self.settings.sound_enabled);
+        self.audio.set_enabled(self.settings.music_enabled);
+        if let Some(error) = self.audio.last_error().map(ToOwned::to_owned) {
+            self.hint = Some(format!("音频不可用：{error}"));
         }
     }
 
     fn toggle_music(&mut self) {
-        let Some(engine) = self.audio.as_mut() else {
-            self.status = "无法播放：音频设备不可用".to_owned();
+        self.audio.toggle_music();
+        self.settings.music_enabled = self.audio.is_enabled();
+        if let Some(error) = self.audio.last_error().map(ToOwned::to_owned) {
+            self.hint = Some(format!("音频不可用：{error}"));
+        }
+    }
+
+    fn title_bar(&mut self, ui: &mut egui::Ui) {
+        let action = crate::shell::custom_title_bar(ui, "♠ 德州扑克 Rust 重制版");
+        let ctx = ui.ctx().clone();
+        if action.close_requested {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+        if action.minimize_requested {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+        }
+        if action.attention_requested {
+            crate::shell::request_attention(&ctx, true);
+            self.attention_until = Some(ctx.input(|input| input.time) + 4.0);
+            self.platform.set_alert_icon(true);
+            self.hint = Some("已请求任务栏闪烁（4 秒后自动停止）".to_owned());
+        }
+    }
+
+    // ---------------------------------------------------------------- screens
+
+    fn home_ui(&mut self, ui: &mut egui::Ui) {
+        egui::Panel::top("home_top").show(ui, |ui| {
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                ui.heading("德州扑克 Rust 重制版");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(RichText::new("Phase 6 垂直切片 · 本地对局").weak());
+                });
+            });
+            ui.add_space(2.0);
+        });
+        egui::CentralPanel::default().show(ui, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                self.home_content(ui);
+            });
+        });
+    }
+
+    fn home_content(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(8.0);
+        ui.label(RichText::new("标准德州（52 张）与短牌 6+（36 张）本地 AI 对局。").size(15.0));
+        ui.add_space(8.0);
+
+        egui::Frame::new()
+            .fill(ui.visuals().faint_bg_color)
+            .corner_radius(egui::CornerRadius::same(8))
+            .inner_margin(egui::Margin::same(12))
+            .show(ui, |ui| {
+                ui.heading("对局设置");
+                egui::Grid::new("home_settings_grid")
+                    .num_columns(2)
+                    .spacing([16.0, 10.0])
+                    .show(ui, |ui| {
+                        ui.label("玩法");
+                        ui.horizontal(|ui| {
+                            ui.selectable_value(
+                                &mut self.settings.variant,
+                                VariantSetting::Standard,
+                                "标准德州",
+                            );
+                            ui.selectable_value(
+                                &mut self.settings.variant,
+                                VariantSetting::ShortDeck,
+                                "短牌 6+",
+                            );
+                        });
+                        ui.end_row();
+
+                        let max_players = if self.settings.is_short_deck() {
+                            8
+                        } else {
+                            MAX_PLAYERS
+                        };
+                        if self.settings.players > max_players {
+                            self.settings.players = max_players;
+                        }
+                        ui.label("玩家人数");
+                        egui::ComboBox::from_id_salt("home_players")
+                            .selected_text(format!(
+                                "{} 人（1 人类 + {} AI）",
+                                self.settings.players,
+                                self.settings.players.saturating_sub(1)
+                            ))
+                            .show_ui(ui, |ui| {
+                                for players in 2..=max_players {
+                                    ui.selectable_value(
+                                        &mut self.settings.players,
+                                        players,
+                                        format!("{players} 人"),
+                                    );
+                                }
+                            });
+                        ui.end_row();
+
+                        ui.label("起始筹码");
+                        egui::ComboBox::from_id_salt("home_stack")
+                            .selected_text(format!("{}", self.settings.starting_stack))
+                            .show_ui(ui, |ui| {
+                                for stack in STACKS {
+                                    ui.selectable_value(
+                                        &mut self.settings.starting_stack,
+                                        stack,
+                                        format!("{stack}"),
+                                    );
+                                }
+                            });
+                        ui.end_row();
+
+                        if self.settings.is_short_deck() {
+                            ui.label("前注");
+                            egui::ComboBox::from_id_salt("home_ante")
+                                .selected_text(format!(
+                                    "前注 {}（最小下注 {}）",
+                                    self.settings.ante,
+                                    self.settings.ante * 2
+                                ))
+                                .show_ui(ui, |ui| {
+                                    for ante in SHORT_DECK_ANTES {
+                                        ui.selectable_value(
+                                            &mut self.settings.ante,
+                                            ante,
+                                            format!("前注 {}（最小下注 {}）", ante, ante * 2),
+                                        );
+                                    }
+                                });
+                        } else {
+                            ui.label("盲注");
+                            egui::ComboBox::from_id_salt("home_blinds")
+                                .selected_text(format!(
+                                    "{}/{}",
+                                    self.settings.small_blind, self.settings.big_blind
+                                ))
+                                .show_ui(ui, |ui| {
+                                    for (small, big) in STANDARD_BLINDS {
+                                        let selected = self.settings.small_blind == small
+                                            && self.settings.big_blind == big;
+                                        if ui
+                                            .selectable_label(selected, format!("{small}/{big}"))
+                                            .clicked()
+                                        {
+                                            self.settings.small_blind = small;
+                                            self.settings.big_blind = big;
+                                        }
+                                    }
+                                });
+                        }
+                        ui.end_row();
+
+                        ui.label("玩家名字");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.settings.player_name)
+                                .desired_width(200.0)
+                                .hint_text("最多 8 个字符"),
+                        );
+                        ui.end_row();
+
+                        ui.label("AI 速度");
+                        egui::ComboBox::from_id_salt("home_ai_delay")
+                            .selected_text(self.settings.ai_delay_label())
+                            .show_ui(ui, |ui| {
+                                for delay in AI_DELAYS_MS {
+                                    ui.selectable_value(
+                                        &mut self.settings.ai_delay_ms,
+                                        delay,
+                                        format!("{delay} ms"),
+                                    );
+                                }
+                            });
+                        ui.end_row();
+                    });
+
+                ui.add_space(10.0);
+                ui.horizontal_wrapped(|ui| {
+                    let start = ui.add_sized(
+                        [200.0, 42.0],
+                        egui::Button::new(RichText::new("开始本地对局").size(17.0)),
+                    );
+                    if start.clicked() {
+                        self.start_local_game();
+                    }
+                    if ui
+                        .add_sized([170.0, 42.0], egui::Button::new("联机对局（开发中）"))
+                        .clicked()
+                    {
+                        self.screen = Screen::Online;
+                    }
+                    if ui
+                        .add_sized([120.0, 42.0], egui::Button::new("设置"))
+                        .clicked()
+                    {
+                        self.screen = Screen::Settings;
+                    }
+                });
+            });
+
+        ui.add_space(10.0);
+        egui::Frame::new()
+            .fill(ui.visuals().faint_bg_color)
+            .corner_radius(egui::CornerRadius::same(8))
+            .inner_margin(egui::Margin::same(12))
+            .show(ui, |ui| {
+                ui.heading("状态");
+                ui.label(format!("中文字体：{}", self.font_report.summary()));
+                ui.label(format!(
+                    "音乐资源：{} 首（assets/music）",
+                    self.audio.track_count()
+                ));
+                ui.label(format!(
+                    "AI：{}（poker-ai 就绪后替换为正式策略）",
+                    "确定性临时策略桩"
+                ));
+                ui.label(format!("设置文件：{}", assets::settings_path().display()));
+                if let Some(hint) = &self.hint {
+                    ui.colored_label(Color32::from_rgb(240, 190, 90), hint);
+                }
+            });
+        ui.add_space(6.0);
+        ui.label(
+            RichText::new("提示：Space/Enter 主操作，F 弃牌，C 跟注/过牌，R 加注，A 全下，加注面板 1/←/↓ 减、2/→/↑ 加一个单位，Esc 取消，N 下一手")
+                .weak()
+                .small(),
+        );
+    }
+
+    fn settings_ui(&mut self, ui: &mut egui::Ui) {
+        egui::Panel::top("settings_top").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                if ui.button("← 返回主页").clicked() {
+                    self.screen = Screen::Home;
+                }
+                ui.heading("设置");
+            });
+        });
+        egui::CentralPanel::default().show(ui, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                self.settings_content(ui);
+            });
+        });
+    }
+
+    fn settings_content(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(6.0);
+        ui.heading("音频");
+        let music_changed = ui
+            .checkbox(&mut self.settings.music_enabled, "启用背景音乐")
+            .changed();
+        if ui
+            .checkbox(
+                &mut self.settings.sound_enabled,
+                "启用提示音（轮到你 / 结算）",
+            )
+            .changed()
+        {
+            self.audio.set_sound_enabled(self.settings.sound_enabled);
+        }
+        ui.horizontal(|ui| {
+            if ui.button("上一首").clicked() {
+                self.audio.previous_track();
+            }
+            if ui.button("下一首").clicked() {
+                self.audio.next_track();
+            }
+            ui.label(format!(
+                "当前：{}（{} 首）",
+                self.audio.current_title(),
+                self.audio.track_count()
+            ));
+            if self.audio.is_playing() {
+                ui.label(RichText::new("播放中").weak());
+            }
+        });
+        if ui
+            .add(egui::Slider::new(&mut self.settings.music_volume, 0.0..=1.0).text("音量"))
+            .changed()
+        {
+            self.audio.set_volume(self.settings.music_volume);
+        }
+        egui::ComboBox::from_id_salt("settings_play_mode")
+            .selected_text(self.settings.play_mode.label())
+            .show_ui(ui, |ui| {
+                for mode in PlayMode::ALL {
+                    ui.selectable_value(&mut self.settings.play_mode, mode, mode.label());
+                }
+            });
+        if let Some(error) = self.audio.last_error().map(ToOwned::to_owned) {
+            ui.colored_label(
+                Color32::from_rgb(230, 120, 120),
+                format!("音频错误：{error}"),
+            );
+        }
+        if music_changed {
+            self.audio.set_enabled(self.settings.music_enabled);
+            self.settings.music_enabled = self.audio.is_enabled();
+        }
+        self.audio.set_mode(self.settings.play_mode);
+
+        ui.separator();
+        ui.heading("显示与窗口");
+        let mut fullscreen = self.settings.fullscreen;
+        if ui.checkbox(&mut fullscreen, "全屏").changed() {
+            self.settings.fullscreen = fullscreen;
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::Fullscreen(fullscreen));
+        }
+        let mut custom_titlebar = self.settings.custom_titlebar;
+        if ui
+            .checkbox(&mut custom_titlebar, "自定义标题栏（无边框窗口）")
+            .changed()
+        {
+            self.settings.custom_titlebar = custom_titlebar;
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::Decorations(!custom_titlebar));
+        }
+        ui.checkbox(&mut self.settings.show_analysis, "显示分析面板");
+        ui.checkbox(&mut self.settings.hide_hole_cards, "默认隐藏手牌");
+
+        ui.separator();
+        ui.heading("对局");
+        ui.horizontal(|ui| {
+            ui.label("AI 速度");
+            egui::ComboBox::from_id_salt("settings_ai_delay")
+                .selected_text(self.settings.ai_delay_label())
+                .show_ui(ui, |ui| {
+                    for delay in AI_DELAYS_MS {
+                        ui.selectable_value(
+                            &mut self.settings.ai_delay_ms,
+                            delay,
+                            format!("{delay} ms"),
+                        );
+                    }
+                });
+        });
+        ui.label(format!(
+            "当前：{}，{} 人，{}，{}",
+            self.settings.variant.label(),
+            self.settings.players,
+            self.settings.starting_stack,
+            self.settings.stakes_label()
+        ));
+
+        ui.separator();
+        ui.heading("字体与存档");
+        ui.label(self.font_report.summary());
+        ui.label(format!("设置文件：{}", assets::settings_path().display()));
+        ui.horizontal(|ui| {
+            if ui.button("立即保存设置").clicked() {
+                self.save_settings_now();
+            }
+            if ui.button("恢复默认设置").clicked() {
+                self.settings = Settings::default();
+                self.sync_audio_settings();
+                ui.ctx()
+                    .send_viewport_cmd(egui::ViewportCommand::Decorations(true));
+                ui.ctx()
+                    .send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+                self.hint = Some("已恢复默认设置".to_owned());
+            }
+        });
+        if let Some(hint) = &self.hint {
+            ui.colored_label(Color32::from_rgb(240, 190, 90), hint);
+        }
+    }
+
+    fn online_ui(&mut self, ui: &mut egui::Ui) {
+        egui::Panel::top("online_top").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                if ui.button("← 返回主页").clicked() {
+                    self.screen = Screen::Home;
+                }
+                ui.heading("联机对局");
+            });
+        });
+        egui::CentralPanel::default().show(ui, |ui| {
+            ui.add_space(40.0);
+            ui.vertical_centered(|ui| {
+                ui.heading("联机功能开发中");
+                ui.add_space(10.0);
+                ui.label("Phase 5 将实现 WebSocket 房间服务（创建/加入房间、准备、房主迁移、断线重连）。");
+                ui.label("本阶段只提供联机占位页；本地对局功能已完整可玩。");
+                ui.add_space(20.0);
+                if ui.button("返回主页").clicked() {
+                    self.screen = Screen::Home;
+                }
+            });
+        });
+    }
+
+    fn table_ui(&mut self, ui: &mut egui::Ui) {
+        if self.session.is_none() {
+            self.screen = Screen::Home;
+            return;
+        }
+        let snapshot = self.build_snapshot();
+        let mut pending: Option<TableUiAction> = None;
+
+        egui::Panel::top("table_top").show(ui, |ui| {
+            if let Some(action) = table::top_bar(ui, &snapshot) {
+                pending = Some(action);
+            }
+        });
+        egui::Panel::bottom("table_actions").show(ui, |ui| {
+            if let Some(action) = table::action_bar(ui, &snapshot, &mut self.raise_panel) {
+                pending = Some(action);
+            }
+        });
+        if ui.available_width() > 940.0 {
+            egui::Panel::right("table_analysis")
+                .default_size(232.0)
+                .min_size(200.0)
+                .show(ui, |ui| {
+                    table::analysis_panel(ui, &snapshot);
+                });
+        }
+        egui::CentralPanel::default().show(ui, |ui| {
+            if let Some(action) = table::show(ui, &snapshot) {
+                pending = Some(action);
+            }
+        });
+        let ctx = ui.ctx().clone();
+        if let Some(action) = table::settlement_modal(&ctx, &snapshot) {
+            pending = Some(action);
+        }
+        if let Some(action) = pending {
+            self.apply_table_action(action);
+        }
+    }
+
+    // ------------------------------------------------------------- app logic
+
+    fn build_snapshot(&self) -> TableSnapshot {
+        let session = self.session.as_ref().expect("session");
+        let game = session.game();
+        let settlement = session.last_settlement().cloned();
+        let winners: Vec<String> = settlement
+            .as_ref()
+            .map(|settlement| {
+                settlement
+                    .result
+                    .winner_amounts
+                    .iter()
+                    .map(|(id, _)| id.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let showdown_by_seat: std::collections::HashMap<usize, Vec<poker_core::Card>> = settlement
+            .as_ref()
+            .map(|settlement| {
+                settlement
+                    .showdown
+                    .iter()
+                    .map(|entry| (entry.seat, entry.cards.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let seats = game
+            .players()
+            .iter()
+            .enumerate()
+            .map(|(seat, player)| {
+                let showdown_cards = showdown_by_seat.get(&seat).cloned().unwrap_or_default();
+                let revealed = !showdown_cards.is_empty();
+                let is_human = seat == session.human_seat();
+                let cards = if is_human {
+                    player.hole_cards.clone()
+                } else if revealed {
+                    showdown_cards
+                } else {
+                    player.hole_cards.clone()
+                };
+                let cards_visible =
+                    (is_human && !self.settings.hide_hole_cards) || (!is_human && revealed);
+                SeatView {
+                    seat,
+                    name: player.name.clone(),
+                    stack: player.stack,
+                    is_human: seat == session.human_seat(),
+                    folded: player.folded,
+                    all_in: player.is_all_in,
+                    is_dealer: game.dealer_pos() == seat as i32,
+                    is_small_blind: game.sb_idx() == seat as i32,
+                    is_big_blind: game.bb_idx() == seat as i32,
+                    is_actor: game.current_player_idx() == seat as i32,
+                    is_winner: winners.contains(&player.id),
+                    last_action: player
+                        .last_action
+                        .map(|last| format!("{} {}", label_for_action(last.action), last.amount)),
+                    cards,
+                    cards_visible,
+                    bet: player.round_bet,
+                }
+            })
+            .collect();
+        let current_actor_name = session
+            .current_actor()
+            .and_then(|seat| game.players().get(seat))
+            .map(|player| player.name.clone());
+        let mask =
+            table_ctrl::analysis_mask(self.settings.hide_hole_cards, self.settings.show_analysis);
+        let hand_name = if mask == AnalysisMask::Visible {
+            session.human_hand().map(|hand| hand.name())
+        } else {
+            None
+        };
+        let event_line = self
+            .hint
+            .clone()
+            .or_else(|| session.events().last().cloned())
+            .unwrap_or_default();
+        TableSnapshot {
+            seats,
+            community: game.community_cards().to_vec(),
+            pot: game.pot(),
+            phase: phase_label(game.phase()),
+            hand_id: game.hand_id(),
+            big_blind: session.big_blind(),
+            variant_label: self.settings.variant.label().to_owned(),
+            variant: self.settings.variant(),
+            stakes_label: self.settings.stakes_label(),
+            human_turn: session.is_human_turn(),
+            current_actor_name,
+            legal: session.legal_actions(),
+            settlement,
+            analysis: self.current_analysis.clone(),
+            analysis_pending: self.analysis.pending_key().is_some(),
+            analysis_mask: mask,
+            analysis_error: self.analysis.last_error().map(ToOwned::to_owned),
+            hand_name,
+            hand_rank_index: if mask == AnalysisMask::Visible {
+                session.human_hand().map(|hand| hand.rank_index())
+            } else {
+                None
+            },
+            game_over: session.game_over(),
+            ai_name: session.ai_name().to_owned(),
+            hide_cards: self.settings.hide_hole_cards,
+            music_enabled: self.audio.is_enabled(),
+            show_analysis: self.settings.show_analysis,
+            event_line,
+        }
+    }
+
+    fn apply_table_action(&mut self, action: TableUiAction) {
+        match action {
+            TableUiAction::BackHome => self.back_home(),
+            TableUiAction::OpenSettings => self.screen = Screen::Settings,
+            TableUiAction::Fold => self.human_action(Action::Fold),
+            TableUiAction::Check => self.human_action(Action::Check),
+            TableUiAction::Call => self.human_action(Action::Call),
+            TableUiAction::AllIn => self.human_action(Action::AllIn),
+            TableUiAction::OpenRaise => self.open_raise_panel(),
+            TableUiAction::CloseRaise => self.raise_panel.close(),
+            TableUiAction::ConfirmRaise => {
+                if self.raise_panel.open && self.is_human_turn() {
+                    let action = self.raise_panel.action();
+                    self.raise_panel.close();
+                    self.human_action(action);
+                }
+            }
+            TableUiAction::StepRaise(units) => {
+                if self.raise_panel.open {
+                    self.raise_panel.step(units);
+                }
+            }
+            TableUiAction::NextHand => self.next_hand_or_home(),
+            TableUiAction::ToggleHideCards => {
+                self.settings.hide_hole_cards = !self.settings.hide_hole_cards;
+            }
+            TableUiAction::ToggleAnalysis => {
+                self.settings.show_analysis = !self.settings.show_analysis;
+            }
+            TableUiAction::ToggleMusic => self.toggle_music(),
+        }
+    }
+
+    fn human_action(&mut self, action: Action) {
+        let Some(session) = &mut self.session else {
             return;
         };
-        match engine.toggle() {
-            Ok(active) => {
-                self.audio_playing = active;
-                self.status = format!("背景音乐播放状态：{active}");
+        match session.human_act(action) {
+            Ok(()) => {
+                self.raise_panel.close();
+                self.analysis_key_value = None;
+                self.current_analysis = None;
+                self.hint = None;
             }
             Err(error) => {
-                self.audio_playing = false;
-                self.status = format!("背景音乐切换失败：{error}");
+                self.hint = Some(format!("操作失败：{error}"));
             }
         }
     }
 
-    fn process_ime_events(&mut self, ctx: &egui::Context) {
-        let events = ctx.input(|input| input.events.clone());
-        for event in events {
-            if matches!(event, egui::Event::Ime(_)) {
-                self.ime_events.push(format!("{event:?}"));
-                while self.ime_events.len() > 8 {
-                    self.ime_events.remove(0);
+    fn is_human_turn(&self) -> bool {
+        self.session
+            .as_ref()
+            .is_some_and(TableSession::is_human_turn)
+    }
+
+    fn open_raise_panel(&mut self) {
+        let Some(session) = &self.session else {
+            return;
+        };
+        if !session.is_human_turn() {
+            return;
+        }
+        let legal = session.legal_actions();
+        if !legal.contains(ActionType::Raise) {
+            return;
+        }
+        let big_blind = session.big_blind();
+        let default = table_ctrl::default_raise_amount(&legal, session.game().phase(), big_blind);
+        let mut panel = RaisePanel::open_for(&legal);
+        panel.set_amount(default);
+        self.raise_panel = panel;
+    }
+
+    fn next_hand_or_home(&mut self) {
+        let Some(session) = &mut self.session else {
+            self.back_home();
+            return;
+        };
+        if session.game_over().is_some() {
+            self.back_home();
+            return;
+        }
+        if !session.next_hand() {
+            self.back_home();
+            return;
+        }
+        self.raise_panel.close();
+        self.analysis_key_value = None;
+        self.current_analysis = None;
+        self.hint = None;
+    }
+
+    fn apply_primary(&mut self) {
+        match self.screen {
+            Screen::Home => self.start_local_game(),
+            Screen::Settings | Screen::Online => self.screen = Screen::Home,
+            Screen::Table => {
+                if self.raise_panel.open {
+                    let action = self.raise_panel.action();
+                    self.raise_panel.close();
+                    self.human_action(action);
+                    return;
+                }
+                if self
+                    .session
+                    .as_ref()
+                    .is_some_and(|session| session.last_settlement().is_some())
+                {
+                    self.next_hand_or_home();
+                    return;
+                }
+                if let Some(session) = &self.session
+                    && session.is_human_turn()
+                {
+                    let legal = session.legal_actions();
+                    if let Some(action) = table_ctrl::primary_action(&legal) {
+                        self.human_action(action);
+                    }
                 }
             }
         }
     }
 
-    fn handle_shell_events(&mut self, ctx: &egui::Context) {
-        let events = self.platform.poll_events();
-        for event in events {
+    fn pressed_table_command(ctx: &egui::Context) -> Option<TableCommand> {
+        if ctx.text_edit_focused() {
+            return None;
+        }
+        let keys = [
+            egui::Key::F,
+            egui::Key::C,
+            egui::Key::R,
+            egui::Key::A,
+            egui::Key::N,
+            egui::Key::Escape,
+            egui::Key::Num1,
+            egui::Key::Num2,
+            egui::Key::ArrowUp,
+            egui::Key::ArrowDown,
+            egui::Key::ArrowLeft,
+            egui::Key::ArrowRight,
+        ];
+        for key in keys {
+            if ctx.input(|input| input.key_pressed(key)) {
+                return table_ctrl::shortcut_for(key, false);
+            }
+        }
+        None
+    }
+
+    fn handle_keyboard(&mut self, ctx: &egui::Context) {
+        if ctx.text_edit_focused() {
+            return;
+        }
+        if let Some(command) = Self::pressed_table_command(ctx) {
+            self.apply_command(command);
+        }
+        if ctx.input(|input| {
+            input.key_pressed(egui::Key::Space) || input.key_pressed(egui::Key::Enter)
+        }) {
+            self.apply_primary();
+        }
+    }
+
+    fn apply_command(&mut self, command: TableCommand) {
+        if self.screen != Screen::Table {
+            if matches!(command, TableCommand::DismissOverlay | TableCommand::Back) {
+                self.screen = Screen::Home;
+            }
+            return;
+        }
+        match command {
+            TableCommand::Fold => {
+                if self.is_human_turn() {
+                    self.human_action(Action::Fold);
+                }
+            }
+            TableCommand::Check | TableCommand::Call => {
+                if self.is_human_turn() {
+                    let legal = self
+                        .session
+                        .as_ref()
+                        .map(TableSession::legal_actions)
+                        .unwrap_or_else(empty_legal);
+                    if let Some(action) = table_ctrl::primary_action(&legal) {
+                        self.human_action(action);
+                    }
+                }
+            }
+            TableCommand::AllIn => {
+                if self.is_human_turn() {
+                    self.human_action(Action::AllIn);
+                }
+            }
+            TableCommand::OpenRaise => self.open_raise_panel(),
+            TableCommand::CloseRaise => self.raise_panel.close(),
+            TableCommand::ConfirmRaise => {
+                if self.raise_panel.open && self.is_human_turn() {
+                    let action = self.raise_panel.action();
+                    self.raise_panel.close();
+                    self.human_action(action);
+                }
+            }
+            TableCommand::RaiseStep(units) => {
+                if self.raise_panel.open {
+                    self.raise_panel.step(units);
+                }
+            }
+            TableCommand::NextHand => self.next_hand_or_home(),
+            TableCommand::Back => self.back_home(),
+            TableCommand::ToggleHideCards => {
+                self.settings.hide_hole_cards = !self.settings.hide_hole_cards;
+            }
+            TableCommand::ToggleMusic => self.toggle_music(),
+            TableCommand::ToggleAnalysis => {
+                self.settings.show_analysis = !self.settings.show_analysis;
+            }
+            TableCommand::DismissOverlay => {
+                if self.raise_panel.open {
+                    self.raise_panel.close();
+                } else if self
+                    .session
+                    .as_ref()
+                    .is_some_and(|session| session.last_settlement().is_some())
+                    && self
+                        .session
+                        .as_ref()
+                        .is_some_and(|session| session.game_over().is_some())
+                {
+                    self.back_home();
+                }
+            }
+        }
+    }
+
+    fn tick_session(&mut self) {
+        if let Some(session) = &mut self.session {
+            session.tick(Instant::now());
+        }
+    }
+
+    fn maybe_request_analysis(&mut self) {
+        if self.screen != Screen::Table {
+            return;
+        }
+        let Some(session) = &self.session else {
+            return;
+        };
+        if !self.settings.show_analysis || self.settings.hide_hole_cards {
+            self.current_analysis = None;
+            self.analysis_key_value = None;
+            return;
+        }
+        if !session.game().phase().is_active() || session.human().hole_cards.len() != 2 {
+            return;
+        }
+        let hole = session.human().hole_cards.clone();
+        let board = session.game().community_cards().to_vec();
+        let opponents = session.live_opponents();
+        let variant = session.game().config().variant;
+        let key = analysis_key(&hole, &board, opponents, variant);
+        if self.analysis_key_value != Some(key) {
+            self.analysis_key_value = Some(key);
+            self.analysis
+                .request(key, &hole, &board, opponents, variant);
+        }
+        self.current_analysis = self.analysis.get(key);
+    }
+
+    fn prompt_effects(&mut self, ctx: &egui::Context) {
+        let Some(session) = &self.session else {
+            return;
+        };
+        let human_turn = session.is_human_turn();
+        let turn_key = (session.game().hand_id(), session.game().turn_id());
+        let settled_hand = session
+            .last_settlement()
+            .map(|settlement| settlement.hand_id);
+        if human_turn && self.last_prompt_turn != Some(turn_key) {
+            self.last_prompt_turn = Some(turn_key);
+            self.audio.play_turn_prompt();
+            let focused = ctx.input(|input| input.viewport().focused.unwrap_or(false));
+            if !focused {
+                crate::shell::request_attention(ctx, true);
+                self.attention_until = Some(ctx.input(|input| input.time) + 4.0);
+                self.platform.set_alert_icon(true);
+            }
+        }
+        if let Some(hand) = settled_hand
+            && self.last_settled_hand != Some(hand)
+        {
+            self.last_settled_hand = Some(hand);
+            self.audio.play_settlement_prompt();
+        }
+    }
+
+    fn handle_platform_events(&mut self, ctx: &egui::Context) {
+        for event in self.platform.poll_events() {
             match event {
                 ShellEvent::ShowWindow => {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                     ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                    self.status = "托盘：显示主窗口".to_owned();
                 }
                 ShellEvent::Quit => {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -432,10 +1104,9 @@ impl SpikeApp {
             return;
         };
         if ctx.input(|input| input.time) >= until {
-            shell::clear_attention(ctx);
+            crate::shell::clear_attention(ctx);
             self.attention_until = None;
             self.platform.set_alert_icon(false);
-            self.status = "闪烁已自动停止（请求注意 Reset）".to_owned();
         }
     }
 
@@ -445,13 +1116,8 @@ impl SpikeApp {
         };
         if screenshot.is_done() {
             match screenshot.take_result() {
-                Some(Ok(())) => {
-                    self.status = "截图已保存，正在退出".to_owned();
-                }
-                Some(Err(error)) => {
-                    eprintln!("[poker-app] screenshot failed: {error}");
-                    self.status = format!("截图失败：{error}");
-                }
+                Some(Ok(())) => println!("[poker-app] screenshot saved, exiting"),
+                Some(Err(error)) => eprintln!("[poker-app] screenshot failed: {error}"),
                 None => {}
             }
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -460,53 +1126,104 @@ impl SpikeApp {
             ctx.request_repaint();
         }
     }
+
+    fn save_settings_now(&mut self) {
+        self.settings.player_name = crate::settings::sanitize_name(&self.settings.player_name);
+        self.settings = self.settings.clone().sanitized();
+        match self.settings.save() {
+            Ok(()) => {
+                self.last_saved_settings = self.settings.clone();
+                self.hint = Some("设置已保存".to_owned());
+            }
+            Err(error) => self.hint = Some(format!("设置保存失败：{error}")),
+        }
+    }
+
+    fn persist_if_changed(&mut self) {
+        if self.cli.scenario.is_some() || self.cli.screenshot.is_some() {
+            return;
+        }
+        if self.settings != self.last_saved_settings && self.settings.save().is_ok() {
+            self.last_saved_settings = self.settings.clone();
+        }
+    }
 }
 
-impl eframe::App for SpikeApp {
-    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+impl eframe::App for PokerApp {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.frame_index = self.frame_index.saturating_add(1);
-        let now = ctx.input(|input| input.time);
-        self.first_frame_time.get_or_insert(now);
-
-        self.process_ime_events(&ctx);
-        self.handle_shell_events(&ctx);
-        self.handle_attention_timeout(&ctx);
+        self.analysis.poll();
+        self.audio.tick();
         self.handle_screenshot(&ctx);
-
-        egui::CentralPanel::default().show(ui, |ui| {
-            if self.cli.frameless {
-                let action = shell::custom_title_bar(ui, "♠ 德州扑克 Rust 重制版 — egui Spike");
-                if action.close_requested {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                }
-                if action.minimize_requested {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                }
-                if action.attention_requested {
-                    self.trigger_attention(&ctx);
-                }
-                ui.separator();
-            }
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    self.content(ui, &ctx, frame);
-                });
-        });
-
-        if self.cli.frameless {
-            shell::handle_resize_edges(ui);
+        self.handle_platform_events(&ctx);
+        self.handle_keyboard(&ctx);
+        self.tick_session();
+        if self.open_raise_requested && self.screen == Screen::Table && self.is_human_turn() {
+            self.open_raise_panel();
+            self.open_raise_requested = false;
         }
+        self.maybe_request_analysis();
+        self.prompt_effects(&ctx);
 
-        if self.frame_index == 1 {
-            println!(
-                "[poker-app] first frame: pixels_per_point={:.2}, content_rect={:?}",
-                ctx.pixels_per_point(),
-                ctx.content_rect()
-            );
+        if self.settings.custom_titlebar {
+            self.title_bar(ui);
         }
-
+        match self.screen {
+            Screen::Home => self.home_ui(ui),
+            Screen::Table => self.table_ui(ui),
+            Screen::Settings => self.settings_ui(ui),
+            Screen::Online => self.online_ui(ui),
+        }
+        if self.settings.custom_titlebar {
+            crate::shell::handle_resize_edges(ui);
+        }
+        self.handle_attention_timeout(&ctx);
+        self.persist_if_changed();
         ctx.request_repaint_after(Duration::from_millis(16));
+    }
+
+    fn on_exit(&mut self) {
+        // Deterministic screenshot/smoke runs must not pollute the user's
+        // persisted settings (e.g. --hide-cards) for later runs.
+        if self.cli.scenario.is_none() && self.cli.screenshot.is_none() {
+            let _ = self.settings.save();
+        }
+    }
+}
+
+fn phase_label(phase: Phase) -> &'static str {
+    match phase {
+        Phase::Idle => "空闲",
+        Phase::Preflop => "翻牌前",
+        Phase::Flop => "翻牌",
+        Phase::Turn => "转牌",
+        Phase::River => "河牌",
+        Phase::Showdown => "摊牌",
+    }
+}
+
+fn empty_legal() -> poker_engine::LegalActions {
+    poker_engine::LegalActions {
+        actions: Vec::new(),
+        to_call: 0,
+        can_raise: false,
+        min_raise_to: 0,
+        max_raise_to: 0,
+        wager_unit: 1,
+    }
+}
+
+fn label_for_action(action: poker_engine::ActionLabel) -> &'static str {
+    match action {
+        poker_engine::ActionLabel::Fold => "弃牌",
+        poker_engine::ActionLabel::Check => "过牌",
+        poker_engine::ActionLabel::Call => "跟注",
+        poker_engine::ActionLabel::Raise => "加注",
+        poker_engine::ActionLabel::AllIn => "全下",
+        poker_engine::ActionLabel::SmallBlind => "小盲",
+        poker_engine::ActionLabel::BigBlind => "大盲",
+        poker_engine::ActionLabel::Ante => "前注",
+        poker_engine::ActionLabel::DealerAnte => "庄家前注",
     }
 }

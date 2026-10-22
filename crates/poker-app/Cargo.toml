@@ -15,27 +15,34 @@ path = "src/main.rs"
 [lints]
 workspace = true
 
+[features]
+default = []
+# 内嵌 01.mp3 作为无 assets 目录时的兜底；发布版默认从外置 assets/music 加载。
+embedded-music = []
+
 [dependencies]
 poker-core = { workspace = true }
 poker-engine = { workspace = true }
 poker-prob = { workspace = true }
-poker-ai = { workspace = true }
-poker-protocol = { workspace = true }
+# NOTE: poker-ai and poker-protocol are intentionally not dependencies yet.
+# The app talks to the temporary DeterministicAi through the AiPolicy trait; the
+# real poker-ai adapter and the online client (poker-client) will be wired in by
+# the Lead once those crates land. This keeps poker-app builds decoupled from
+# in-progress parallel work.
+
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-# GUI: egui/eframe 0.37.x (Phase 0 spike).
-# Default features = wgpu renderer + system font fallback (fontique) + wayland/x11.
+# GUI: egui/eframe 0.37.x（默认 wgpu 渲染 + 系统字体回退 + wayland/x11）
 eframe = { version = "0.37" }
-# Audio playback: rodio 0.23, lean feature set (playback + mp3 via symphonia).
+# 音频：rodio 0.23（playback + mp3/symphonia）
 rodio = { version = "0.23", default-features = false, features = ["playback", "mp3"] }
-# PNG encode/decode for the spike window icon and screenshots.
+# PNG 编解码：窗口图标与截图
 image = { version = "0.25", default-features = false, features = ["png"] }
 log = "0.4"
 env_logger = "0.11"
 
 # Windows-only shell integration: tray icon + single-instance lock.
-# All of it is behind cfg(target_os = "windows"); Linux/WSL builds use the stub module.
 [target.'cfg(windows)'.dependencies]
 tray-icon = "0.26"
 single-instance = "0.3"

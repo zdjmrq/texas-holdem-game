@@ -1,43 +1,34 @@
-//! Font discovery checks. These assert the current environment can provide CJK glyphs,
-//! while remaining tolerant on machines without the fonts installed.
+//! Embedded asset tests: CJK font, window icon and music discovery.
 
 #[test]
-fn system_font_candidate_list_is_not_empty_on_desktop_os() {
-    if cfg!(any(target_os = "linux", target_os = "windows")) {
-        assert!(
-            !poker_app::fonts::SYSTEM_CJK_FONTS.is_empty(),
-            "expected known CJK font candidates for this OS"
-        );
-    }
+fn bundled_font_is_a_large_opentype_file() {
+    let bytes = poker_app::assets::BUNDLED_FONT_OTF;
+    assert!(bytes.len() > 1_000_000, "bundled font looks too small");
+    assert_eq!(&bytes[0..4], b"OTTO", "expected an OpenType CFF font");
 }
 
 #[test]
-fn explicit_system_font_loads_when_available() {
-    match poker_app::fonts::load_system_font() {
-        Some(font) => {
-            assert!(!font.bytes.is_empty(), "loaded font has no bytes");
-            assert!(
-                font.bytes.len() > 100_000,
-                "font file suspiciously small: {} bytes",
-                font.bytes.len()
-            );
-            assert!(
-                !font.label.is_empty(),
-                "loaded font should have a human readable label"
-            );
-        }
-        None => {
-            eprintln!("no system CJK font found; skipping explicit font assertion");
-        }
-    }
+fn window_icon_decodes_from_embedded_png() {
+    let icon = poker_app::window_icon().expect("window icon should decode");
+    assert_eq!(icon.width, 32);
+    assert_eq!(icon.height, 32);
+    assert_eq!(icon.rgba.len(), 32 * 32 * 4);
 }
 
 #[test]
-fn bundled_font_path_points_into_assets() {
-    let path = poker_app::fonts::bundled_font_path();
+fn music_assets_are_discoverable() {
+    let tracks = poker_app::assets::music_tracks();
     assert!(
-        path.to_string_lossy().contains("assets"),
-        "bundled font should live under assets/: {}",
-        path.display()
+        !tracks.is_empty(),
+        "expected mp3 files under assets/music (run from the workspace)"
     );
+    assert!(tracks.iter().all(|path| path.exists()));
+}
+
+#[test]
+fn config_dir_uses_override_environment() {
+    if std::env::var_os("POKER_APP_CONFIG_DIR").is_none() {
+        let dir = poker_app::assets::config_dir();
+        assert!(dir.ends_with("texas-holdem-rs"));
+    }
 }
