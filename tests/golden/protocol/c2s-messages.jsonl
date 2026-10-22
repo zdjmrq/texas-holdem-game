@@ -3,7 +3,6 @@
 {"scenario":"lobby","context":"join_room","message":{"protocolVersion":2,"type":"join_room","requestId":"join-again","roomCode":"1","name":"Bob","maxPlayers":2,"isShortDeck":false,"startingStack":20000,"smallBlind":40,"bigBlind":80,"ante":40,"minBet":80,"aiDelay":800}}
 {"scenario":"lobby","context":"start_game","message":{"protocolVersion":2,"type":"start_game","requestId":"not-host","roomCode":"1"}}
 {"scenario":"lobby","context":"start_game","message":{"protocolVersion":2,"type":"start_game","requestId":"not-host-2"}}
-{"scenario":"lobby","context":"unknown_type_here","message":{"protocolVersion":2,"type":"unknown_type_here","requestId":"unknown-1"}}
 {"scenario":"lobby","context":"get_snapshot","message":{"protocolVersion":2,"type":"get_snapshot"}}
 {"scenario":"lobby","context":"join_room","message":{"protocolVersion":2,"type":"join_room","requestId":"join-bad-code","roomCode":"9","name":"Carol","maxPlayers":2,"isShortDeck":false,"startingStack":20000,"smallBlind":40,"bigBlind":80,"ante":40,"minBet":80,"aiDelay":800}}
 {"scenario":"lobby","context":"join_room","message":{"protocolVersion":2,"type":"join_room","requestId":"join-full","roomCode":"1","name":"Carol","maxPlayers":2,"isShortDeck":false,"startingStack":20000,"smallBlind":40,"bigBlind":80,"ante":40,"minBet":80,"aiDelay":800}}

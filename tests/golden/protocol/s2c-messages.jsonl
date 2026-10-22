@@ -141,24 +141,7 @@
 {"scenario":"limits","context":"player_joined","message":{"protocolVersion":2,"type":"player_joined","roomCode":"1","hostId":"00000000-0000-4000-8000-000000000009","roomConfig":{"maxPlayers":2,"isShortDeck":false,"startingStack":20000,"smallBlind":40,"bigBlind":80,"ante":40,"minBet":80,"aiDelay":800},"players":[{"id":"00000000-0000-4000-8000-000000000009","seatId":0,"name":"One","avatar":"👤","isHuman":true,"connected":true,"stack":20000,"chipsInPot":0,"roundBet":0,"folded":false,"isAllIn":false,"lastAction":null}]}}
 {"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"create-limit","code":"INVALID_REQUEST","message":"房间已满（最多 1 个）"}}
 {"scenario":"limits","context":"error:ROOM_LIMIT","message":{"protocolVersion":2,"type":"error","requestId":"join-missing-room","code":"ROOM_LIMIT","message":"房间已满（最多 1 个）"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-0","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-1","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-2","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-3","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-4","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-5","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-6","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-7","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-8","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-9","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-10","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-11","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-12","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-13","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-14","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-15","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-16","code":"INVALID_REQUEST","message":"未知消息类型"}}
-{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood-17","code":"INVALID_REQUEST","message":"未知消息类型"}}
+{"scenario":"limits","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"flood","code":"INVALID_REQUEST","message":"未知消息类型"}}
 {"scenario":"parse-errors","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"missing-type","code":"INVALID_REQUEST","message":"缺少消息类型"}}
 {"scenario":"parse-errors","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":null,"code":"INVALID_REQUEST","message":"缺少消息类型"}}
 {"scenario":"parse-errors","context":"error:INVALID_REQUEST","message":{"protocolVersion":2,"type":"error","requestId":"non-string-type","code":"INVALID_REQUEST","message":"缺少消息类型"}}
@@ -167,3 +150,4 @@
 {"scenario":"parse-errors","context":"error:PROTOCOL_MISMATCH","message":{"protocolVersion":2,"type":"error","requestId":"version-string-3","code":"PROTOCOL_MISMATCH","message":"协议版本不匹配（服务端 v2）"}}
 {"scenario":"parse-errors","context":"error:PROTOCOL_MISMATCH","message":{"protocolVersion":2,"type":"error","requestId":"version-bool","code":"PROTOCOL_MISMATCH","message":"协议版本不匹配（服务端 v2）"}}
 {"scenario":"parse-errors","context":"error:PROTOCOL_MISMATCH","message":{"protocolVersion":2,"type":"error","requestId":"version-null","code":"PROTOCOL_MISMATCH","message":"协议版本不匹配（服务端 v2）"}}
+{"scenario":"parse-errors","context":"error:PROTOCOL_MISMATCH","message":{"protocolVersion":2,"type":"error","requestId":"version-empty-array","code":"PROTOCOL_MISMATCH","message":"协议版本不匹配（服务端 v2）"}}

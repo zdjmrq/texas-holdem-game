@@ -801,7 +801,8 @@ async function scenarioLimits() {
 
         // Message rate limit: the 21st message in the 10s window closes 1008.
         const closed = second.waitForClose(5000);
-        for (let index = 0; index < 22; index++) second.sendRaw(JSON.stringify({ protocolVersion: 2, type: 'unknown_type', requestId: 'flood-' + index }));
+        const floodPayload = JSON.stringify({ protocolVersion: 2, type: 'unknown_type', requestId: 'flood' });
+        for (let index = 0; index < 22; index++) second.sendRaw(floodPayload);
         const close = await closed;
         assert(close.code === 1008, 'rate limit close code');
         assert(/rate/.test(close.reason), 'rate limit close reason');
@@ -1019,7 +1020,11 @@ function collectParseErrors(url) {
         { label: 'version-bool', raw: JSON.stringify({ protocolVersion: true, type: 'get_snapshot', requestId: 'version-bool' }), expected: { kind: 'error', code: 'PROTOCOL_MISMATCH', message: '协议版本不匹配（服务端 v2）', requestId: 'version-bool' } },
         { label: 'version-null', raw: JSON.stringify({ protocolVersion: null, type: 'get_snapshot', requestId: 'version-null' }), expected: { kind: 'error', code: 'PROTOCOL_MISMATCH', message: '协议版本不匹配（服务端 v2）', requestId: 'version-null' } },
         { label: 'version-string-2', raw: JSON.stringify({ protocolVersion: '2', type: 'get_snapshot', requestId: 'version-string-2' }), expected: { kind: 'parsed', dispatchError: '尚未进入房间' } },
-        { label: 'version-absent', raw: JSON.stringify({ type: 'get_snapshot', requestId: 'version-absent' }), expected: { kind: 'parsed', dispatchError: '尚未进入房间' } }
+        { label: 'version-absent', raw: JSON.stringify({ type: 'get_snapshot', requestId: 'version-absent' }), expected: { kind: 'parsed', dispatchError: '尚未进入房间' } },
+        { label: 'version-array-2', raw: JSON.stringify({ protocolVersion: [2], type: 'get_snapshot', requestId: 'version-array-2' }), expected: { kind: 'parsed', dispatchError: '尚未进入房间' } },
+        { label: 'version-empty-array', raw: JSON.stringify({ protocolVersion: [], type: 'get_snapshot', requestId: 'version-empty-array' }), expected: { kind: 'error', code: 'PROTOCOL_MISMATCH', message: '协议版本不匹配（服务端 v2）', requestId: 'version-empty-array' } },
+        { label: 'version-string-spaces', raw: JSON.stringify({ protocolVersion: ' 2 ', type: 'get_snapshot', requestId: 'version-string-spaces' }), expected: { kind: 'parsed', dispatchError: '尚未进入房间' } },
+        { label: 'missing-type-empty-request-id', raw: JSON.stringify({ requestId: '' }), expected: { kind: 'error', code: 'INVALID_REQUEST', message: '缺少消息类型', requestId: null } }
     ];
     return (async () => {
         const client = await connectClient(url, 'parse-errors', 'parse-errors');
@@ -1171,8 +1176,9 @@ async function main() {
             throw new Error('corpus incomplete; missing s2c=' + JSON.stringify(missingS2c) + ' c2s=' + JSON.stringify(missingC2s));
         }
 
+        const knownC2sTypes = ['create_room', 'join_room', 'leave_room', 'start_game', 'player_action', 'ready_for_next', 'resume_session', 'get_snapshot'];
         const s2cCount = writeJsonl('s2c-messages.jsonl', corpus.s2c);
-        const c2sCount = writeJsonl('c2s-messages.jsonl', corpus.c2s);
+        const c2sCount = writeJsonl('c2s-messages.jsonl', corpus.c2s.filter(entry => knownC2sTypes.includes(entry.message.type)));
         const parseErrorCount = writeJsonl('parse-errors.jsonl', parseErrors);
         const configCount = writeJsonl('config-cases.jsonl', corpus.configCases);
         const nameCount = writeJsonl('name-cases.jsonl', corpus.nameCases);

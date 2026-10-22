@@ -3529,6 +3529,7 @@ dependencies = [
 name = "poker-core"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "proptest",
  "rand",
  "rand_chacha",

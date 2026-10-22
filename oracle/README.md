@@ -10,6 +10,9 @@
 待实现（Phase 0）：
 - [ ] `golden-eval.js` 牌力评估（标准 + 短牌）
 - [ ] `golden-rules.js` 合法动作 / 加注网格 / 边池 / 退款
-- [ ] `golden-equity.js` 精确权益 + 固定 seed 蒙特卡洛
+- [x] `golden-equity.js` 精确权益 + 固定 seed 蒙特卡洛（输出 `tests/golden/prob/`，见 `docs/specs/prob.md`）
 - [ ] `golden-ai.js` 固定 seed AI 决策轨迹
 - [ ] `golden-game.js` 整手牌局脚本
+
+性能基准（Phase 3）：
+- [x] `bench-js.js` 原 JS 引擎同机基准（`evaluate` / `calculate`，JSON 输出，供 `docs/benchmarks.md` 与 Rust criterion 对比）

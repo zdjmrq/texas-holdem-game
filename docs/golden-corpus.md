@@ -55,9 +55,37 @@ for each 5-card combination in deck order (suit-major, rank ascending):
 | 阶段 | 脚本 | 输出 | 状态 |
 | --- | --- | --- | --- |
 | poker-engine 规则/下注/底池/退款 | `oracle/golden-rules.js` | `tests/golden/rules/` | 进行中 |
-| poker-prob 权益/outs | `oracle/golden-equity.js` | `tests/golden/prob/` | 待办 |
+| poker-prob 权益/outs | `oracle/golden-equity.js` | `tests/golden/prob/` | 完成（见 §2.1） |
 | poker-ai 决策轨迹（固定 seed） | `oracle/golden-ai.js` | `tests/golden/ai/` | 待办 |
 | poker-protocol 消息 | `oracle/golden-protocol.js` | `tests/golden/protocol/` | 待办 |
+
+### 2.1 poker-prob 权益/outs 语料（完成，2026-10-23）
+
+生成：`node oracle/golden-equity.js`（输出目录 `tests/golden/prob/`）。语料全部来自
+`js/probability-core.js` 的 `calculate` / `findImprovements`，覆盖标准牌与短牌。
+
+| 文件 | 行数 | 内容 |
+| --- | ---: | --- |
+| `tests/golden/prob/exact-heads-up.jsonl` | 6 | 精确枚举：标准/短牌 × 转牌/河牌；含公共牌皇家同花顺全平局 |
+| `tests/golden/prob/monte-carlo.jsonl` | 17 | 固定 seed MC：1/2/3/7/9 对手、0 对手 clamp、低/高样本 clamp、空/Unicode seed |
+| `tests/golden/prob/improvements.jsonl` | 14 | `findImprovements`：preflop/river 隐藏、翻牌/转牌、strong/thin、标准/短牌 |
+| `tests/golden/prob/manifest.json` | — | 生成器、oracle commit、行数、样本总数、每个文件 sha256 |
+
+- 总样本：精确枚举 **105,646** 个 showdown；固定 seed Monte Carlo **19,800** 个样本。
+- 行格式（每个 JSONL 行一部份字段，完整结构见 `docs/specs/prob.md`）：
+
+  ```json
+  {"id":"standard-turn-flush-draw","variant":"standard","player":["Ah","Kh"],"board":["Qh","Jh","2c","7d"],"numOpponents":1,"result":{"winProb":0.6333772507685551,"samples":45540,"method":"exact-heads-up","stats":{"bestHandCounts":{...}},"outs":{...}}}
+  ```
+
+- **确定性**：语料不包含 JS 的 `elapsedMs`（墙钟字段），因此脚本重复运行输出逐字节一致
+  （已两次 `diff -r` 验证）；MC 每行在脚本内执行两次并断言序列化结果相同；exact 行断言
+  method 与闭式样本数（标准转牌 45,540 / 河牌 990；短牌转牌 12,180 / 河牌 406）。
+- **复现**：`node oracle/golden-equity.js && sha256sum tests/golden/prob/*.jsonl`，
+  期望哈希见 `tests/golden/prob/manifest.json`。
+- **测试**：`crates/poker-prob/tests/js_golden_prob.rs`（`cargo test -p poker-prob`），
+  逐字段完全相等（精确枚举逐位相等；固定 seed MC 逐样本一致）。
+  读取语料的测试必须启用 `serde_json` 的 `float_roundtrip` feature，否则浮点解析可能差 1 ulp。
 
 ## 3. 复现约定
 
