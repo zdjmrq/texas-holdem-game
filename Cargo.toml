@@ -30,6 +30,7 @@ rayon = "1"
 unicode-normalization = "0.1"
 proptest = "1"
 criterion = { version = "0.7", features = ["html_reports"] }
+clap = { version = "4", features = ["derive"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
