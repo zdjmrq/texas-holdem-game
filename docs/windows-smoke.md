@@ -36,9 +36,15 @@
   poker-app.exe > out.txt 2>&1
 - 应用自带截图命令（Linux 上已验证，Windows 上用于取证）：
 
-      poker-app.exe --screenshot shot.png --scenario table --screenshot-frame 60
+      poker-app.exe --scenario table-flop --screenshot shot.png --screenshot-frame 70
+      poker-app.exe --scenario table-shortdeck --screenshot shortdeck.png --screenshot-frame 70
+      poker-app.exe --scenario settlement --screenshot settlement.png --screenshot-frame 70
+      poker-app.exe --scenario table --open-raise --screenshot raise.png --screenshot-frame 70
+      poker-app.exe --scenario table-flop --hide-cards --screenshot hidden.png --screenshot-frame 70
 
-  --scenario 可选 home / table / table-flop / settlement / settings，用于直接进入指定界面。
+  --scenario 可选 home / table / table-flop / table-shortdeck / settlement / settings；
+  --hide-cards 让手牌默认隐藏（验证分析遮蔽）；--open-raise 进入加注面板截图。
+  截图模式会自动退出，可连续跑多个场景收集证据。
 
 ---
 
