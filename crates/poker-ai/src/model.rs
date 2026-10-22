@@ -99,10 +99,7 @@ impl BehavioralModel {
             return;
         }
         self.hands.insert(event.hand_id);
-        let aggressive = event.meta.aggressive
-            || action.contains("raise")
-            || action == "bet"
-            || (action == "allin" && event.meta.aggressive);
+        let aggressive = event.meta.aggressive || action.contains("raise") || action == "bet";
         let called = action.contains("call") || (action == "allin" && !aggressive);
         let folded = action.contains("fold");
         if event.street == crate::input::Street::Preflop {
