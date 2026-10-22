@@ -1,0 +1,265 @@
+{
+  "generatedAt": "2026-10-22T17:56:04.527Z",
+  "reference": "/home/dsh/projects/reference/texas-holdem-game",
+  "exhaustive5": [
+    {
+      "where": "standard-5card",
+      "total": 2598960,
+      "vsServer": 0,
+      "vsLegacy": 0,
+      "examples": []
+    },
+    {
+      "where": "shortdeck-5card",
+      "total": 376992,
+      "vsServer": 0,
+      "vsLegacy": 0,
+      "examples": []
+    }
+  ],
+  "sampled": [
+    {
+      "where": "standard-6card",
+      "total": 20000,
+      "vsServer": 0,
+      "vsLegacy": 0,
+      "examples": []
+    },
+    {
+      "where": "standard-7card",
+      "total": 20000,
+      "vsServer": 0,
+      "vsLegacy": 0,
+      "examples": []
+    },
+    {
+      "where": "shortdeck-6card",
+      "total": 20000,
+      "vsServer": 0,
+      "vsLegacy": 0,
+      "examples": []
+    },
+    {
+      "where": "shortdeck-7card",
+      "total": 20000,
+      "vsServer": 0,
+      "vsLegacy": 0,
+      "examples": []
+    }
+  ],
+  "partial": {
+    "standard": {
+      "cards-2": {
+        "equal": 2282,
+        "differ": 718,
+        "examples": [
+          {
+            "hand": "A|spades 3|spades",
+            "probability": {
+              "rank": 0,
+              "score": 1403000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 1403010000
+            }
+          },
+          {
+            "hand": "5|diamonds 2|diamonds",
+            "probability": {
+              "rank": 0,
+              "score": 502000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 502010000
+            }
+          },
+          {
+            "hand": "8|hearts 5|hearts",
+            "probability": {
+              "rank": 0,
+              "score": 805000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 805010000
+            }
+          },
+          {
+            "hand": "8|hearts 6|hearts",
+            "probability": {
+              "rank": 0,
+              "score": 806000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 806010000
+            }
+          },
+          {
+            "hand": "3|diamonds J|diamonds",
+            "probability": {
+              "rank": 0,
+              "score": 1103000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 1103010000
+            }
+          },
+          {
+            "hand": "6|spades 10|spades",
+            "probability": {
+              "rank": 0,
+              "score": 1006000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 1006010000
+            }
+          },
+          {
+            "hand": "J|diamonds 5|diamonds",
+            "probability": {
+              "rank": 0,
+              "score": 1105000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 1105010000
+            }
+          },
+          {
+            "hand": "10|clubs 9|clubs",
+            "probability": {
+              "rank": 0,
+              "score": 1009000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 1009010000
+            }
+          }
+        ]
+      },
+      "cards-3": {
+        "equal": 3000,
+        "differ": 0,
+        "examples": []
+      },
+      "cards-4": {
+        "equal": 3000,
+        "differ": 0,
+        "examples": []
+      }
+    },
+    "shortdeck": {
+      "cards-2": {
+        "equal": 2344,
+        "differ": 656,
+        "examples": [
+          {
+            "hand": "6|diamonds K|diamonds",
+            "probability": {
+              "rank": 0,
+              "score": 1306000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 1306010000
+            }
+          },
+          {
+            "hand": "9|diamonds J|diamonds",
+            "probability": {
+              "rank": 0,
+              "score": 1109000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 1109010000
+            }
+          },
+          {
+            "hand": "10|clubs 6|clubs",
+            "probability": {
+              "rank": 0,
+              "score": 1006000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 1006010000
+            }
+          },
+          {
+            "hand": "A|diamonds 6|diamonds",
+            "probability": {
+              "rank": 0,
+              "score": 1406000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 1406010000
+            }
+          },
+          {
+            "hand": "9|hearts 7|hearts",
+            "probability": {
+              "rank": 0,
+              "score": 907000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 907010000
+            }
+          },
+          {
+            "hand": "10|hearts Q|hearts",
+            "probability": {
+              "rank": 0,
+              "score": 1210000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 1210010000
+            }
+          },
+          {
+            "hand": "10|diamonds Q|diamonds",
+            "probability": {
+              "rank": 0,
+              "score": 1210000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 1210010000
+            }
+          },
+          {
+            "hand": "J|diamonds K|diamonds",
+            "probability": {
+              "rank": 0,
+              "score": 1311000000
+            },
+            "legacy": {
+              "rank": 0,
+              "score": 1311010000
+            }
+          }
+        ]
+      },
+      "cards-3": {
+        "equal": 3000,
+        "differ": 0,
+        "examples": []
+      },
+      "cards-4": {
+        "equal": 3000,
+        "differ": 0,
+        "examples": []
+      }
+    }
+  },
+  "elapsedMs": 23592
+}
