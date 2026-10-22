@@ -151,7 +151,12 @@ poker-ai 与 poker-protocol **暂不作为依赖**：前者由 Phase 4 并行迁
 
 ## 5. 待 Lead 确认 / 下一步
 
-1. poker-ai adapter 接口形状（AiView 字段是否够用）——建议 Lead 让 ai 团队 review 一次。
+1. **poker-ai 依赖 TODO（Lead 已确认）**：本轮为规避 Phase 4 并行迁移的编译问题，poker-app
+   暂时移除了 poker-ai 依赖（只保留 AiPolicy trait + DeterministicAi 桩）。等 poker-ai 可编译且
+   golden baseline 达标后，按 Lead 通知：`Cargo.toml` 加回 poker-ai 依赖 -> 新增
+   `PokerAiAdapter`（impl AiPolicy，把 AiView 映射到 poker-ai 输入、把决策映射为 Action）-> 
+   在 TableSession 创建处替换 Box::new(DeterministicAi)。接口形状请 ai 团队 review 一次。
+   联机接入时同理加回 poker-protocol / poker-client 依赖。
 2. UI polish 优先级：顶部工具栏悬停、浅色主题、牌桌视觉、结算弹窗拖动。
 3. Windows 冒烟：把 dist/texas-holdem-rs-windows-x64.zip 交用户按 docs/windows-smoke.md 跑。
 4. 是否把音乐资源（20MB）提交进 git：本轮按 assets/** 已复制 4 首；如不接受可改 LFS/外置下载。
