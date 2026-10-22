@@ -3710,10 +3710,8 @@ version = "0.1.0"
 dependencies = [
  "poker-core",
  "poker-engine",
- "poker-prob",
- "rand",
- "rand_chacha",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3724,7 +3722,6 @@ dependencies = [
  "env_logger",
  "image",
  "log",
- "poker-ai",
  "poker-core",
  "poker-engine",
  "poker-prob",
@@ -3747,6 +3744,19 @@ dependencies = [
  "poker-prob",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "poker-client"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "poker-core",
+ "poker-protocol",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite 0.28.0",
 ]
 
 [[package]]

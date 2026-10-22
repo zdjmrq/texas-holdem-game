@@ -16,6 +16,11 @@ rand = { workspace = true }
 rand_chacha = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
 proptest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[[bench]]
+name = "eval"
+harness = false
