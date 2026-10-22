@@ -1,0 +1,45 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+authors = ["texas-holdem-rs contributors"]
+
+[workspace.dependencies]
+# Internal crates (strict one-way dependency direction)
+poker-core = { path = "crates/poker-core" }
+poker-engine = { path = "crates/poker-engine" }
+poker-prob = { path = "crates/poker-prob" }
+poker-ai = { path = "crates/poker-ai" }
+poker-protocol = { path = "crates/poker-protocol" }
+poker-server = { path = "crates/poker-server" }
+poker-app = { path = "crates/poker-app" }
+poker-cli = { path = "crates/poker-cli" }
+
+# Shared external dependencies (versions resolved together in Cargo.lock)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.9"
+rand_chacha = "0.9"
+thiserror = "2"
+rayon = "1"
+unicode-normalization = "0.1"
+proptest = "1"
+criterion = { version = "0.7", features = ["html_reports"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[profile.bench]
+inherits = "release"

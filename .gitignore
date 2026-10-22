@@ -1,0 +1,8 @@
+/target
+**/target
+node_modules/
+*.swp
+.DS_Store
+/tests/golden/large-*/
+/results/
+/docs/perf/raw/
