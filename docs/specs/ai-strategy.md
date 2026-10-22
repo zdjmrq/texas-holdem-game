@@ -1342,7 +1342,7 @@ checkedBefore = context.currentBet===0 && (
 | `decisions-shortdeck.jsonl` | 73 | 673,709 | `b3687075bd7cc32b5f172f210427b02aade810a3ad1aa5534bffa9526ee4d9b7` |
 | `decisions-synthetic.jsonl` | 38 | 260,328 | `10e32c447684db22587175cdeab5d596ebce4399887f3074062620997c6a707a` |
 | `trajectories.jsonl` | 4 | 248,670 | `eeeab1c4dc7ab1a552c13eeed3bf32c7cdf4912e405e434e2ada70a0d766924a` |
-| `manifest.json` | — | 4,866 | `6c0b942163530dc1c85f5618dedc886d146b9fb75f1d7d3b7bea3dbd88c0403f` |
+| `manifest.json` | — | 4,864 | `6c0b942163530dc1c85f5618dedc886d146b9fb75f1d7d3b7bea3dbd88c0403f` |
 
 **corpusSha256 = `55a0bcb69f9726f649beac5fbe28de8411885ff0cf9c85d99c391141a51d88be`**
 （= 对上表前 5 个数据文件 sha256 按文件名顺序以换行拼接后再 sha256。）

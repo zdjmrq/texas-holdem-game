@@ -186,6 +186,41 @@ function loadReference() {
         };
     }
 
+    // Raw-result capture. The shared brains only return {action, amount, trace},
+    // so wrap the internal decision steps to record unrounded equity values,
+    // raw candidate EVs and the pre-legalize decision for the golden corpus.
+    // Both the standard core and the stabilised short-deck core expose the same
+    // method names; wrap each class separately.
+    const captureState = { current: null };
+    const capturedClasses = new Set();
+    for (const namespace of ['PokerAICore', 'PokerShortdeckStableCore']) {
+        const BrainClass = W[namespace] && W[namespace].UnifiedPokerAI;
+        if (!BrainClass || capturedClasses.has(BrainClass)) continue;
+        capturedClasses.add(BrainClass);
+        const wrap = (methodName, handler) => {
+            const original = BrainClass.prototype[methodName];
+            if (typeof original !== 'function') return;
+            BrainClass.prototype[methodName] = function (...args) {
+                const result = original.apply(this, args);
+                if (captureState.current) handler(captureState.current, args, result);
+                return result;
+            };
+        };
+        wrap('preflopDecision', (capture, args, result) => {
+            capture.preflop = result;
+        });
+        wrap('buildPostflopCandidates', (capture, args, result) => {
+            capture.equityInfo = args[1];
+            capture.candidates = result;
+        });
+        wrap('selectCandidate', (capture, args, result) => {
+            capture.selected = result;
+        });
+        wrap('solveRiver', (capture, args, result) => {
+            capture.solved = result;
+        });
+    }
+
     const { ServerPokerGame, chooseServerAiAction } = require(path.join(repo, 'server', 'server-game.js'));
 
     return {
@@ -194,6 +229,16 @@ function loadReference() {
         W,
         ServerPokerGame,
         chooseServerAiAction,
+        capture: {
+            begin() {
+                captureState.current = {};
+                return captureState.current;
+            },
+            end(handle) {
+                captureState.current = null;
+                return handle || null;
+            }
+        },
         rng: {
             begin() {
                 rngCounter.calls = 0;
@@ -222,17 +267,6 @@ function endRng() {
 
 function instrumentSeat(seat, state) {
     const ai = seat.aiRef;
-
-    // Capture the raw (unrounded) decision result for numerical comparisons.
-    if (ai.sharedBrain && typeof ai.sharedBrain.decide === 'function') {
-        const originalBrainDecide = ai.sharedBrain.decide.bind(ai.sharedBrain);
-        ai.sharedBrain.decide = function (rawContext) {
-            const result = originalBrainDecide(rawContext);
-            ai.__lastRawResult = captureRawResult(result);
-            return result;
-        };
-    }
-
     const originalObserve = ai.recordOpponentAction.bind(ai);
     const originalShowdown = ai.recordShowdown.bind(ai);
     const originalDecide = ai.decide.bind(ai);
@@ -262,10 +296,11 @@ function instrumentSeat(seat, state) {
         const aiState = captureAiState(seat, ai, gameState);
         const prefix = state.ops.slice(mark);
         beginRng();
+        const capture = REFS.capture.begin();
         const decision = originalDecide(gameState);
+        const raw = buildRawSnapshot(REFS.capture.end(capture));
         const rngCalls = endRng();
         const trace = digestTrace(ai.lastDecisionTrace);
-        const raw = ai.__lastRawResult ? cloneJson(ai.__lastRawResult) : null;
         state.snapshots.push({
             handId: context.handId,
             decisionId: context.decisionId,
@@ -280,7 +315,6 @@ function instrumentSeat(seat, state) {
             rngCalls
         });
         mark = state.ops.length;
-        ai.__lastRawResult = null;
         return decision;
     };
 }
@@ -300,11 +334,46 @@ function captureAiState(seat, ai, gameState) {
 }
 
 /** Unrounded view of the shared brain result (trace later rounds these values). */
-function captureRawResult(result) {
-    if (!result || typeof result !== 'object') return null;
-    const equity = result.equity || {};
-    const candidates = Array.isArray(result.candidates) ? result.candidates : [];
-    const summary = candidates.map(candidate => {
+function buildRawSnapshot(capture) {
+    const preflop = capture && capture.preflop;
+    const equityInfo = (capture && capture.equityInfo) || (preflop && preflop.equity) || null;
+    const candidates = (capture && capture.candidates) || (preflop && preflop.candidates) || [];
+    const selected = (capture && capture.selected) || (capture && capture.solved && capture.solved.decision) || null;
+    return {
+        resolvedByRiverCfr: !!(capture && capture.solved),
+        equity: summarizeEquity(equityInfo),
+        preLegalize: selected ? { action: selected.action, amount: selected.amount } : null,
+        candidates: summarizeCandidates(candidates)
+    };
+}
+
+function summarizeEquity(equity) {
+    if (!equity || typeof equity !== 'object') return null;
+    const samples = equity.responseSamples
+        ? {
+            seats: equity.responseSamples.seats,
+            relations: Array.isArray(equity.responseSamples.relations) ? equity.responseSamples.relations.length : 0,
+            weights: Array.isArray(equity.responseSamples.weights) ? equity.responseSamples.weights.length : null,
+            selectionScores: Array.isArray(equity.responseSamples.selectionScores) ? equity.responseSamples.selectionScores.length : null
+        }
+        : null;
+    return {
+        mean: equity.mean,
+        stdDev: equity.stdDev,
+        standardError: equity.standardError,
+        rangeConfidence: equity.rangeConfidence,
+        subsetEquities: equity.subsetEquities || null,
+        samples: equity.samples || 0,
+        confidence: equity.confidence,
+        exact: !!equity.exact,
+        timedOut: !!equity.timedOut,
+        stalled: !!equity.stalled,
+        responseSamples: samples
+    };
+}
+
+function summarizeCandidates(candidates) {
+    return (Array.isArray(candidates) ? candidates : []).map(candidate => {
         if (!candidate || typeof candidate !== 'object') return null;
         const response = candidate.response;
         return {
@@ -318,6 +387,7 @@ function captureRawResult(result) {
             calledEquity: candidate.calledEquity,
             terminalCall: candidate.terminalCall || null,
             planBonus: candidate.planBonus,
+            bluffCatch: !!candidate.bluffCatch,
             response: response
                 ? {
                     allFold: response.allFold,
@@ -330,25 +400,6 @@ function captureRawResult(result) {
                 : null
         };
     });
-    const preLegalize = result.decision
-        ? { action: result.decision.action, amount: result.decision.amount }
-        : null;
-    return {
-        equity: {
-            mean: equity.mean,
-            stdDev: equity.stdDev,
-            standardError: equity.standardError,
-            rangeConfidence: equity.rangeConfidence,
-            subsetEquities: equity.subsetEquities || null,
-            samples: equity.samples || 0,
-            confidence: equity.confidence,
-            exact: !!equity.exact,
-            timedOut: !!equity.timedOut,
-            stalled: !!equity.stalled
-        },
-        preLegalize,
-        candidates: summary
-    };
 }
 
 function digestTrace(trace) {
@@ -435,8 +486,9 @@ function runTable(spec) {
 // Decision cases
 // ---------------------------------------------------------------------------
 
-function tagFocus(trace) {
-    return trace && trace.parameters ? trace.parameters.strategyFocus : 'general';
+function tagFocus(trace, variant) {
+    if (trace && trace.parameters && trace.parameters.strategyFocus) return trace.parameters.strategyFocus;
+    return variant === 'shortdeck' ? 'shortdeck-general' : 'general';
 }
 
 function snapshotTags(table, state, snapshot) {
@@ -445,7 +497,7 @@ function snapshotTags(table, state, snapshot) {
     const context = snapshot.context;
     const trace = snapshot.trace;
     tags.push(spec.variant);
-    tags.push(tagFocus(trace));
+    tags.push(tagFocus(trace, spec.variant));
     tags.push(snapshot.street);
     tags.push(snapshot.decision.action);
     tags.push((context.toCall || 0) > 0 ? 'facing' : 'open');
@@ -457,7 +509,7 @@ function snapshotTags(table, state, snapshot) {
     const bigBlind = context.bigBlind || spec.bigBlind || 200;
     if ((context.stack || 0) <= 12 * bigBlind) tags.push('short-stack');
     if ((context.stack || 0) >= 80 * bigBlind) tags.push('deep-stack');
-    if ((context.publicPlayers || []).some(player => player.allIn || player.stack === 0)) tags.push('allin-opponent');
+    if ((context.publicPlayers || []).some(player => player.allIn || (player.stack === 0 && !player.folded))) tags.push('allin-opponent');
     if (Array.isArray(trace && trace.candidates) && trace.candidates.some(candidate => candidate.terminalCall)) tags.push('terminal-call');
     if ((context.preflopRaiseCount || 0) >= 2) tags.push('preflop-3bet-plus');
     tags.push('harvested');
@@ -540,18 +592,10 @@ function replayDecision(aiDescriptor, aiState, observes, context, options = {}) 
     applyAiState(ai, aiState);
     applyObserves(ai, observes);
 
-    let raw = null;
-    if (options.captureRaw !== false && ai.sharedBrain && typeof ai.sharedBrain.decide === 'function') {
-        const originalBrainDecide = ai.sharedBrain.decide.bind(ai.sharedBrain);
-        ai.sharedBrain.decide = function (rawContext) {
-            const result = originalBrainDecide(rawContext);
-            raw = captureRawResult(result);
-            return result;
-        };
-    }
-
     beginRng();
+    const capture = options.captureRaw === false ? null : REFS.capture.begin();
     const decision = ai.decide(decisionContext(context));
+    const raw = capture ? buildRawSnapshot(REFS.capture.end(capture)) : null;
     const rngCalls = endRng();
     return {
         action: decision.action,
@@ -562,11 +606,18 @@ function replayDecision(aiDescriptor, aiState, observes, context, options = {}) 
     };
 }
 
+const MAX_DECISION_OBSERVES = 20;
+
 function buildDecisionCase(entry, options = {}) {
     const { table, state, snapshot } = entry;
     const ai = aiDescriptor(table.spec, state, snapshot.aiState);
     const tags = entry.tags.slice();
     if (options.extraTags) tags.push(...options.extraTags);
+    // Keep the most recent observation window: models are seeded by recent
+    // public history, and capping keeps the corpus compact and deterministic.
+    const observes = snapshot.prefix.length > MAX_DECISION_OBSERVES
+        ? snapshot.prefix.slice(-MAX_DECISION_OBSERVES)
+        : snapshot.prefix;
     const base = {
         id: entry.id,
         category: options.category || 'harvested',
@@ -574,7 +625,8 @@ function buildDecisionCase(entry, options = {}) {
         table: tableSummary(table.spec),
         ai,
         aiState: snapshot.aiState,
-        observes: snapshot.prefix,
+        observes,
+        observesTruncated: snapshot.prefix.length > observes.length,
         context: snapshot.context
     };
     const first = replayDecision(base.ai, base.aiState, base.observes, base.context);
@@ -665,26 +717,26 @@ const STANDARD_GENERAL_RULES = [
 ];
 
 const SHORTDECK_LOCAL_RULES = [
-    { name: 'preflop-open', limit: 6, match: e => has(e.tags, 'shortdeck', 'shortdeck-local', 'preflop', 'open') },
-    { name: 'preflop-facing', limit: 6, match: e => has(e.tags, 'shortdeck', 'shortdeck-local', 'preflop', 'facing') },
-    { name: 'flop-any', limit: 8, match: e => has(e.tags, 'shortdeck', 'shortdeck-local', 'flop') },
-    { name: 'turn-any', limit: 8, match: e => has(e.tags, 'shortdeck', 'shortdeck-local', 'turn') },
-    { name: 'river-any', limit: 6, match: e => has(e.tags, 'shortdeck', 'shortdeck-local', 'river') },
-    { name: 'multiway', limit: 6, match: e => has(e.tags, 'shortdeck', 'shortdeck-local', 'multiway') },
-    { name: 'allin-action', limit: 4, match: e => has(e.tags, 'shortdeck', 'shortdeck-local', 'allin') },
+    { name: 'preflop-open', limit: 6, match: e => has(e.tags, 'shortdeck', 'profile-shortdeck-local', 'preflop', 'open') },
+    { name: 'preflop-facing', limit: 6, match: e => has(e.tags, 'shortdeck', 'profile-shortdeck-local', 'preflop', 'facing') },
+    { name: 'flop-any', limit: 8, match: e => has(e.tags, 'shortdeck', 'profile-shortdeck-local', 'flop') },
+    { name: 'turn-any', limit: 8, match: e => has(e.tags, 'shortdeck', 'profile-shortdeck-local', 'turn') },
+    { name: 'river-any', limit: 6, match: e => has(e.tags, 'shortdeck', 'profile-shortdeck-local', 'river') },
+    { name: 'multiway', limit: 6, match: e => has(e.tags, 'shortdeck', 'profile-shortdeck-local', 'multiway') },
+    { name: 'allin-action', limit: 4, match: e => has(e.tags, 'shortdeck', 'profile-shortdeck-local', 'allin') },
     ...STYLE_ORDER.map(style => ({
         name: `style-${style}`,
         limit: 2,
-        match: e => has(e.tags, 'shortdeck', 'shortdeck-local', `style-${style}`)
+        match: e => has(e.tags, 'shortdeck', 'profile-shortdeck-local', `style-${style}`)
     }))
 ];
 
 const SHORTDECK_SERVER_RULES = [
-    { name: 'preflop', limit: 5, match: e => has(e.tags, 'shortdeck', 'shortdeck', 'preflop') },
-    { name: 'flop', limit: 6, match: e => has(e.tags, 'shortdeck', 'shortdeck', 'flop') },
-    { name: 'turn', limit: 5, match: e => has(e.tags, 'shortdeck', 'shortdeck', 'turn') },
-    { name: 'river', limit: 4, match: e => has(e.tags, 'shortdeck', 'shortdeck', 'river') },
-    { name: 'allin-opponent', limit: 3, match: e => has(e.tags, 'shortdeck', 'shortdeck', 'allin-opponent') }
+    { name: 'preflop', limit: 5, match: e => has(e.tags, 'shortdeck', 'profile-shortdeck', 'preflop') },
+    { name: 'flop', limit: 6, match: e => has(e.tags, 'shortdeck', 'profile-shortdeck', 'flop') },
+    { name: 'turn', limit: 5, match: e => has(e.tags, 'shortdeck', 'profile-shortdeck', 'turn') },
+    { name: 'river', limit: 4, match: e => has(e.tags, 'shortdeck', 'profile-shortdeck', 'river') },
+    { name: 'allin-opponent', limit: 3, match: e => has(e.tags, 'shortdeck', 'profile-shortdeck', 'allin-opponent') }
 ];
 
 // ---------------------------------------------------------------------------
@@ -1046,19 +1098,24 @@ function syntheticStandardCases() {
     const callerObserves = [];
     for (let handId = 1; handId <= 14; handId++) {
         const board = ['Qs', '9d', '4c'];
-        const meta = actionMeta({
+        const metaOptions = {
             toCallBefore: 300,
-            additionalPaid: 0,
             potBefore: 1200,
+            potAfter: 1500,
             minimumBet: 200,
             betFraction: 0.62,
+            preflopRaiseCountBefore: 1,
             positionFromButton: 0,
             playerCount: 2,
             communityCards: board
-        });
-        folderObserves.push(observeEvent(0, 'fold', 'flop', handId, meta));
+        };
+        folderObserves.push(observeEvent(0, 'fold', 'flop', handId, actionMeta({
+            ...metaOptions,
+            additionalPaid: 0,
+            aggressive: false
+        })));
         callerObserves.push(observeEvent(0, 'call', 'flop', handId, actionMeta({
-            ...meta,
+            ...metaOptions,
             additionalPaid: 300,
             aggressive: false
         })));
@@ -1651,9 +1708,8 @@ function buildSyntheticCases() {
 
 function buildTrajectory(table, state, options = {}) {
     const maxHands = options.maxHands || 2;
-    const maxObserveOps = options.maxObserveOps || 160;
-    const lastHand = Math.min(...state.snapshots.map(snapshot => snapshot.handId).filter(handId => handId <= maxHands + 1).concat([maxHands + 1])) || maxHands;
-    let snapshotCount = state.snapshots.filter(snapshot => snapshot.handId <= lastHand).length;
+    const maxObserveOps = options.maxObserveOps || 200;
+    let snapshotCount = state.snapshots.filter(snapshot => snapshot.handId <= maxHands).length;
     if (snapshotCount < 2) snapshotCount = Math.min(state.snapshots.length, 4);
     if (snapshotCount < 1) return null;
     const lastSnapshot = state.snapshots[snapshotCount - 1];
@@ -1699,12 +1755,14 @@ function buildTrajectory(table, state, options = {}) {
         ops: trimmed
     };
     const replayed = replayTrajectory(trajectory);
+    let decisionIndex = 0;
     for (let index = 0; index < trimmed.length; index++) {
         if (trimmed[index].op !== 'decide') continue;
+        const replayedDecision = replayed[decisionIndex++];
         const production = state.snapshots.find(snapshot => snapshot.decisionId === trimmed[index].context.decisionId &&
             snapshot.handId === trimmed[index].context.handId);
-        trimmed[index].expect = replayed[index];
-        if (production && JSON.stringify(replayed[index]) !== JSON.stringify({
+        trimmed[index].expect = replayedDecision;
+        if (production && JSON.stringify(replayedDecision) !== JSON.stringify({
             action: production.decision.action,
             amount: production.decision.amount,
             rngCalls: production.rngCalls,
@@ -1714,6 +1772,9 @@ function buildTrajectory(table, state, options = {}) {
             throw new Error(`trajectory replay diverges from production decision ${trajectory.id}#${index}`);
         }
     }
+    if (decisionIndex !== replayed.length) {
+        throw new Error(`trajectory replay decision count mismatch ${trajectory.id}`);
+    }
     trajectory.inputSha256 = sha256(JSON.stringify(trajectory.ops.map(op => op.op === 'decide'
         ? { op: op.op, aiState: op.aiState, context: op.context }
         : op)));
@@ -1722,15 +1783,6 @@ function buildTrajectory(table, state, options = {}) {
 
 function replayTrajectory(trajectory) {
     const ai = createCaseAi(trajectory.ai);
-    let raw = null;
-    if (ai.sharedBrain && typeof ai.sharedBrain.decide === 'function') {
-        const originalBrainDecide = ai.sharedBrain.decide.bind(ai.sharedBrain);
-        ai.sharedBrain.decide = function (rawContext) {
-            const result = originalBrainDecide(rawContext);
-            raw = captureRawResult(result);
-            return result;
-        };
-    }
     const results = [];
     for (const op of trajectory.ops) {
         if (op.op === 'observe') {
@@ -1739,9 +1791,10 @@ function replayTrajectory(trajectory) {
             ai.recordShowdown(op.seatId, cloneJson(op.info));
         } else if (op.op === 'decide') {
             applyAiState(ai, op.aiState);
-            raw = null;
             beginRng();
+            const capture = REFS.capture.begin();
             const decision = ai.decide(decisionContext(op.context));
+            const raw = buildRawSnapshot(REFS.capture.end(capture));
             const rngCalls = endRng();
             results.push({
                 action: decision.action,
@@ -1765,6 +1818,8 @@ const TABLE_SPECS = [
     { id: 'std-target-t1', variant: 'standard', aiVariant: 'standard', seats: 10, startingStack: 5000, smallBlind: 100, bigBlind: 200, hands: 20, seed: 0x5e1e0001, styleOffset: 0 },
     { id: 'std-target-t2', variant: 'standard', aiVariant: 'standard', seats: 10, startingStack: 5000, smallBlind: 100, bigBlind: 200, hands: 20, seed: 0x5e1e0002, styleOffset: 2 },
     { id: 'std-target-t3', variant: 'standard', aiVariant: 'standard', seats: 10, startingStack: 5000, smallBlind: 100, bigBlind: 200, hands: 20, seed: 0x5e1e0003, styleOffset: 4 },
+    { id: 'std-target-t4', variant: 'standard', aiVariant: 'standard', seats: 10, startingStack: 5000, smallBlind: 100, bigBlind: 200, hands: 20, seed: 0x5e1e0004, styleOffset: 1 },
+    { id: 'std-target-t5', variant: 'standard', aiVariant: 'standard', seats: 10, startingStack: 5000, smallBlind: 100, bigBlind: 200, hands: 20, seed: 0x5e1e0005, styleOffset: 5 },
     { id: 'std-general-t1', variant: 'standard', aiVariant: 'standard', seats: 6, startingStack: 20000, smallBlind: 50, bigBlind: 100, hands: 12, seed: 0x5e1e0011, styleOffset: 1 },
     { id: 'std-general-t2', variant: 'standard', aiVariant: 'standard', seats: 4, startingStack: 20000, smallBlind: 40, bigBlind: 80, hands: 12, seed: 0x5e1e0012, styleOffset: 3 },
     { id: 'std-general-t3', variant: 'standard', aiVariant: 'standard', seats: 9, startingStack: 20000, smallBlind: 50, bigBlind: 100, hands: 10, seed: 0x5e1e0013, styleOffset: 5 },
@@ -1809,6 +1864,12 @@ function generate(outDir) {
         }
     }
 
+    const poolSummary = Object.fromEntries(Object.entries(pools).map(([name, entries]) => [name, {
+        entries: entries.length,
+        riverCfr: entries.filter(entry => entry.tags.includes('river-cfr')).length
+    }]));
+    console.log('  pools:', JSON.stringify(poolSummary));
+
     const usedInputs = new Set();
     const dedupe = cases => {
         const kept = [];
@@ -1830,19 +1891,19 @@ function generate(outDir) {
         .sort((a, b) => a.id.localeCompare(b.id));
     const standardGeneralCases = dedupe(generalEntries.map(entry => buildDecisionCase(entry, { category: 'harvested-standard-general' })))
         .sort((a, b) => a.id.localeCompare(b.id));
-    const shortdeckLocalCases = dedupe(localEntries.map(entry => buildDecisionCase(entry, { category: 'harvested-shortdeck-local' })))
+    const shortdeckLocalCases = localEntries.map(entry => buildDecisionCase(entry, { category: 'harvested-shortdeck-local' }))
         .sort((a, b) => a.id.localeCompare(b.id));
-    const shortdeckServerCases = dedupe(serverEntries.map(entry => buildDecisionCase(entry, { category: 'harvested-shortdeck-server' })))
+    const shortdeckServerCases = serverEntries.map(entry => buildDecisionCase(entry, { category: 'harvested-shortdeck-server' }))
         .sort((a, b) => a.id.localeCompare(b.id));
     const shortdeckCases = dedupe([...shortdeckLocalCases, ...shortdeckServerCases])
         .sort((a, b) => a.id.localeCompare(b.id));
     const syntheticCases = dedupe(buildSyntheticCases()).sort((a, b) => a.id.localeCompare(b.id));
 
     const trajectorySpecs = [
-        { tableId: 'std-target-t1', seat: 3, maxHands: 2 },
-        { tableId: 'std-general-t1', seat: 1, maxHands: 2 },
-        { tableId: 'sd-local-t1', seat: 2, maxHands: 2 },
-        { tableId: 'sd-server-t1', seat: 0, maxHands: 2 }
+        { tableId: 'std-target-t1', seat: 3, maxHands: 3 },
+        { tableId: 'std-general-t1', seat: 1, maxHands: 3 },
+        { tableId: 'sd-local-t1', seat: 2, maxHands: 3 },
+        { tableId: 'sd-server-t1', seat: 0, maxHands: 3 }
     ];
     const trajectories = [];
     for (const spec of trajectorySpecs) {
@@ -1871,7 +1932,7 @@ function generate(outDir) {
             relative,
             sha256(fs.readFileSync(path.join(REFS.repo, relative)))
         ])),
-        recompenseNote: 'recording format version 1; see docs/specs/ai-strategy.md §9 for field semantics and comparison tolerances',
+        recordingNote: 'format version 1; field semantics and comparison tolerances are documented in docs/specs/ai-strategy.md section 9',
         rngVectors: buildRngVectors(),
         files: [],
         counts: {}
@@ -1996,7 +2057,7 @@ function verifyCorpus(outDir, options = {}) {
 function main() {
     const args = Object.fromEntries(process.argv.slice(2).map(item => {
         const [key, ...rest] = item.replace(/^--/, '').split('=');
-        return [key, rest.join('=')];
+        return [key, rest.length ? rest.join('=') : true];
     }));
     const outDir = path.resolve(args.out || DEFAULT_OUT_DIR);
     if (args.verify) {

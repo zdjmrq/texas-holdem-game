@@ -1,0 +1,140 @@
+{
+  "formatVersion": 1,
+  "algoVersion": "v1.5.8",
+  "strategyVersion": "unified-v2",
+  "referenceCommit": "e0c6c6f88d3e64324e1d83bfc700dd3a77f71b90",
+  "referenceRepo": "texas-holdem-game",
+  "generator": "oracle/golden-ai.js",
+  "generateCommand": "node oracle/golden-ai.js",
+  "verifyCommand": "node oracle/golden-ai.js --verify",
+  "determinism": {
+    "seedPolicy": "all table shuffles use oracle/lib/prng mulberry32 with fixed integer seeds; every AI decision uses the JS SeededRng seeded by \"<seed>:<handId>:<seatId>:<decisionId>:<style>\"",
+    "clock": "the vm sandbox exposes performance.now() === 0, so the AI wall-clock emergency brake never truncates the fixed sample count",
+    "mathRandom": "patched with mulberry32(0x9e3779b9) before loading the reference modules",
+    "noTimestamps": "the corpus contains no wall-clock or generated-at fields; two runs must produce byte-identical files"
+  },
+  "sourceSha256": {
+    "js/ai-core.js": "5ccd97deb591ae3570a59994bf0a4581e988ed4c7a37fdcac55428f4a2c49f39",
+    "js/ai.js": "5a5ca65d4bc7181aa093ebee0ff86de10eaf9ebfe98a347dd0371aba0f113983",
+    "js/ai-shortdeck-stable.js": "f69ff4780c59ce4b0b2c72bb061773455a5e5f33a11518879809589760498ce3",
+    "js/river-solver.js": "9fc9e94eab25b17e715d62638367869ca52357836f3dee2b53a320fc17539412",
+    "js/compiled-cfr.js": "f5de6932053c55776940f54ad9f744f114d152575e9a847d93b429a21b389305",
+    "js/probability-core.js": "0a46bccd6aff49771229c512f55bfe00ba7f29f360d973c32c4238f7a92e5b10",
+    "js/game-rules-core.js": "954e3829a1cdf2223db54daf1323e8c6373496f3d5101ffcc9d216a2a024b8db",
+    "server/server-game.js": "0916f16b4572596d3e0334ea50e194e63fc1d09f752d54e9b96a81710750cc22"
+  },
+  "recordingNote": "format version 1; field semantics and comparison tolerances are documented in docs/specs/ai-strategy.md section 9",
+  "rngVectors": {
+    "note": "ai-core.js SeededRng = FNV-1a hashSeed + mulberry32-style next(); short-deck stable core is identical",
+    "hashSeed": {
+      "table:1:0:1:SOLID": 2490085092,
+      "poker-table:standard:12:3:standard:river:5:3:TAG": 3525023011,
+      "poker-table:shortdeck:4:2:shortdeck:flop:1:2:LAG": 1746015351
+    },
+    "next8": {
+      "table:1:0:1:SOLID": [
+        0.5340791516937315,
+        0.8908965035807341,
+        0.13685401086695492,
+        0.11160188005305827,
+        0.8373328370507807,
+        0.8148538516834378,
+        0.9530264236964285,
+        0.6702359593473375
+      ],
+      "poker-table:standard:12:3:standard:river:5:3:TAG": [
+        0.3419859155546874,
+        0.10835741111077368,
+        0.8825704304035753,
+        0.1905005262233317,
+        0.9670827395748347,
+        0.95640988368541,
+        0.3177427037153393,
+        0.8931115893647075
+      ],
+      "poker-table:shortdeck:4:2:shortdeck:flop:1:2:LAG": [
+        0.5512904266361147,
+        0.01703232992440462,
+        0.20433345809578896,
+        0.6469817440956831,
+        0.9308326528407633,
+        0.2722686156630516,
+        0.6924851306248456,
+        0.11203938536345959
+      ]
+    }
+  },
+  "files": [
+    {
+      "path": "decisions-standard-target.jsonl",
+      "records": 106,
+      "bytes": 1113865,
+      "sha256": "5ddf9719746e40342c14cf31a9e87142bbf1cd023362ae2d217df96aaa6d259a"
+    },
+    {
+      "path": "decisions-standard-general.jsonl",
+      "records": 45,
+      "bytes": 408705,
+      "sha256": "dd8c8fb55a478a6ea43e8dc07fd9e80909a5efed758a00ab64939042b2cead88"
+    },
+    {
+      "path": "decisions-shortdeck.jsonl",
+      "records": 73,
+      "bytes": 673709,
+      "sha256": "b3687075bd7cc32b5f172f210427b02aade810a3ad1aa5534bffa9526ee4d9b7"
+    },
+    {
+      "path": "decisions-synthetic.jsonl",
+      "records": 38,
+      "bytes": 260328,
+      "sha256": "10e32c447684db22587175cdeab5d596ebce4399887f3074062620997c6a707a"
+    },
+    {
+      "path": "trajectories.jsonl",
+      "records": 4,
+      "bytes": 248670,
+      "sha256": "eeeab1c4dc7ab1a552c13eeed3bf32c7cdf4912e405e434e2ada70a0d766924a"
+    }
+  ],
+  "counts": {
+    "decisions": 262,
+    "harvested": 224,
+    "synthetic": 38,
+    "riverCfr": 21,
+    "trajectories": 4,
+    "trajectoryDecisions": 27,
+    "byVariant": {
+      "standard": 180,
+      "shortdeck": 82
+    },
+    "byCategory": {
+      "harvested-standard-target": 106,
+      "harvested-standard-general": 45,
+      "harvested-shortdeck-local": 50,
+      "harvested-shortdeck-server": 23,
+      "synthetic": 38
+    },
+    "byStreet": {
+      "preflop": 118,
+      "flop": 57,
+      "turn": 39,
+      "river": 48
+    },
+    "byStyle": {
+      "SOLID": 41,
+      "MANIAC": 28,
+      "TAGFISH": 21,
+      "CALLING_STATION": 36,
+      "TAG": 71,
+      "LAG": 65
+    },
+    "byAction": {
+      "fold": 85,
+      "raise": 58,
+      "allin": 27,
+      "check": 77,
+      "call": 15
+    }
+  },
+  "corpusSha256": "55a0bcb69f9726f649beac5fbe28de8411885ff0cf9c85d99c391141a51d88be"
+}
