@@ -133,13 +133,11 @@ async fn reconnect_backoff_matches_golden_sequence() {
     for _ in 0..64 {
         match next_event(&mut client).await {
             ClientEvent::Reconnecting { attempt, delay_ms } => delays.push((attempt, delay_ms)),
-            ClientEvent::Connected { reconnecting: true } => {
+            ClientEvent::Connected { reconnecting: true } if delays.len() >= 6 => {
                 // A connection that the server drops right after hello counts as
                 // a failed attempt; only accept the successful one at the end.
-                if delays.len() >= 6 {
-                    reconnected = true;
-                    break;
-                }
+                reconnected = true;
+                break;
             }
             ClientEvent::ReconnectFailed { .. } => panic!("unexpected give-up"),
             _ => {}

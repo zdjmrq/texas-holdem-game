@@ -332,7 +332,15 @@ async fn rust_protocol_client_drives_reference_js_server() {
                     let legal = &state.legal_actions.actions;
                     let (action, amount) = if legal.contains(&proto::ActionType::Check) {
                         ("check".to_owned(), 0)
-                    } else if legal.contains(&proto::ActionType::Call) {
+                    } else if legal.contains(&proto::ActionType::Call)
+                        && state.your_stack.saturating_sub(state.legal_actions.to_call)
+                            >= state.room_config.big_blind.saturating_mul(10)
+                    {
+                        // This protocol flow must also test ready/next-hand.
+                        // The reference AI uses live randomness: calling a shove
+                        // can bust the sole human, legitimately ending the game
+                        // and making a next-hand assertion impossible. Keep a
+                        // reserve; all-in settlement is covered by engine tests.
                         ("call".to_owned(), state.legal_actions.to_call)
                     } else {
                         ("fold".to_owned(), 0)
