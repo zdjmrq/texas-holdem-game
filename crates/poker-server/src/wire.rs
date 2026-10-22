@@ -151,12 +151,9 @@ pub(crate) fn last_hand_result(result: &EngineHandResult) -> proto::LastHandResu
 pub(crate) fn game_state(room: &Room, seat_index: usize) -> Option<proto::GameState> {
     let game = room.game.as_ref()?;
     let seat = room.seats.get(seat_index)?;
-    let player_count = game.players().len();
-    let your_cards = if seat.is_human || true {
-        seat.hole_cards.iter().copied().map(card).collect()
-    } else {
-        Vec::new()
-    };
+    // Only the recipient's private cards enter this snapshot. Other seats are
+    // serialized separately by public_players, without their private cards.
+    let your_cards = seat.hole_cards.iter().copied().map(card).collect();
     let current_player_idx = game.current_player_idx();
     let is_your_turn = game.phase() != EnginePhase::Idle
         && i32::try_from(seat_index).ok() == Some(current_player_idx);
@@ -172,7 +169,6 @@ pub(crate) fn game_state(room: &Room, seat_index: usize) -> Option<proto::GameSt
             wager_unit: 0,
         })
     };
-    let _ = player_count;
     Some(proto::GameState {
         protocol_version: proto::PROTOCOL_VERSION,
         room_code: room.code.clone(),
