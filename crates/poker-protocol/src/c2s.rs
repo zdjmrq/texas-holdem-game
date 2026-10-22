@@ -38,10 +38,11 @@ pub fn parse_client_message_value(value: Value) -> Result<ClientMessage, ClientP
     let Some(message_type) = value.get("type").and_then(Value::as_str).map(str::to_owned) else {
         return Err(ClientParseError::MissingType { request_id });
     };
-    if let Some(announced) = value.get("protocolVersion") {
-        if js::number(Some(announced)) != Some(f64::from(PROTOCOL_VERSION)) {
-            return Err(ClientParseError::ProtocolMismatch { request_id });
-        }
+    let version_mismatch = value
+        .get("protocolVersion")
+        .is_some_and(|announced| js::number(Some(announced)) != Some(f64::from(PROTOCOL_VERSION)));
+    if version_mismatch {
+        return Err(ClientParseError::ProtocolMismatch { request_id });
     }
     if !is_known_client_type(&message_type) {
         return Err(ClientParseError::UnknownType {

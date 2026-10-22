@@ -148,14 +148,11 @@ fn number_to_string(value: f64) -> String {
         return format!("{}", value as i64);
     }
     let mut text = format!("{value}");
-    if let Some((_mantissa, exponent)) = text.split_once('e') {
-        if !exponent.starts_with('-') && !exponent.starts_with('+') {
-            text = format!(
-                "{}e+{}",
-                &text[..text.find('e').unwrap_or(text.len())],
-                exponent
-            );
-        }
+    if let Some((mantissa, exponent)) = text.split_once('e')
+        && !exponent.starts_with('-')
+        && !exponent.starts_with('+')
+    {
+        text = format!("{mantissa}e+{exponent}");
     }
     text
 }

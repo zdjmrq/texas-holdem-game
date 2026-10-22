@@ -390,3 +390,94 @@ max_message_size 的 1009 行为、Origin 拒绝的 HTTP 状态，确认与本�
 | 6 | 互操作测试依赖 Node 与 reference 仓库 | CI/新机器无法跑 | 脚本用 env 跳过；Lead 验收机必须跑一次并记录 |
 | 7 | Windows 防火墙/端口提示 | 首次监听 3000 弹窗 | Phase 7 打包时处理；文档提示用户 |
 | 8 | hostId=null 的 UI 表现 | 全部人类离开后大厅状态 | 旧客户端已处理（isHost false / hostId null），Rust 服务端照发即可 |
+
+## 15. 实现状态（Phase 5 阶段 A 完成，2026-10-23）
+
+### 15.1 交付清单
+
+crates/poker-server（首版实现，约 4,700 行含测试）：
+
+| 文件 | 内容 |
+| --- | --- |
+| `src/lib.rs` | crate 文档、模块导出、ServerHandle/spawn_server/probe_server |
+| `src/options.rs` | ServerOptions、from_env（7 个 POKER_* + POKER_APP_VERSION）、sanitized 范围 clamp |
+| `src/ai.rs` | ServerAi trait、AiFactory、AiView、确定性 StubAi（check/call/fold，微秒级、无随机） |
+| `src/room.rs` | Seat/Room 数据结构、DedupeCache(64)、座位/房主/计时器 token、engine seat 同步 |
+| `src/wire.rs` | poker-engine ↔ poker-protocol 全部 DTO 转换（含隐藏信息规则、wagerUnit 缺省语义） |
+| `src/server.rs` | 单 Mutex 状态、axum upgrade/Origin/容量/限流/大小、全部消息 handler、房间生命周期、AI spawn_blocking 串行决策、tokio 定时器（AI/下一手/宽限/TTL）、ServerHandle |
+| `tests/common/mod.rs` | WebSocket 测试客户端（后台读者 + mark/wait_after/wait_closed） |
+| `tests/integration.rs` | 11 项真实 WebSocket 集成测试（见 15.3） |
+| `tests/interop.rs` | 双向互操作测试（JS 客户端 → Rust 服务端；Rust 客户端 → 原 JS 服务端） |
+
+库 API：
+
+    pub async fn spawn_server(options: ServerOptions) -> io::Result<ServerHandle>;
+    pub async fn spawn_server_with_fallback(options: ServerOptions) -> io::Result<ServerHandle>;
+    pub async fn probe_server(url: &str, expected_app_version: &str, timeout: Duration) -> bool;
+    impl ServerHandle {
+        pub fn local_addr(&self) -> SocketAddr;
+        pub fn url(&self) -> String;
+        pub fn app_version(&self) -> &str;
+        pub async fn shutdown(self);
+        pub async fn join(self);
+    }
+
+桌面端嵌入：spawn_server_with_fallback 在 3000 被占用（AddrInUse）时自动换端口 0；
+probe_server 复刻旧桌面端 900ms hello 探针（serverId/protocolVersion=2/appVersion 全等）。
+环境变量 POKER_HOST/POKER_PORT/POKER_MAX_ROOMS/POKER_MAX_CONNECTIONS/
+POKER_MAX_CONNECTIONS_PER_IP/POKER_ALLOWED_ORIGINS/POKER_TRUST_PROXY 由 from_env 读取并受
+参考范围约束；appVersion 默认 1.5.8，可用 POKER_APP_VERSION 覆盖。
+
+### 15.2 协议/生命周期实现对照
+
+| 任务项 | 实现 |
+| --- | --- |
+| hello 握手 | serverId/protocolVersion=2/appVersion=1.5.8；连接建立即发 |
+| Origin 白名单 | upgrade 前校验，不允许返回 HTTP 401；允许 localhost/127.0.0.1/::1/null/file:// 与精确白名单 |
+| 消息大小上限 | 传输层放宽到 256 KiB（避免 ws 库直接断链），应用层 >16384 字节 close(1009, "message too large")；客户端只见 code=1009 |
+| 按 IP 限流 | 每连接固定窗口（默认 80/10s），超限 close(1008, "message rate exceeded")，在 JSON 解析之前 |
+| 容量限制 | 总连接/每 IP 超限时完成 upgrade 后立即 close(1013, "server capacity reached")（保持旧客户端 terminal 语义），不发 hello |
+| 房间生命周期 | create/join/leave/start/ready/action/resume/get_snapshot 全部实现；房主迁移；AI 补位；AI 延迟档；断线 1800ms 宽限（可配）、resume token、顶号 4001、空房 15s TTL（可配） |
+| 权威牌局 | poker-engine 驱动；每次变更 stateVersion++ → 广播个性化 game_state；每玩家隐藏信息正确；turnId/handId 语义；行动校验顺序与文本逐字对齐参考实现；重复 requestId 重放 action_ack（64 条缓存）；结算后 ready/250ms 下一手 |
+| AI | ServerAi trait + StubAiFactory（默认确定性 check/call）；决策在 spawn_blocking 执行，回锁后复核 handId/turnId/currentPlayerIdx 再应用；单房间串行，后续直接替换为 poker-ai 适配器 |
+| 定时器 | tokio task + 每房间 generation token（invalidated on change），等价 JS setTimeout/clearTimeout 且无悬挂回调 |
+| 并发模型 | 单 std::sync::Mutex 状态；handler 同步执行、绝不跨 await 持锁；每连接有界 outbound 通道由写任务消费；定时器/AI 任务独立 tokio task |
+
+### 15.3 验证命令与结果（CARGO_TARGET_DIR=/tmp/target-protocol，--offline）
+
+    cargo fmt -p poker-server -- --check                  # 通过
+    cargo clippy -p poker-server --all-targets --no-deps -- -D warnings   # 0 warning
+    cargo test -p poker-server -- --test-threads=1        # 4 + 11 + 2 全绿
+
+- 单元测试 4：Origin 矩阵、X-Forwarded-For 解析、token/playerId 形状、选项 clamp。
+- 集成测试 11（真实 WebSocket + tokio-tungstenite）：hello+配置白名单、大厅错误文本矩阵、
+  双人权威/隐私/跨手/重复动作/房主迁移/AI 补位、resume+顶号 4001+宽限 fold、缺 requestId、
+  房间上限+ROOM_LIMIT+1008、容量 1013、Origin 拒绝、20KB 帧 1009、短牌 AI 行动、TTL 释放房间号。
+- 互操作 2（Node + reference 仓库 ws）：
+  - oracle/interop-js-client.js 驱动 Rust 服务端完成 create→join→start→showdown→ready→
+    下一手→断线 resume→顶号 4001→房主迁移→AI 补位→leave，11 项 check 全部通过，
+    transcript 见 tests/golden/server/interop-js-transcript.json；
+  - Rust tokio-tungstenite 客户端（使用 poker-protocol 序列化/解析）驱动原 JS 服务端完成
+    hello/probe/create/start/action/settlement/ready/下一手/leave。
+  - 复现：cargo test -p poker-server --test interop（环境缺 Node 或 reference ws 时打印 skip）。
+
+### 15.4 与参考实现的已知差异
+
+| # | 差异 | 处理 |
+| --- | --- | --- |
+| 1 | 1009 关闭 reason：参考实现捕获为空串（ws maxPayload 先拦截），Rust 发出 "message too large" | 客户端只看 code；已文档化，code 一致 |
+| 2 | Rust 解析严格于 JS 的 Number()/String() 强转（poker-protocol 设计决定） | 旧客户端全兼容；异常客户端得到 INVALID_REQUEST；protocol-v2.md 已记录 |
+| 3 | 服务端 AI 为确定性桩策略，强度与 JS AI 不可比 | 原型阶段有意为之；接口已留好，poker-ai 完成后替换 |
+| 4 | 参考实现 AI 队列用 setImmediate；Rust 用 spawn_blocking 串行 + 回锁复核 | 语义等价（决策时刻在 aiDelay 之后，不会用过期决策动手） |
+| 5 | 广播去重：参考实现可能重复广播同 stateVersion；Rust 每次变更只广播一次 | 客户端不可见（按 version 丢弃） |
+| 6 | 慢消费者：outbound 通道为无界（阶段 A） | 阶段 B 改有界 + 断开慢连接 |
+| 7 | 心跳/ping：阶段 A 未实现 | 阶段 B 补齐 |
+
+### 15.5 阶段 B 待办（未在本轮完成）
+
+1. 心跳：15s ping/pong + 僵尸连接回收（对应 §7.4）。
+2. 背压：outbound 通道改有界（256）+ 慢消费者断开 + 队列满日志。
+3. tracing/日志与进程内计数指标（connections_active/rooms_active/parse_errors/actions_rejected/
+   reconnects/ai_decisions）。
+4. 用 protocol-v2.md §14 清单逐项勾选并补 spec 章节状态。
+5. 可选：把 StubAi 替换为 poker-ai 适配器（依赖 poker-ai 的 decide 上下文接口）。

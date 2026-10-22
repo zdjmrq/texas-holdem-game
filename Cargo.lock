@@ -3725,7 +3725,6 @@ dependencies = [
  "poker-core",
  "poker-engine",
  "poker-prob",
- "poker-protocol",
  "rodio",
  "serde",
  "serde_json",

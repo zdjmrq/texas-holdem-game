@@ -57,7 +57,7 @@ for each 5-card combination in deck order (suit-major, rank ascending):
 | poker-engine 规则/下注/底池/退款 | `oracle/golden-rules.js` | `tests/golden/rules/` | 进行中 |
 | poker-prob 权益/outs | `oracle/golden-equity.js` | `tests/golden/prob/` | 完成（见 §2.1） |
 | poker-ai 决策轨迹（固定 seed） | `oracle/golden-ai.js` | `tests/golden/ai/` | 待办 |
-| poker-protocol 消息 | `oracle/golden-protocol.js` | `tests/golden/protocol/` | 待办 |
+| poker-protocol 消息 + 服务端互操作 | `oracle/golden-protocol.js`、`oracle/interop-*.js` | `tests/golden/protocol/`、`tests/golden/server/` | 完成（见 §2.2） |
 
 ### 2.1 poker-prob 权益/outs 语料（完成，2026-10-23）
 
@@ -86,6 +86,40 @@ for each 5-card combination in deck order (suit-major, rank ascending):
 - **测试**：`crates/poker-prob/tests/js_golden_prob.rs`（`cargo test -p poker-prob`），
   逐字段完全相等（精确枚举逐位相等；固定 seed MC 逐样本一致）。
   读取语料的测试必须启用 `serde_json` 的 `float_roundtrip` feature，否则浮点解析可能差 1 ulp。
+
+### 2.2 poker-protocol 消息与 Phase 5 服务端互操作语料（完成，2026-10-23）
+
+生成：`node oracle/golden-protocol.js`（输出 `tests/golden/protocol/`）。脚本在加载参考模块前 patch
+Math.random(mulberry32) / performance.now / crypto.randomUUID / crypto.randomBytes，启动真实的
+`server/local-server.js` 并用 ws 客户端跑完整流程，捕获去重后的真实消息。同机连续 4 次运行输出
+逐字节一致（sha256 相同）。
+
+| 文件 | 行数 | 内容 |
+| --- | ---: | --- |
+| `tests/golden/protocol/s2c-messages.jsonl` | 153 | 真实 JS 服务端发出的全部 12 种 s2c 消息（正常/错误/牌局/短牌/重连） |
+| `tests/golden/protocol/c2s-messages.jsonl` | 62 | 旧客户端形状发出的全部 8 种 c2s 消息 |
+| `tests/golden/protocol/parse-errors.jsonl` | 18 | 畸形/恶意载荷 → JS 服务端真实错误回复（含 JS Number() 强转矩阵） |
+| `tests/golden/protocol/config-cases.jsonl` | 60 | sanitizeConfig 输入/服务端兜底/输出 |
+| `tests/golden/protocol/name-cases.jsonl` | 30 | normalizeName 字符串与非字符串输入 |
+| `tests/golden/protocol/close-events.jsonl` | 5 | 1008/1009/1013/4001 关闭事件与 Origin 拒绝 |
+| `tests/golden/protocol/hello-probe-cases.jsonl` | 6 | 桌面端 hello 探测接受/拒绝矩阵 |
+| `tests/golden/protocol/server-constants.json` | — | 协议版本、白名单、服务端默认值与范围 |
+| `tests/golden/protocol/client-behaviour.json` | — | terminal 关闭码、重连退避、session key、requestId 前缀 |
+| `tests/golden/protocol/meta.json` | — | 条数统计、seed、参考 commit、Node 版本 |
+
+对应测试：`cargo test -p poker-protocol`（9 项 golden：s2c/c2s roundtrip 逐字段一致、
+parse-errors 与 JS 实际回复逐字段相等、config/name/hello-probe/close/client-behaviour/constants 对齐）。
+
+Phase 5 服务端互操作证据（`tests/golden/server/`，由 `cargo test -p poker-server` 生成/校验）：
+
+| 文件 | 内容 |
+| --- | --- |
+| `tests/golden/server/interop-js-transcript.json` | 原 JS 协议客户端驱动 Rust 服务端的完整 transcript（id/token 已脱敏） |
+| `tests/golden/server/interop-summary.json` | 双向互操作摘要：11 项 check、手牌结果（手 1 showdown、手 2 fold）、关闭码、消息类型 |
+
+互操作脚本：`oracle/interop-js-client.js`（JS 客户端 → Rust 服务端）与
+`oracle/interop-rust-client.js`（为 Rust 客户端 ↔ 原 JS 服务端测试启动参考服务端）。
+运行：`cargo test -p poker-server --test interop`（需要 Node 与 reference 仓库的 ws 依赖）。
 
 ## 3. 复现约定
 

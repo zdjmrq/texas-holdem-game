@@ -1,0 +1,142 @@
+{
+  "url": "ws://127.0.0.1:36589",
+  "checks": [
+    {
+      "label": "hello",
+      "detail": {
+        "serverId": "texas-holdem-game",
+        "appVersion": "1.5.8",
+        "serverName": "德州扑克服务"
+      }
+    },
+    {
+      "label": "create_room",
+      "detail": {
+        "roomCode": "1",
+        "playerId": "<playerId>"
+      }
+    },
+    {
+      "label": "join_room",
+      "detail": {
+        "roomCode": "1",
+        "playerId": "<playerId>"
+      }
+    },
+    {
+      "label": "game_started",
+      "detail": {
+        "handId": 1,
+        "dealerPos": 1,
+        "pot": 120
+      }
+    },
+    {
+      "label": "hand_1_settled",
+      "detail": {
+        "reason": "showdown",
+        "pot": 160
+      }
+    },
+    {
+      "label": "hand_2_started",
+      "detail": {
+        "handId": 2
+      }
+    },
+    {
+      "label": "resume_session",
+      "detail": {
+        "playerId": "<playerId>",
+        "handId": 2
+      }
+    },
+    {
+      "label": "resume_kicks_old_socket",
+      "detail": {
+        "code": 4001,
+        "reason": "session resumed elsewhere"
+      }
+    },
+    {
+      "label": "host_migration",
+      "detail": {
+        "newHostId": "<playerId>",
+        "handResult": "fold"
+      }
+    },
+    {
+      "label": "ai_refill",
+      "detail": {
+        "aiSeats": 1,
+        "handId": 3,
+        "phase": "preflop"
+      }
+    },
+    {
+      "label": "leave_room",
+      "detail": {
+        "accepted": true
+      }
+    }
+  ],
+  "sequences": {
+    "host": {
+      "hello": 1,
+      "room_created": 1,
+      "player_joined": 4,
+      "game_starting": 1,
+      "game_state": 13,
+      "ack": 3,
+      "action_ack": 4,
+      "ready_status": 3,
+      "player_left": 1
+    },
+    "guest": {
+      "hello": 1,
+      "room_joined": 1,
+      "player_joined": 1,
+      "game_starting": 1,
+      "game_state": 10,
+      "action_ack": 4,
+      "ready_status": 3,
+      "ack": 1
+    },
+    "guestResumed": {
+      "hello": 1,
+      "room_joined": 1,
+      "player_joined": 1,
+      "game_state": 1
+    },
+    "guestKicked": {
+      "hello": 1,
+      "room_joined": 1,
+      "player_joined": 1,
+      "game_state": 5,
+      "ready_status": 2,
+      "host_changed": 1,
+      "player_left": 1,
+      "ack": 2
+    }
+  },
+  "results": [
+    {
+      "handId": 1,
+      "reason": "showdown",
+      "pot": 160
+    },
+    {
+      "handId": 2,
+      "reason": "fold",
+      "pot": 80
+    }
+  ],
+  "closeCodes": [
+    {
+      "context": "resume-elsewhere",
+      "code": 4001,
+      "reason": "session resumed elsewhere"
+    }
+  ],
+  "ok": true
+}

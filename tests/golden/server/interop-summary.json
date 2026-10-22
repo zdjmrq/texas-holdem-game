@@ -1,0 +1,74 @@
+{
+  "generatedBy": "cargo test -p poker-server --test interop (oracle/interop-js-client.js)",
+  "reference": "reference/texas-holdem-game commit e0c6c6f88d3e64324e1d83bfc700dd3a77f71b90 (v1.5.8)",
+  "directions": {
+    "js-client-to-rust-server": {
+      "script": "oracle/interop-js-client.js",
+      "ok": true,
+      "checks": [
+        "hello",
+        "create_room",
+        "join_room",
+        "game_started",
+        "hand_1_settled",
+        "hand_2_started",
+        "resume_session",
+        "resume_kicks_old_socket",
+        "host_migration",
+        "ai_refill",
+        "leave_room"
+      ],
+      "handResults": [
+        {
+          "handId": 1,
+          "reason": "showdown",
+          "pot": 160
+        },
+        {
+          "handId": 2,
+          "reason": "fold",
+          "pot": 80
+        }
+      ],
+      "closeCodes": [
+        {
+          "context": "resume-elsewhere",
+          "code": 4001,
+          "reason": "session resumed elsewhere"
+        }
+      ],
+      "messageTypes": [
+        "ack",
+        "action_ack",
+        "game_starting",
+        "game_state",
+        "hello",
+        "player_joined",
+        "player_left",
+        "ready_status",
+        "room_created"
+      ]
+    },
+    "rust-client-to-js-server": {
+      "script": "oracle/interop-rust-client.js + crates/poker-server/tests/interop.rs",
+      "steps": [
+        "hello",
+        "probe_server",
+        "create_room",
+        "start_game",
+        "game_started",
+        "action_ack",
+        "hand_settled",
+        "ready_for_next",
+        "next_hand",
+        "leave_room"
+      ],
+      "verifiedBy": "rust_protocol_client_drives_reference_js_server"
+    }
+  },
+  "notes": [
+    "Player ids and resume tokens are sanitized to <playerId>/<resumeToken>.",
+    "Hand result reasons are deterministic: hand 1 reaches showdown, hand 2 ends by fold after the host leaves.",
+    "See docs/specs/server-plan.md section 15 for the implementation status and command lines."
+  ]
+}
