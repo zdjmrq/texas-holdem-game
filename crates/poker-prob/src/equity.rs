@@ -310,11 +310,11 @@ pub fn exact_heads_up(prepared: &Prepared) -> Result<EquityResult, ProbError> {
                     continue;
                 }
                 hand[0] = deck[first];
-                for second in first + 1..deck.len() {
+                for (second, &second_card) in deck.iter().enumerate().skip(first + 1) {
                     if second == river_index {
                         continue;
                     }
-                    hand[1] = deck[second];
+                    hand[1] = second_card;
                     let opponent = evaluate(&hand, variant);
                     tally.add_showdown(resolve_heads_up(player_hand.score(), opponent.score()));
                     river_samples += 1;
@@ -327,8 +327,8 @@ pub fn exact_heads_up(prepared: &Prepared) -> Result<EquityResult, ProbError> {
         let mut river_samples = 0u64;
         for first in 0..deck.len() - 1 {
             hand[0] = deck[first];
-            for second in first + 1..deck.len() {
-                hand[1] = deck[second];
+            for &second_card in &deck[first + 1..] {
+                hand[1] = second_card;
                 let opponent = evaluate(&hand, variant);
                 tally.add_showdown(resolve_heads_up(player_hand.score(), opponent.score()));
                 river_samples += 1;
@@ -378,10 +378,10 @@ pub fn monte_carlo(prepared: &Prepared, options: &MonteCarloOptions) -> EquityRe
     let mut tally = Tally::default();
 
     while tally.samples < target_samples {
-        for index in 0..draw_count {
+        for (index, slot) in swaps.iter_mut().enumerate() {
             let span = pool.len() - index;
             let swap = index + (rng.next_f64() * span as f64) as usize;
-            swaps[index] = swap;
+            *slot = swap;
             pool.swap(index, swap);
         }
         for (offset, &card) in pool[..missing].iter().enumerate() {
