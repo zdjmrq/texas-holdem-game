@@ -273,6 +273,11 @@ impl Tally {
 /// * `stats.bestHandCounts` counts the player's final hand name once per river
 ///   for `max(1, opponent pairs)` samples, exactly like the JS code.
 ///
+/// A rayon-parallel river enumeration (merging integer tallies in river order)
+/// was implemented and verified bit-identical, but it did not improve wall-clock
+/// time on the WSL test machine (global pool oversubscription plus small tasks);
+/// it was therefore not merged. See `docs/benchmarks.md` for the measurements.
+///
 /// # Errors
 ///
 /// Returns [`ProbError::ExactRequiresTurnOrRiver`] when the prepared board has
@@ -295,14 +300,13 @@ pub fn exact_heads_up(prepared: &Prepared) -> Result<EquityResult, ProbError> {
     hand[0] = player[0];
     hand[1] = player[1];
     hand[2..2 + board.len()].copy_from_slice(board);
-    let board_end = 2 + board.len();
     let mut tally = Tally::default();
 
     if missing == 1 {
         for river_index in 0..deck.len() {
             hand[0] = player[0];
             hand[1] = player[1];
-            hand[board_end] = deck[river_index];
+            hand[2 + board.len()] = deck[river_index];
             let player_hand = evaluate(&hand, variant);
             let mut river_samples = 0u64;
             for first in 0..deck.len() - 1 {
@@ -380,7 +384,14 @@ pub fn monte_carlo(prepared: &Prepared, options: &MonteCarloOptions) -> EquityRe
     while tally.samples < target_samples {
         for (index, slot) in swaps.iter_mut().enumerate() {
             let span = pool.len() - index;
-            let swap = index + (rng.next_f64() * span as f64) as usize;
+            // The JS reference draws `index + floor(rng() * span)` where
+            // `rng() = state / 2^32`. Because `span <= 52`, the integer
+            // identity `floor(u32 * span / 2^32) == (u32 * span) >> 32` holds
+            // exactly (product < 2^38, no rounding can cross an integer
+            // boundary), so this reproduces the JS sample stream bit for bit
+            // while avoiding a per-sample f64 conversion.
+            let draw = (u64::from(rng.next_u32()) * span as u64) >> 32;
+            let swap = index + draw as usize;
             *slot = swap;
             pool.swap(index, swap);
         }

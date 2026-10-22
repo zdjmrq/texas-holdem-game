@@ -39,11 +39,13 @@
 #![allow(clippy::collapsible_if)]
 
 pub mod ai;
+mod metrics;
 pub mod options;
 mod room;
 mod server;
 mod wire;
 
 pub use ai::{AiDecision, AiFactory, AiView, ServerAi, StubAi, StubAiFactory};
+pub use metrics::ServerMetricsSnapshot;
 pub use options::ServerOptions;
 pub use server::{ServerHandle, probe_server, spawn_server, spawn_server_with_fallback};

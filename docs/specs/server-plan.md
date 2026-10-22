@@ -481,3 +481,30 @@ POKER_MAX_CONNECTIONS_PER_IP/POKER_ALLOWED_ORIGINS/POKER_TRUST_PROXY 由 from_en
    reconnects/ai_decisions）。
 4. 用 protocol-v2.md §14 清单逐项勾选并补 spec 章节状态。
 5. 可选：把 StubAi 替换为 poker-ai 适配器（依赖 poker-ai 的 decide 上下文接口）。
+
+## 16. Phase B 状态（2026-10-23 收尾）
+
+已实现并测试：
+
+- 心跳：ServerOptions.heartbeat_interval_ms（默认 15000，10..=3_600_000）；每 tick ping 全部连接，
+  上一轮未回 pong 的下一次 tick 断开并计数 heartbeat_timeouts。
+- 有界 outbound：每连接容量 256 的 mpsc 队列；满队列标记 slow consumer（计数）并由写任务关闭
+  socket，防止内存无界增长。
+- 指标：ServerHandle::metrics() → ServerMetricsSnapshot（连接接受/容量拒绝/Origin 拒绝/消息数/
+  解析错误/限流/房间创建关闭/resume/顶号/动作接受拒绝/慢消费者/心跳超时/AI 决策数与耗时）。
+- 日志：tracing 事件覆盖启动停止、连接接受/拒绝、限流、解析失败、房间创建/关闭、resume/顶号、
+  动作拒绝、慢消费者、心跳超时、AI 决策（含 decision_ms）；examples/serve.rs 用
+  tracing-subscriber 初始化（POKER_LOG 控制级别）。
+- examples/serve.rs：from_env 启动、打印实际 URL（端口 0）、Ctrl-C 优雅关闭；配合
+  oracle/interop-rust-rust.sh 跑通 poker-client 的 2 个 ignored 冒烟测试。
+- Rust↔Rust：tests/rust_interop.rs 用 poker-client 公开 Client API 跑全流程（含手动 reconnect/
+  resume、顶号 4001、metrics 断言）。
+- 新增测试：tests/phase_b.rs（心跳活跃/超时、指标计数、Origin 拒绝计数）+ server 单测
+  慢消费者队列溢出。
+
+收尾验证（CARGO_TARGET_DIR=/tmp/target-protocol，--offline）：
+cargo test -p poker-server → 单元 5 + 集成 11 + interop 2 + phase_b 3 + rust_interop 1 全绿。
+
+差异（详见 docs/specs/interop.md §4）：大厅断线宽限保留房间（便于 lobby resume）、慢消费者
+关闭路径、心跳断开语义。剩余 TODO：真实 AI 工厂（待 poker-ai baseline 达标，按
+docs/specs/ai-server-adapter.md 接入）。

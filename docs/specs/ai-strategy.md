@@ -1573,12 +1573,18 @@ sha256sum tests/golden/ai/*.jsonl tests/golden/ai/manifest.json
 | # | 问题 | 建议默认 | 影响 |
 | --- | --- | --- | --- |
 | 1 | AI 验收门槛：262 条黄金语料中动作精确一致率要求多少？ | 第一版 ≥95% 硬 gate、≥99% 目标；boundary 分类单独报告 | task-9/Phase 4 验收 |
-| 2 | 短牌联机路径的 profile 是否统一为 SD_STYLE_CONFIGS（本地为准）？ | 建议统一；联机旧行为差异记录为已知变化 | 短牌模块接口 |
+| 2 | 短牌联机路径的 profile 是否统一为 SD_STYLE_CONFIGS（本地为准）？ | **已决策（Lead 2026-10-23）**：统一为 SD_STYLE_CONFIGS；联机旧行为（STYLE_CONFIGS）差异记录为已知变化，语料保留 server-profile 用例作为回归对照 | 短牌模块接口 |
 | 3 | 是否移植 ai.js 的 legacy 决策路径（sharedBrain 缺失时）？ | 不移植（生产不可达）；只保留 adapter 语义 | 可省 ~1 人日 |
 | 4 | MC 采样是否允许 rayon 并行？ | 第一版串行；若并行必须保序或改为独立子流 + 重新生成黄金语料 | 性能/确定性 |
 | 5 | trace 是否默认开启/保留哪些字段？ | 默认精简（决策+equity 摘要），调试/黄金测试开启完整 trace | 内存/UI 调试面板 |
 | 6 | 时间预算策略：是否保留 JS 的 150/76ms 默认与 ×3 紧急刹车？ | 保留语义，但 Rust 默认按样本数；预算仅安全阀 | 延迟/CI 稳定性 |
 | 7 | 服务端 AI 延迟（aiDelay 800/1800/3200ms）与 AI 计算时间的关系 | 沿用协议层延迟；AI 计算同步完成后由 server 控制节奏 | poker-server 集成 |
+
+### 14.1 已知语料缺口（task-9 实现时发现，后续重新生成语料时修复）
+
+1. **synthetic 用例的 `ai.seatId` 与 `aiState.position` 缺失**：`oracle/golden-ai.js` 的 `buildSyntheticCase` 从 context 取 `seatId`，但 synthetic context 使用 `heroSeat/currentPlayerIndex`，导致这两个字段为 undefined 且被 JSON 丢弃（harvested 用例字段完整）。Rust golden harness 已用 fallback：`ai.seatId → aiState.position → context.heroSeat/currentPlayerIndex → 0`。不影响语料语义（hero 座位可由 context 推出），但重新生成语料时应在 generator 中补上。
+2. **synthetic CFR 场景的 `ai.seatId` 同样缺失**，river/task-10 的测试如需构造 `AIPlayer` 也应使用同样 fallback；solver 入参本身与 `ai` 字段无关（从 `context` + `observes` 构造），不受影响。
+3. **语料生成器版本与语料哈希**：若重新生成（修复上述字段），`corpusSha256` 会变化，需同步更新 `tests/golden/ai/manifest.json`、本规格 §11.1 与 task-4 报告；在 task-9~11 验收前**不重新生成**，以已冻结哈希为准。
 
 ## 附录 A：常量与行号索引
 

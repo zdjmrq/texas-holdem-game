@@ -104,6 +104,51 @@ POKER_BENCH_SAMPLE_SIZE=10 POKER_BENCH_WARMUP_MS=100 POKER_BENCH_MEASUREMENT_MS=
 - 10 万次 7 张评估吞吐 > 5,000 万次/秒/核 → **当前 6.55 M/s，未满足（差约 7.6 倍）**，
   需要查表评估器（见 `docs/specs/eval-optimization.md`）。
 
+### 3.3 Phase 3 优化后基线（2026-10-23 收尾）
+
+`poker-core` 新增 7 张查表快速路径（OnceLock 懒加载，无 unsafe；5/6 张与部分手牌继续走
+reference 路径，公共 API 不变），`poker-prob` 的 MC 抽样改为整数随机（与 JS 逐样本 bit-exact）。
+优化后数字取自 loadavg 3–6 的共享机器（更高负载下的运行已丢弃；这台 WSL 的绝对数字仍不代表
+Windows）。
+
+**7 张评估（单核 release）**
+
+| 变体 | 优化前 | 优化后 | 提升 |
+| --- | ---: | ---: | ---: |
+| 标准 7 张 | 152.6 ns（6.55 M/s） | **23.8 ns（42.1 M/s）** | **6.4×**（达成 ≥30 M/s 目标） |
+| 短牌 7 张 | 135.2 ns（7.40 M/s） | **20.1 ns（49.8 M/s）** | **6.7×**（接近 50 M/s 理想值） |
+| 标准 5/6 张 | 118.7 / 138.0 ns | 142.5 / 171.9 ns | 回退（非本轮目标；5/6 张仍走 reference 路径） |
+| 短牌 5/6 张 | 102.6 / 115.7 ns | 121.3 / 118.8 ns | 基本持平 |
+
+**权益（单核 release；精确枚举保持顺序实现）**
+
+| 场景 | 优化前 | 优化后 | 提升 |
+| --- | ---: | ---: | ---: |
+| 精确摊牌 · 标准河牌 | 38.2 µs | **23.5 µs** | 1.6× |
+| 精确摊牌 · 标准转牌 | 2.819 ms | **≈1.20 ms** | ≈2.4× |
+| 精确摊牌 · 短牌河牌 | 13.7 µs | **9.1 µs** | 1.5× |
+| 精确摊牌 · 短牌转牌 | 680.7 µs | **≈0.38 ms** | ≈1.8× |
+| MC · 标准翻前 heads-up | 789 µs | **312 µs** | 2.5× |
+| MC · 标准翻牌 3 人 | 829 µs | **390 µs** | 2.1× |
+| MC · 标准翻前 9 对手 | 3.986 ms | **1.053 ms** | 3.8× |
+| MC · 短牌翻前 7 对手 | 2.794 ms | **709 µs** | 3.9× |
+
+注：精确转牌的两个"优化后"数字来自单独的顺序计时（bench 内嵌的并行实验未合入，见下），
+其余来自 criterion 单次运行；共享机器下 run-to-run 波动约 ±10%。
+
+**等价性证据**（测试文件未改动）
+
+- `cargo test -p poker-core --lib`：26 项通过，其中 4 项为新增差分测试：
+  全部 **49,205** 个 7 张 rank pattern × 双变体、全部 **4,719** 个 flush mask × 双变体、
+  每个变体 **100,000** 手随机 5/6/7 张牌，fast 与 reference 的 rank_index/score/name/category 全部相等。
+- `cargo test -p poker-core --test js_golden_eval`：15,052 用例 + 两变体 5 张穷举哈希全绿。
+- `cargo test -p poker-prob`：全部黄金语料（精确/固定 seed MC/findImprovements）全绿，
+  证明 MC 整数抽样与 JS 逐样本 bit-exact。
+
+**未合入的实验**：精确摊牌 rayon 并行版本（按河牌分块、整数 tally 按序合并）在 golden 测试中
+验证了 bit-exact，但在这台 18 线程 WSL 机器的全局线程池下反而更慢
+（顺序 ≈1.2 ms vs 并行 1.4–2.6 ms，任务过小 + 调度开销），按任务约束未合入。
+
 ## 4. Rust dev-profile 诊断数字
 
 dev profile（未优化 + debug 断言，`--profile dev`）仅用于理解相对成本，**不是发布性能**。

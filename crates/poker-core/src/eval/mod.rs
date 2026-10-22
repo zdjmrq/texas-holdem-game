@@ -17,6 +17,20 @@
 //! Hands with fewer than five cards use the same partial-hand rules as
 //! probability-core (made trips/quads/pairs plus ordered kickers; no suited
 //! bonus, unlike the older js/cards.js display helper).
+//!
+//! # Implementation
+//!
+//! Seven-card hands use the table-driven [`fast`] path (rank histogram lookup
+//! plus flush-mask tables). Every other size (including partial hands) uses the
+//! straightforward [`reference`] implementation. Both paths share the same
+//! score assembly, and the fast path is validated exhaustively against the
+//! reference implementation: every one of the 49,205 seven-card rank patterns
+//! and every one of the 8,192 flush masks is compared field by field, plus a
+//! 100,000-hand-per-variant random differential test.
+
+mod fast;
+mod reference;
+mod tables;
 
 use crate::card::Card;
 use crate::variant::Variant;
@@ -157,284 +171,37 @@ fn finish(variant: Variant, category: HandCategory, values: &[u8]) -> EvaluatedH
     }
 }
 
-/// Returns the high card of the best straight in the rank histogram, or 0 when
-/// there is none. Mirrors js/probability-core.js straightHigh().
-fn straight_high(counts: &[u8; 15], variant: Variant) -> u8 {
-    let lowest_high: u8 = if variant.is_short_deck() { 10 } else { 6 };
-    let mut high = 14u8;
-    while high >= lowest_high {
-        if (0..5).all(|offset| counts[usize::from(high - offset)] > 0) {
-            return high;
-        }
-        high -= 1;
-    }
-    if variant.is_short_deck() {
-        // Short-deck wheel: A-6-7-8-9, nine high.
-        if counts[14] > 0 && counts[9] > 0 && counts[8] > 0 && counts[7] > 0 && counts[6] > 0 {
-            return 9;
-        }
-    } else if counts[14] > 0 && counts[5] > 0 && counts[4] > 0 && counts[3] > 0 && counts[2] > 0 {
-        // Standard wheel: A-2-3-4-5, five high.
-        return 5;
-    }
-    0
-}
-
-fn evaluate_partial(cards: &[Card], variant: Variant) -> EvaluatedHand {
-    let mut counts = [0u8; 15];
-    for card in cards {
-        counts[usize::from(card.rank_value())] += 1;
-    }
-    let mut groups: Vec<(u8, u8)> = Vec::with_capacity(4);
-    for value in (2..=14u8).rev() {
-        let count = counts[usize::from(value)];
-        if count > 0 {
-            groups.push((value, count));
-        }
-    }
-    groups.sort_by(|left, right| right.1.cmp(&left.1).then(right.0.cmp(&left.0)));
-    let Some(&(top_value, top_count)) = groups.first() else {
-        return finish(variant, HandCategory::HighCard, &[]);
-    };
-    let mut values = [0u8; 5];
-    let mut len = 0usize;
-    let push = |value: u8, values: &mut [u8; 5], len: &mut usize| {
-        if *len < values.len() {
-            values[*len] = value;
-            *len += 1;
-        }
-    };
-    match top_count {
-        4 => {
-            push(top_value, &mut values, &mut len);
-            for group in &groups[1..] {
-                push(group.0, &mut values, &mut len);
-            }
-            finish(variant, HandCategory::FourOfAKind, &values[..len])
-        }
-        3 => {
-            if groups.get(1).is_some_and(|group| group.1 >= 2) {
-                finish(variant, HandCategory::FullHouse, &[top_value, groups[1].0])
-            } else {
-                push(top_value, &mut values, &mut len);
-                for group in &groups[1..] {
-                    push(group.0, &mut values, &mut len);
-                }
-                finish(variant, HandCategory::ThreeOfAKind, &values[..len])
-            }
-        }
-        2 => {
-            if groups.get(1).is_some_and(|group| group.1 == 2) {
-                push(groups[0].0, &mut values, &mut len);
-                push(groups[1].0, &mut values, &mut len);
-                for group in &groups[2..] {
-                    push(group.0, &mut values, &mut len);
-                }
-                finish(variant, HandCategory::TwoPair, &values[..len])
-            } else {
-                push(top_value, &mut values, &mut len);
-                for group in &groups[1..] {
-                    push(group.0, &mut values, &mut len);
-                }
-                finish(variant, HandCategory::Pair, &values[..len])
-            }
-        }
-        _ => {
-            for group in &groups {
-                push(group.0, &mut values, &mut len);
-            }
-            finish(variant, HandCategory::HighCard, &values[..len])
-        }
-    }
-}
-
 /// Evaluates the best five-card hand from at most seven cards.
+///
+/// Seven-card hands use the table-driven fast path; smaller hands (including
+/// partial 2/3/4-card hands) use the reference implementation. Both produce
+/// bit-identical `rank_index`, `score` and `name`.
 ///
 /// # Panics
 ///
 /// Panics when more than [`MAX_EVALUATED_CARDS`] cards are supplied. Callers in
 /// this code base only ever pass two hole cards plus at most five board cards.
 #[must_use]
+#[inline]
 pub fn evaluate(cards: &[Card], variant: Variant) -> EvaluatedHand {
     assert!(
         cards.len() <= MAX_EVALUATED_CARDS,
         "evaluator supports at most {MAX_EVALUATED_CARDS} cards, got {}",
         cards.len()
     );
-    if cards.len() < 5 {
-        return evaluate_partial(cards, variant);
-    }
-
-    let mut counts = [0u8; 15];
-    let mut suit_values = [[0u8; MAX_EVALUATED_CARDS]; 4];
-    let mut suit_lens = [0usize; 4];
-    for card in cards {
-        let value = card.rank_value();
-        counts[usize::from(value)] += 1;
-        let suit = card.suit() as usize;
-        suit_values[suit][suit_lens[suit]] = value;
-        suit_lens[suit] += 1;
-    }
-
-    // Straight flush and flush detection, including the five-card flush top.
-    let mut flush_values: Option<[u8; 5]> = None;
-    let mut flush_top_score = 0u64;
-    for (&length, values) in suit_lens.iter().zip(suit_values.iter()) {
-        if length < 5 {
-            continue;
-        }
-        let mut sorted = *values;
-        sorted[..length].sort_unstable_by(|left, right| right.cmp(left));
-        let mut flush_counts = [0u8; 15];
-        for &value in &sorted[..length] {
-            flush_counts[usize::from(value)] += 1;
-        }
-        let high = straight_high(&flush_counts, variant);
-        if high != 0 {
-            let category = if high == 14 {
-                HandCategory::RoyalFlush
-            } else {
-                HandCategory::StraightFlush
-            };
-            return if high == 14 {
-                finish(variant, category, &[])
-            } else {
-                finish(variant, category, &[high])
-            };
-        }
-        let top = [sorted[0], sorted[1], sorted[2], sorted[3], sorted[4]];
-        let top_score = top
-            .iter()
-            .enumerate()
-            .map(|(index, &value)| u64::from(value) * KICKER_SCALE[index])
-            .sum();
-        if flush_values.is_none() || top_score > flush_top_score {
-            flush_values = Some(top);
-            flush_top_score = top_score;
-        }
-    }
-
-    // Rank multiplicities in descending rank order.
-    let mut ordered = [0u8; MAX_EVALUATED_CARDS];
-    let mut ordered_len = 0usize;
-    let mut trips = [0u8; 3];
-    let mut trips_len = 0usize;
-    let mut pairs = [0u8; 4];
-    let mut pairs_len = 0usize;
-    let mut quads = 0u8;
-    for value in (2..=14u8).rev() {
-        let count = counts[usize::from(value)];
-        if count == 0 {
-            continue;
-        }
-        ordered[ordered_len] = value;
-        ordered_len += 1;
-        if count == 4 {
-            quads = value;
-        }
-        if count >= 3 {
-            trips[trips_len] = value;
-            trips_len += 1;
-        }
-        if count >= 2 {
-            pairs[pairs_len] = value;
-            pairs_len += 1;
-        }
-    }
-
-    if quads != 0 {
-        let kicker = ordered[..ordered_len]
-            .iter()
-            .copied()
-            .find(|&value| value != quads)
-            .unwrap_or(0);
-        return finish(variant, HandCategory::FourOfAKind, &[quads, kicker]);
-    }
-
-    let full_house = (|| {
-        let trip = *trips[..trips_len].first()?;
-        let pair = pairs[..pairs_len]
-            .iter()
-            .copied()
-            .find(|&value| value != trip)?;
-        Some((trip, pair))
-    })();
-
-    // Short deck ranks flush above full house; the original JS evaluator checks
-    // them in that order too.
-    if variant.is_short_deck() {
-        if let Some(values) = flush_values {
-            return finish(variant, HandCategory::Flush, &values);
-        }
-        if let Some((trip, pair)) = full_house {
-            return finish(variant, HandCategory::FullHouse, &[trip, pair]);
-        }
+    if cards.len() == MAX_EVALUATED_CARDS {
+        fast::evaluate_seven(cards, variant)
     } else {
-        if let Some((trip, pair)) = full_house {
-            return finish(variant, HandCategory::FullHouse, &[trip, pair]);
-        }
-        if let Some(values) = flush_values {
-            return finish(variant, HandCategory::Flush, &values);
-        }
+        reference::evaluate(cards, variant)
     }
-
-    let high = straight_high(&counts, variant);
-    if high != 0 {
-        return finish(variant, HandCategory::Straight, &[high]);
-    }
-
-    if trips_len > 0 {
-        let trip = trips[0];
-        let mut values = [trip, 0, 0];
-        let mut len = 1usize;
-        for &value in &ordered[..ordered_len] {
-            if value != trip {
-                values[len] = value;
-                len += 1;
-                if len == 3 {
-                    break;
-                }
-            }
-        }
-        return finish(variant, HandCategory::ThreeOfAKind, &values[..len]);
-    }
-
-    if pairs_len >= 2 {
-        let first = pairs[0];
-        let second = pairs[1];
-        let kicker = ordered[..ordered_len]
-            .iter()
-            .copied()
-            .find(|&value| value != first && value != second)
-            .unwrap_or(0);
-        return finish(variant, HandCategory::TwoPair, &[first, second, kicker]);
-    }
-
-    if pairs_len == 1 {
-        let pair = pairs[0];
-        let mut values = [pair, 0, 0, 0, 0];
-        let mut len = 1usize;
-        for &value in &ordered[..ordered_len] {
-            if value != pair {
-                values[len] = value;
-                len += 1;
-                // The original JS pair branch keeps exactly three kickers.
-                if len == 4 {
-                    break;
-                }
-            }
-        }
-        return finish(variant, HandCategory::Pair, &values[..len]);
-    }
-
-    let top_five = [ordered[0], ordered[1], ordered[2], ordered[3], ordered[4]];
-    finish(variant, HandCategory::HighCard, &top_five)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::card::{Card, parse_card};
+    use crate::card::{Card, Rank, Suit, parse_card};
+    use crate::deck::Deck;
+    use crate::rng::XorShift32Rng;
 
     fn hand(text: &str) -> Vec<Card> {
         text.split_whitespace()
@@ -445,6 +212,61 @@ mod tests {
     fn rank_of(cards: &str, variant: Variant) -> (u8, u64, &'static str) {
         let evaluated = evaluate(&hand(cards), variant);
         (evaluated.rank_index(), evaluated.score(), evaluated.name())
+    }
+
+    fn assert_fast_matches_reference(cards: &[Card], variant: Variant) {
+        let fast = evaluate(cards, variant);
+        let reference_evaluated = reference::evaluate(cards, variant);
+        assert_eq!(
+            fast, reference_evaluated,
+            "fast/reference mismatch for {cards:?} ({variant:?})"
+        );
+    }
+
+    /// Builds a concrete (duplicate-free, flush-free) seven-card hand from a
+    /// rank histogram. Cycling suits over the cards keeps every suit count at
+    /// most two, so no flush interferes with the rank-pattern table.
+    fn synthetic_hand_from_counts(counts: &[u8; tables::RANK_COUNT]) -> Vec<Card> {
+        let mut hand = Vec::with_capacity(MAX_EVALUATED_CARDS);
+        let mut suit_cursor = 0usize;
+        for (offset, &count) in counts.iter().enumerate() {
+            let rank = Rank::from_value(offset as u8 + 2).expect("rank");
+            for _ in 0..count {
+                hand.push(Card::new(Suit::ALL[suit_cursor % 4], rank));
+                suit_cursor += 1;
+            }
+        }
+        assert_eq!(hand.len(), MAX_EVALUATED_CARDS);
+        hand
+    }
+
+    fn counts_from_key(key: u64) -> [u8; tables::RANK_COUNT] {
+        let mut counts = [0u8; tables::RANK_COUNT];
+        for (offset, slot) in counts.iter_mut().enumerate() {
+            *slot = ((key >> (offset * 4)) & 0xF) as u8;
+        }
+        counts
+    }
+
+    /// Builds a duplicate-free seven-card hand whose spade mask equals `mask`.
+    fn flush_hand_from_mask(mask: u16) -> Vec<Card> {
+        let mut hand = Vec::with_capacity(MAX_EVALUATED_CARDS);
+        for bit in 0..13u8 {
+            if mask & (1u16 << bit) != 0 {
+                let rank = Rank::from_value(bit + 2).expect("rank");
+                hand.push(Card::new(Suit::Spades, rank));
+            }
+        }
+        let fillers = [
+            (Suit::Hearts, Rank::Ace),
+            (Suit::Diamonds, Rank::King),
+            (Suit::Clubs, Rank::Queen),
+        ];
+        for &(suit, rank) in fillers.iter().take(MAX_EVALUATED_CARDS - hand.len()) {
+            hand.push(Card::new(suit, rank));
+        }
+        assert_eq!(hand.len(), MAX_EVALUATED_CARDS);
+        hand
     }
 
     #[test]
@@ -588,5 +410,72 @@ mod tests {
         let second = evaluate(&hand("Ah Ks Qc Jd 9d"), Variant::Standard);
         assert_eq!(first.score(), second.score());
         assert_eq!(first.compare(second), 0);
+    }
+
+    #[test]
+    fn fast_path_matches_reference_for_every_rank_pattern() {
+        let keys = tables::pattern_keys();
+        assert_eq!(keys.len(), 49_205, "seven-card rank patterns");
+        for key in keys {
+            let cards = synthetic_hand_from_counts(&counts_from_key(key));
+            for variant in Variant::ALL {
+                assert_fast_matches_reference(&cards, variant);
+            }
+        }
+    }
+
+    #[test]
+    fn fast_path_matches_reference_for_every_flush_mask() {
+        let mut tested = 0usize;
+        for mask in 0..tables::MASK_COUNT {
+            let mask = mask as u16;
+            let flush_cards = mask.count_ones();
+            // A seven-card hand can only have 5, 6 or 7 cards in its flush suit.
+            if !(5..=MAX_EVALUATED_CARDS as u32).contains(&flush_cards) {
+                continue;
+            }
+            tested += 1;
+            let cards = flush_hand_from_mask(mask);
+            for variant in Variant::ALL {
+                assert_fast_matches_reference(&cards, variant);
+            }
+        }
+        // C(13,5) + C(13,6) + C(13,7) = 1287 + 1716 + 1716.
+        assert_eq!(tested, 4_719);
+    }
+
+    #[test]
+    fn fast_path_matches_reference_on_random_hands() {
+        let mut rng = XorShift32Rng::from_seed("fast-eval-differential");
+        for variant in Variant::ALL {
+            let canonical = Deck::new(variant);
+            for sample in 0..100_000usize {
+                let mut deck = canonical.clone();
+                deck.shuffle(&mut rng);
+                let card_count = 5 + sample % 3;
+                let cards = &deck.cards()[..card_count];
+                assert_fast_matches_reference(cards, variant);
+            }
+        }
+    }
+
+    #[test]
+    fn fast_path_matches_reference_on_short_deck_special_hands() {
+        let cases = [
+            ("As Js 9s 7s 6s Ks Kh", Variant::ShortDeck),
+            ("As 6h 7d 8c 9h Kd Qd", Variant::ShortDeck),
+            ("As 6s 7s 8s 9s Kd Qd", Variant::ShortDeck),
+            ("Ts Js Qs Ks As 9d 8c", Variant::ShortDeck),
+            ("As Ad Ah Ks Kd Kc Qd", Variant::ShortDeck),
+            ("As Ad Ah Ac Ks Kd Qd", Variant::ShortDeck),
+            ("As Ks Qs Js 9s Kd Qd", Variant::ShortDeck),
+            ("As Ad Ah Ks Kd Kc Qd", Variant::Standard),
+            ("As Ad Ah Ac Ks Kd Qd", Variant::Standard),
+            ("As 2h 3d 4c 5h Kd Qd", Variant::Standard),
+            ("As 6h 7d 8c 9h Kd Qd", Variant::Standard),
+        ];
+        for (text, variant) in cases {
+            assert_fast_matches_reference(&hand(text), variant);
+        }
     }
 }

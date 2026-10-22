@@ -12,8 +12,10 @@ use poker_core::Card;
 use poker_engine::{ActionType, LegalActions};
 
 use crate::analysis::AnalysisSummary;
+use crate::layout::WindowTier;
 use crate::session::{GameOver, Settlement};
 use crate::table_ctrl::{AnalysisMask, RaisePanel, format_bb};
+use crate::theme::{Palette, Theme};
 use crate::ui::components;
 
 /// One seat as rendered on the table.
@@ -64,6 +66,10 @@ pub struct TableSnapshot {
     pub music_enabled: bool,
     pub show_analysis: bool,
     pub event_line: String,
+    /// Window size tier (normal / compact / tiny) for responsive layout.
+    pub tier: WindowTier,
+    /// Active theme (dark original / light alternative).
+    pub theme: Theme,
 }
 
 /// User actions produced by the table widgets.
@@ -131,6 +137,7 @@ pub fn action_bar(
     ui: &mut Ui,
     snapshot: &TableSnapshot,
     raise_panel: &mut RaisePanel,
+    focus_raise_slider: bool,
 ) -> Option<TableUiAction> {
     let mut action = None;
     if let Some(settlement) = &snapshot.settlement {
@@ -155,22 +162,40 @@ pub fn action_bar(
     if snapshot.human_turn {
         ui.horizontal_wrapped(|ui| {
             let legal = &snapshot.legal;
-            if legal.contains(ActionType::Fold) && ui.button("弃牌 (F)").clicked() {
-                action = Some(TableUiAction::Fold);
+            if legal.contains(ActionType::Fold) {
+                let response = ui.button("弃牌 (F)");
+                components::focus_ring(ui, &response);
+                if response.clicked() {
+                    action = Some(TableUiAction::Fold);
+                }
             }
-            if legal.contains(ActionType::Check) && ui.button("过牌 (Space)").clicked() {
-                action = Some(TableUiAction::Check);
+            if legal.contains(ActionType::Check) {
+                let response = ui.button("过牌 (Space)");
+                components::focus_ring(ui, &response);
+                if response.clicked() {
+                    action = Some(TableUiAction::Check);
+                }
             }
-            if legal.contains(ActionType::Call)
-                && ui.button(format!("跟注 {} (C)", legal.to_call)).clicked()
-            {
-                action = Some(TableUiAction::Call);
+            if legal.contains(ActionType::Call) {
+                let response = ui.button(format!("跟注 {} (C)", legal.to_call));
+                components::focus_ring(ui, &response);
+                if response.clicked() {
+                    action = Some(TableUiAction::Call);
+                }
             }
-            if legal.contains(ActionType::Raise) && ui.button("加注 (R)").clicked() {
-                action = Some(TableUiAction::OpenRaise);
+            if legal.contains(ActionType::Raise) {
+                let response = ui.button("加注 (R)");
+                components::focus_ring(ui, &response);
+                if response.clicked() {
+                    action = Some(TableUiAction::OpenRaise);
+                }
             }
-            if legal.contains(ActionType::AllIn) && ui.button("全下 (A)").clicked() {
-                action = Some(TableUiAction::AllIn);
+            if legal.contains(ActionType::AllIn) {
+                let response = ui.button("全下 (A)");
+                components::focus_ring(ui, &response);
+                if response.clicked() {
+                    action = Some(TableUiAction::AllIn);
+                }
             }
             ui.separator();
             ui.label(format!(
@@ -185,11 +210,12 @@ pub fn action_bar(
                 ui.label("加注到");
                 let mut value = raise_panel.amount as f64;
                 let range = raise_panel.min as f64..=raise_panel.max as f64;
-                let changed = ui
-                    .add(egui::Slider::new(&mut value, range).show_value(false))
-                    .changed();
-                if changed {
+                let slider = ui.add(egui::Slider::new(&mut value, range).show_value(false));
+                if slider.changed() {
                     raise_panel.set_amount(value as u64);
+                }
+                if focus_raise_slider {
+                    slider.request_focus();
                 }
                 ui.label(
                     egui::RichText::new(format!(
@@ -351,7 +377,7 @@ pub fn analysis_panel(ui: &mut Ui, snapshot: &TableSnapshot) {
     ui.separator();
     ui.label(
         egui::RichText::new(
-            "快捷键：Space 过牌/跟注，F 弃牌，R 加注，A 全下，1/2 底池预设，方向键调加注，N 下一手",
+            "快捷键：Space/Enter 过牌/跟注，F 弃牌，R 加注，A 全下，加注面板 1/←/↓ 减、2/→/↑ 加一个单位，Esc 取消，N 下一手",
         )
         .small()
         .weak(),
@@ -361,23 +387,30 @@ pub fn analysis_panel(ui: &mut Ui, snapshot: &TableSnapshot) {
 /// Central table canvas: felt, community cards, pot and every seat.
 pub fn show(ui: &mut Ui, snapshot: &TableSnapshot) -> Option<TableUiAction> {
     let mut action = None;
+    let palette = snapshot.theme.palette();
+    let scale = snapshot.tier.scale();
     let (rect, _response) = ui.allocate_exact_size(ui.available_size(), Sense::hover());
     let painter = ui.painter().clone();
-    painter.rect_filled(rect, CornerRadius::same(0), Color32::from_rgb(14, 18, 22));
+    painter.rect_filled(rect, CornerRadius::same(0), palette.page_bg);
     let table_rect = rect.shrink2(egui::vec2(28.0, 18.0));
     painter.rect_filled(
         table_rect,
         CornerRadius::same(200),
-        components::table_edge_color(),
+        components::table_edge_color(palette),
     );
     painter.rect_filled(
         table_rect.shrink(9.0),
         CornerRadius::same(192),
-        components::felt_color(),
+        palette.felt_outer,
+    );
+    painter.rect_filled(
+        table_rect.shrink(46.0),
+        CornerRadius::same(170),
+        palette.felt_inner,
     );
 
-    let card_size = components::card_size();
-    let gap = 8.0;
+    let card_size = components::scaled_card_size(scale);
+    let gap = 8.0 * scale;
     let total_width = 5.0 * card_size.x + 4.0 * gap;
     let community_center = table_rect.center() + egui::vec2(0.0, -card_size.y * 0.15);
     let first_x = community_center.x - total_width * 0.5;
@@ -406,15 +439,15 @@ pub fn show(ui: &mut Ui, snapshot: &TableSnapshot) -> Option<TableUiAction> {
             snapshot.pot,
             snapshot.pot as f64 / snapshot.big_blind.max(1) as f64
         ),
-        FontId::proportional(18.0),
-        Color32::from_rgb(255, 226, 150),
+        FontId::proportional(18.0 * scale),
+        palette.gold,
     );
     painter.text(
         community_center + egui::vec2(0.0, card_size.y * 0.5 + 20.0),
         Align2::CENTER_TOP,
         format!("{} · 第 {} 手", snapshot.phase, snapshot.hand_id),
-        FontId::proportional(14.0),
-        Color32::from_rgb(200, 220, 210),
+        FontId::proportional(14.0 * scale),
+        palette.text_secondary,
     );
 
     let positions = components::seat_positions(snapshot.seats.len(), table_rect);
@@ -425,6 +458,8 @@ pub fn show(ui: &mut Ui, snapshot: &TableSnapshot) -> Option<TableUiAction> {
             seat,
             snapshot.big_blind,
             table_rect.center(),
+            scale,
+            palette,
         );
     }
 
@@ -435,7 +470,7 @@ pub fn show(ui: &mut Ui, snapshot: &TableSnapshot) -> Option<TableUiAction> {
         if !human.cards.is_empty()
             && let Some(position) = positions.get(human.seat)
         {
-            let cards_rect = hole_cards_rect(*position);
+            let cards_rect = hole_cards_rect(*position, scale);
             let response = ui.interact(
                 cards_rect,
                 ui.scope_id().with("human-hole-cards"),
@@ -449,11 +484,11 @@ pub fn show(ui: &mut Ui, snapshot: &TableSnapshot) -> Option<TableUiAction> {
     action
 }
 
-fn hole_cards_rect(seat_position: egui::Pos2) -> Rect {
-    let card_size = components::mini_card_size();
-    let width = card_size.x * 2.0 + 4.0;
+fn hole_cards_rect(seat_position: egui::Pos2, scale: f32) -> Rect {
+    let card_size = components::scaled_mini_card_size(scale);
+    let width = card_size.x * 2.0 + 4.0 * scale;
     Rect::from_center_size(
-        seat_position - egui::vec2(0.0, 58.0),
+        seat_position - egui::vec2(0.0, 58.0 * scale),
         egui::vec2(width, card_size.y),
     )
 }
@@ -464,19 +499,21 @@ fn draw_seat(
     seat: &SeatView,
     big_blind: u64,
     table_center: egui::Pos2,
+    scale: f32,
+    palette: &Palette,
 ) {
-    let box_rect = Rect::from_center_size(position, egui::vec2(158.0, 74.0));
+    let box_rect = Rect::from_center_size(position, egui::vec2(158.0 * scale, 74.0 * scale));
     painter.rect_filled(
         box_rect,
         CornerRadius::same(10),
-        components::seat_color(seat.is_human, seat.is_actor, seat.folded),
+        components::seat_color(palette, seat.is_human, seat.is_actor, seat.folded),
     );
     let border = if seat.is_winner {
-        Color32::from_rgb(255, 205, 70)
+        palette.gold
     } else if seat.is_actor {
         Color32::from_rgb(255, 190, 60)
     } else {
-        Color32::from_rgb(90, 100, 108)
+        palette.text_secondary
     };
     painter.rect_stroke(
         box_rect,
@@ -492,13 +529,13 @@ fn draw_seat(
         StrokeKind::Inside,
     );
 
-    let avatar_center = box_rect.left_center() + egui::vec2(26.0, 0.0);
+    let avatar_center = box_rect.left_center() + egui::vec2(26.0 * scale, 0.0);
     let avatar_color = if seat.is_human {
         Color32::from_rgb(70, 130, 180)
     } else {
         Color32::from_rgb(110, 90, 140)
     };
-    painter.circle_filled(avatar_center, 19.0, avatar_color);
+    painter.circle_filled(avatar_center, 19.0 * scale, avatar_color);
     let initial = seat.name.chars().next().unwrap_or('?').to_string();
     painter.text(
         avatar_center,
@@ -508,12 +545,12 @@ fn draw_seat(
         Color32::WHITE,
     );
 
-    let text_left = box_rect.left() + 50.0;
+    let text_left = box_rect.left() + 50.0 * scale;
     painter.text(
-        egui::pos2(text_left, box_rect.top() + 7.0),
+        egui::pos2(text_left, box_rect.top() + 7.0 * scale),
         Align2::LEFT_TOP,
         &seat.name,
-        FontId::proportional(15.0),
+        FontId::proportional(15.0 * scale),
         if seat.folded {
             Color32::from_gray(150)
         } else {
@@ -521,23 +558,23 @@ fn draw_seat(
         },
     );
     painter.text(
-        egui::pos2(text_left, box_rect.top() + 27.0),
+        egui::pos2(text_left, box_rect.top() + 27.0 * scale),
         Align2::LEFT_TOP,
         format_bb(seat.stack, big_blind),
-        FontId::proportional(13.0),
+        FontId::proportional(13.0 * scale),
         Color32::from_rgb(210, 220, 200),
     );
     if let Some(last_action) = &seat.last_action {
         painter.text(
-            egui::pos2(text_left, box_rect.top() + 48.0),
+            egui::pos2(text_left, box_rect.top() + 48.0 * scale),
             Align2::LEFT_TOP,
             last_action,
-            FontId::proportional(11.5),
+            FontId::proportional(11.5 * scale),
             Color32::from_rgb(240, 200, 120),
         );
     }
 
-    let mut badge_x = box_rect.left() + 4.0;
+    let mut badge_x = box_rect.left() + 4.0 * scale;
     for (label, color) in [
         (
             seat.is_dealer.then_some("D"),
@@ -557,17 +594,17 @@ fn draw_seat(
         ),
     ] {
         if let Some(label) = label {
-            let width = if label == "ALL-IN" { 42.0 } else { 18.0 };
+            let width = if label == "ALL-IN" { 42.0 } else { 18.0 } * scale;
             let badge = Rect::from_min_size(
                 egui::pos2(badge_x, box_rect.top() - 9.0),
-                egui::vec2(width, 16.0),
+                egui::vec2(width, 16.0 * scale),
             );
             painter.rect_filled(badge, CornerRadius::same(8), color);
             painter.text(
                 badge.center(),
                 Align2::CENTER_CENTER,
                 label,
-                FontId::proportional(10.0),
+                FontId::proportional(10.0 * scale),
                 Color32::from_rgb(20, 20, 24),
             );
             badge_x += width + 3.0;
@@ -575,12 +612,12 @@ fn draw_seat(
     }
 
     if !seat.cards.is_empty() && !seat.folded {
-        let cards_rect = hole_cards_rect(position);
-        let card_size = components::mini_card_size();
+        let cards_rect = hole_cards_rect(position, scale);
+        let card_size = components::scaled_mini_card_size(scale);
         for (index, card) in seat.cards.iter().take(2).enumerate() {
             let rect = Rect::from_min_size(
                 egui::pos2(
-                    cards_rect.left() + index as f32 * (card_size.x + 4.0),
+                    cards_rect.left() + index as f32 * (card_size.x + 4.0 * scale),
                     cards_rect.top(),
                 ),
                 card_size,
@@ -598,116 +635,171 @@ fn draw_seat(
     if seat.bet > 0 {
         let direction = (table_center - position).normalized();
         painter.text(
-            position + direction * 88.0,
+            position + direction * 88.0 * scale,
             Align2::CENTER_CENTER,
             format!("● {}", seat.bet),
-            FontId::proportional(14.0),
-            Color32::from_rgb(255, 215, 120),
+            FontId::proportional(14.0 * scale),
+            palette.gold,
         );
     }
 }
 
-/// Settlement dialog (modal). Returns the action chosen by the player.
-pub fn settlement_modal(ctx: &egui::Context, snapshot: &TableSnapshot) -> Option<TableUiAction> {
-    let settlement = snapshot.settlement.as_ref()?;
-    let mut action = None;
-    let modal = egui::Modal::new(Id::unique("settlement-modal")).show(ctx, |ui| {
-        ui.set_min_width(480.0);
-        ui.heading(if settlement.game_over.is_some() {
-            "对局结束"
-        } else {
-            "本手结算"
-        });
-        ui.separator();
-        ui.label(
-            egui::RichText::new(format!(
-                "第 {} 手 · 底池 {}",
-                settlement.hand_id,
-                settlement.pot()
-            ))
-            .strong(),
-        );
-        if !settlement.winners.is_empty() {
-            let hand_by_name = |name: &str| {
-                settlement
-                    .showdown
-                    .iter()
-                    .find(|entry| entry.name == name)
-                    .map(|entry| entry.hand_name)
-            };
-            let winners = settlement
-                .winners
-                .iter()
-                .map(|(name, amount)| match hand_by_name(name) {
-                    Some(hand) => format!("{name} +{amount}（{hand}）"),
-                    None => format!("{name} +{amount}"),
+/// What the settlement dialog produced this frame.
+#[derive(Debug, Default)]
+pub struct SettlementModalResult {
+    pub action: Option<TableUiAction>,
+    pub next_button: Option<egui::Id>,
+    pub home_button: Option<egui::Id>,
+    pub dragged: bool,
+}
+
+/// Settlement dialog (modal). Returns the chosen action plus the focusable
+/// button ids (used by the app for the initial focus and the Tab focus trap).
+pub fn settlement_modal(
+    ctx: &egui::Context,
+    snapshot: &TableSnapshot,
+    offset: &mut egui::Vec2,
+    focus_primary: bool,
+) -> SettlementModalResult {
+    let mut result = SettlementModalResult::default();
+    let Some(settlement) = snapshot.settlement.as_ref() else {
+        return result;
+    };
+    let palette = snapshot.theme.palette();
+    let modal_id = Id::unique("settlement-modal");
+    // ui.md 3.9: the dialog is draggable and resets to the centre on reopen.
+    let screen = ctx.content_rect();
+    let max_offset = egui::vec2(screen.width() * 0.5 - 160.0, screen.height() * 0.5 - 120.0);
+    *offset = egui::vec2(
+        offset.x.clamp(-max_offset.x, max_offset.x),
+        offset.y.clamp(-max_offset.y, max_offset.y),
+    );
+    let area = egui::Modal::default_area(modal_id).anchor(Align2::CENTER_CENTER, *offset);
+    egui::Modal::new(modal_id)
+        .area(area)
+        .backdrop_color(palette.overlay)
+        .show(ctx, |ui| {
+            let handle = ui
+                .horizontal(|ui| {
+                    ui.label(egui::RichText::new("⣿ 拖动").small().weak());
                 })
-                .collect::<Vec<_>>()
-                .join("，");
-            ui.label(format!("赢家：{winners}"));
-        }
-        let color = if settlement.human_delta >= 0 {
-            Color32::from_rgb(110, 220, 130)
-        } else {
-            Color32::from_rgb(230, 120, 120)
-        };
-        ui.colored_label(
-            color,
-            format!(
-                "你的变化：{}{} 筹码",
-                if settlement.human_delta >= 0 { "+" } else { "" },
-                settlement.human_delta
-            ),
-        );
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            ui.label("公共牌：");
-            for card in &settlement.board {
-                components::card_widget(ui, *card);
+                .response
+                .interact(Sense::drag());
+            if handle.dragged() {
+                let delta = ctx.input(|input| input.pointer.delta());
+                *offset += delta;
+                result.dragged = true;
+                ctx.request_repaint();
             }
-        });
-        if !settlement.showdown.is_empty() {
+            ui.set_min_width(480.0);
+            ui.heading(if settlement.game_over.is_some() {
+                "对局结束"
+            } else {
+                "本手结算"
+            });
             ui.separator();
-            ui.label("摊牌：");
-            let winner_names: Vec<&str> = settlement
-                .winners
-                .iter()
-                .map(|(name, _)| name.as_str())
-                .collect();
-            egui::ScrollArea::vertical()
-                .max_height(340.0)
-                .show(ui, |ui| {
-                    for entry in &settlement.showdown {
-                        let is_winner = winner_names.contains(&entry.name.as_str());
-                        ui.horizontal(|ui| {
-                            let prefix = if is_winner { "[赢] " } else { "" };
-                            ui.label(format!("{prefix}{}：", entry.name));
-                            for card in &entry.cards {
-                                components::mini_card_widget(ui, *card);
-                            }
-                            ui.label(entry.hand_name);
-                        });
-                    }
-                });
-        }
-        if let Some(game_over) = settlement.game_over {
-            ui.separator();
-            ui.colored_label(
-                Color32::from_rgb(240, 190, 90),
-                format!("{}，{}", game_over.label(), "点击回主页重新开始"),
+            ui.label(
+                egui::RichText::new(format!(
+                    "第 {} 手 · 底池 {}",
+                    settlement.hand_id,
+                    settlement.pot()
+                ))
+                .strong(),
             );
-        }
-        ui.add_space(6.0);
-        ui.separator();
-        ui.horizontal(|ui| {
-            if settlement.game_over.is_none() && ui.button("下一手 (N)").clicked() {
-                action = Some(TableUiAction::NextHand);
+            if !settlement.winners.is_empty() {
+                let hand_by_name = |name: &str| {
+                    settlement
+                        .showdown
+                        .iter()
+                        .find(|entry| entry.name == name)
+                        .map(|entry| entry.hand_name)
+                };
+                let winners = settlement
+                    .winners
+                    .iter()
+                    .map(|(name, amount)| match hand_by_name(name) {
+                        Some(hand) => format!("{name} +{amount}（{hand}）"),
+                        None => format!("{name} +{amount}"),
+                    })
+                    .collect::<Vec<_>>()
+                    .join("，");
+                ui.label(format!("赢家：{winners}"));
             }
-            if ui.button("回主页").clicked() {
-                action = Some(TableUiAction::BackHome);
+            let color = if settlement.human_delta >= 0 {
+                Color32::from_rgb(110, 220, 130)
+            } else {
+                Color32::from_rgb(230, 120, 120)
+            };
+            ui.colored_label(
+                color,
+                format!(
+                    "你的变化：{}{} 筹码",
+                    if settlement.human_delta >= 0 { "+" } else { "" },
+                    settlement.human_delta
+                ),
+            );
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.label("公共牌：");
+                for card in &settlement.board {
+                    components::card_widget(ui, *card);
+                }
+            });
+            if !settlement.showdown.is_empty() {
+                ui.separator();
+                ui.label("摊牌：");
+                let winner_names: Vec<&str> = settlement
+                    .winners
+                    .iter()
+                    .map(|(name, _)| name.as_str())
+                    .collect();
+                egui::ScrollArea::vertical()
+                    .max_height(340.0)
+                    .show(ui, |ui| {
+                        for entry in &settlement.showdown {
+                            let is_winner = winner_names.contains(&entry.name.as_str());
+                            ui.horizontal(|ui| {
+                                let prefix = if is_winner { "[赢] " } else { "" };
+                                ui.label(format!("{prefix}{}：", entry.name));
+                                for card in &entry.cards {
+                                    components::mini_card_widget(ui, *card);
+                                }
+                                ui.label(entry.hand_name);
+                            });
+                        }
+                    });
             }
+            if let Some(game_over) = settlement.game_over {
+                ui.separator();
+                ui.colored_label(
+                    Color32::from_rgb(240, 190, 90),
+                    format!("{}，{}", game_over.label(), "点击回主页重新开始"),
+                );
+            }
+            ui.add_space(6.0);
+            ui.separator();
+            ui.horizontal(|ui| {
+                if settlement.game_over.is_none() {
+                    let response = ui.button("下一手 (N)");
+                    components::focus_ring(ui, &response);
+                    result.next_button = Some(response.id);
+                    if focus_primary {
+                        response.request_focus();
+                    }
+                    if response.clicked() {
+                        result.action = Some(TableUiAction::NextHand);
+                    }
+                }
+                let response = ui.button("回主页");
+                components::focus_ring(ui, &response);
+                result.home_button = Some(response.id);
+                if focus_primary && settlement.game_over.is_some() {
+                    response.request_focus();
+                }
+                if response.clicked() {
+                    result.action = Some(TableUiAction::BackHome);
+                }
+            });
         });
-    });
-    let _ = modal;
-    action
+    result
 }

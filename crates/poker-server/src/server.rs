@@ -1,14 +1,15 @@
 //! Server state, axum transport and the protocol message handlers.
 //!
 //! A single std::sync::Mutex guards all server state. Handlers are synchronous:
-//! they mutate rooms and push serialized frames into per-connection unbounded
-//! channels, so no lock is ever held across an await. Timers (AI turn, next
+//! they mutate rooms and push serialized frames into per-connection bounded
+//! outbound queues, so no lock is ever held across an await. Timers (AI turn, next
 //! hand, disconnect grace, empty-room TTL) are tokio tasks validated by
 //! per-room generation tokens, which reproduces the reference server's
 //! setTimeout + clearTimeout semantics without cancelled-callback races.
 
 use std::collections::{BTreeMap, HashMap};
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -24,8 +25,10 @@ use poker_protocol as proto;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
+use tracing::{debug, info, warn};
 
 use crate::ai::AiView;
+use crate::metrics::{ServerMetrics, ServerMetricsSnapshot};
 use crate::options::ServerOptions;
 use crate::room::{Room, Seat, request_key};
 use crate::wire;
@@ -75,10 +78,17 @@ const TEXT_ACTION_OK: &str = "行动已确认";
 /// Text of the illegal-action rejection.
 const TEXT_ILLEGAL_ACTION: &str = "当前不能执行这个行动";
 
+/// Capacity of the per-connection outbound queue. A slow consumer that fills
+/// this queue is disconnected instead of letting memory grow without bound.
+const OUTBOUND_CAPACITY: usize = 256;
+
 /// Metadata of one live WebSocket connection.
 struct ConnectionMeta {
     ip: String,
-    tx: mpsc::UnboundedSender<Message>,
+    tx: mpsc::Sender<Message>,
+    failed: Arc<AtomicBool>,
+    alive: bool,
+    metrics: Arc<ServerMetrics>,
     room_code: Option<String>,
     player_id: Option<String>,
     session_token: Option<String>,
@@ -102,6 +112,7 @@ struct ServerState {
     id_rng: XorShift32Rng,
     next_joined_seq: u64,
     shutdown: bool,
+    metrics: Arc<ServerMetrics>,
 }
 
 impl ServerState {
@@ -122,6 +133,7 @@ impl ServerState {
             id_rng: XorShift32Rng::from_state(seed as u32),
             next_joined_seq: 1,
             shutdown: false,
+            metrics: Arc::new(ServerMetrics::default()),
         }
     }
 
@@ -151,8 +163,10 @@ pub struct ServerHandle {
     local_addr: SocketAddr,
     app_version: String,
     state: SharedState,
+    metrics: Arc<ServerMetrics>,
     shutdown: Option<tokio::sync::oneshot::Sender<()>>,
     task: Option<JoinHandle<()>>,
+    background: Vec<JoinHandle<()>>,
 }
 
 impl ServerHandle {
@@ -174,6 +188,12 @@ impl ServerHandle {
         format!("ws://{}", self.local_addr)
     }
 
+    /// Point-in-time counter snapshot (connections, rooms, rejections, AI latency).
+    #[must_use]
+    pub fn metrics(&self) -> ServerMetricsSnapshot {
+        self.metrics.snapshot()
+    }
+
     /// Waits for the server to stop after signalling shutdown (same as
     /// shutdown() but named for embedding call sites).
     pub async fn join(self) {
@@ -187,7 +207,7 @@ impl ServerHandle {
             let mut guard = lock(&self.state);
             guard.shutdown = true;
             for meta in guard.connections.values() {
-                let _ = meta.tx.send(Message::Close(Some(CloseFrame {
+                let _ = meta.tx.try_send(Message::Close(Some(CloseFrame {
                     code: proto::CLOSE_NORMAL,
                     reason: "server shutdown".into(),
                 })));
@@ -195,6 +215,9 @@ impl ServerHandle {
         }
         if let Some(sender) = self.shutdown.take() {
             let _ = sender.send(());
+        }
+        for task in &self.background {
+            task.abort();
         }
         if let Some(mut task) = self.task.take() {
             if tokio::time::timeout(Duration::from_secs(2), &mut task)
@@ -204,6 +227,7 @@ impl ServerHandle {
                 task.abort();
             }
         }
+        info!("poker-server stopped");
     }
 }
 
@@ -234,12 +258,18 @@ pub async fn spawn_server(options: ServerOptions) -> std::io::Result<ServerHandl
             eprintln!("[poker-server] serve error: {error}");
         }
     });
+    let heartbeat_interval = lock(&state).options.heartbeat_interval();
+    let heartbeat = tokio::spawn(heartbeat_loop(state.clone(), heartbeat_interval));
+    let metrics = lock(&state).metrics.clone();
+    info!(%local_addr, %app_version, "poker-server started");
     Ok(ServerHandle {
         local_addr,
         app_version,
         state,
+        metrics,
         shutdown: Some(shutdown_tx),
         task: Some(task),
+        background: vec![heartbeat],
     })
 }
 
@@ -293,6 +323,55 @@ pub async fn probe_server(url: &str, expected_app_version: &str, timeout: Durati
     tokio::time::timeout(timeout, probe).await.unwrap_or(false)
 }
 
+/// One heartbeat tick: ping every live connection and drop peers that did not
+/// answer the previous ping (same semantics as local-server.js pingConnections).
+async fn heartbeat_loop(state: SharedState, interval: Duration) {
+    let mut ticker = tokio::time::interval(interval);
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    // The first tick completes immediately; skip it so the first ping goes out
+    // one interval after the connection was accepted.
+    ticker.tick().await;
+    loop {
+        ticker.tick().await;
+        let mut guard = lock(&state);
+        if guard.shutdown {
+            return;
+        }
+        let mut timed_out = Vec::new();
+        for (conn_id, meta) in &mut guard.connections {
+            if !meta.alive {
+                timed_out.push(*conn_id);
+                continue;
+            }
+            meta.alive = false;
+            if meta.tx.try_send(Message::Ping(Default::default())).is_err() {
+                timed_out.push(*conn_id);
+            }
+        }
+        for conn_id in timed_out {
+            if let Some(meta) = guard.connections.remove(&conn_id) {
+                meta.failed.store(true, Ordering::Relaxed);
+                ServerMetrics::inc(&meta.metrics.heartbeat_timeouts);
+                // Wake the writer task so it observes the failed flag and drops
+                // the socket; the frame itself may not be delivered.
+                let _ = meta.tx.try_send(Message::Close(Some(CloseFrame {
+                    code: proto::CLOSE_NORMAL,
+                    reason: "heartbeat timeout".into(),
+                })));
+                warn!(conn_id, "heartbeat timeout; connection dropped");
+            }
+        }
+    }
+}
+
+/// Marks a connection alive after a pong control frame.
+fn mark_alive(state: &SharedState, conn_id: u64) {
+    let mut guard = lock(state);
+    if let Some(meta) = guard.connections.get_mut(&conn_id) {
+        meta.alive = true;
+    }
+}
+
 /// axum WebSocket upgrade handler: enforces the Origin allowlist before the
 /// upgrade and records the client IP.
 async fn ws_handler(
@@ -305,6 +384,12 @@ async fn ws_handler(
     let allowed_origins = lock(&state).options.allowed_origins.clone();
     let origin = headers.get("origin").and_then(|value| value.to_str().ok());
     if !origin_allowed(origin, &allowed_origins) {
+        let metrics = lock(&state).metrics.clone();
+        ServerMetrics::inc(&metrics.connections_rejected_origin);
+        warn!(
+            origin = origin.unwrap_or(""),
+            "connection rejected: origin not allowed"
+        );
         return StatusCode::UNAUTHORIZED.into_response();
     }
     let ip = client_ip(&headers, peer, trust_proxy);
@@ -374,7 +459,8 @@ fn client_ip(headers: &HeaderMap, peer: SocketAddr, trust_proxy: bool) -> String
 /// One live connection: register, writer task, reader loop, disconnect cleanup.
 async fn handle_connection(socket: WebSocket, state: SharedState, ip: String) {
     let (mut sink, mut stream) = socket.split();
-    let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
+    let (tx, mut rx) = mpsc::channel::<Message>(OUTBOUND_CAPACITY);
+    let failed = Arc::new(AtomicBool::new(false));
     enum Admission {
         Accepted(u64),
         Rejected(u16, &'static str),
@@ -393,14 +479,20 @@ async fn handle_connection(socket: WebSocket, state: SharedState, ip: String) {
                 >= guard.options.max_connections as usize
                 || ip_count >= guard.options.max_connections_per_ip as usize;
             if capacity_reached {
+                ServerMetrics::inc(&guard.metrics.connections_rejected_capacity);
+                warn!(%ip, "connection rejected: capacity reached");
                 Admission::Rejected(proto::CLOSE_TRY_AGAIN_LATER, proto::CLOSE_REASON_CAPACITY)
             } else {
+                let metrics = guard.metrics.clone();
                 let conn_id = guard.next_conn_id();
                 guard.connections.insert(
                     conn_id,
                     ConnectionMeta {
                         ip: ip.clone(),
                         tx: tx.clone(),
+                        failed: failed.clone(),
+                        alive: true,
+                        metrics: metrics.clone(),
                         room_code: None,
                         player_id: None,
                         session_token: None,
@@ -408,6 +500,8 @@ async fn handle_connection(socket: WebSocket, state: SharedState, ip: String) {
                         message_count: 0,
                     },
                 );
+                ServerMetrics::inc(&metrics.connections_accepted);
+                info!(conn_id, %ip, "connection accepted");
                 Admission::Accepted(conn_id)
             }
         }
@@ -432,9 +526,13 @@ async fn handle_connection(socket: WebSocket, state: SharedState, ip: String) {
         server_name: Some(proto::SERVER_NAME.to_owned()),
         app_version,
     });
-    let _ = tx.send(Message::Text(hello.to_json_string().into()));
+    let _ = tx.try_send(Message::Text(hello.to_json_string().into()));
+    let writer_failed = failed.clone();
     let writer = tokio::spawn(async move {
         while let Some(message) = rx.recv().await {
+            if writer_failed.load(Ordering::Relaxed) {
+                break;
+            }
             let is_close = matches!(message, Message::Close(_));
             if sink.send(message).await.is_err() {
                 break;
@@ -463,8 +561,12 @@ async fn handle_connection(socket: WebSocket, state: SharedState, ip: String) {
                 ),
             },
             Ok(Message::Close(_)) => break,
-            Ok(Message::Ping(_) | Message::Pong(_)) => {}
-            Err(_) => break,
+            Ok(Message::Ping(_)) => {}
+            Ok(Message::Pong(_)) => mark_alive(&state, conn_id),
+            Err(error) => {
+                debug!(conn_id, %error, "connection read error");
+                break;
+            }
         }
     }
     writer.abort();
@@ -472,6 +574,7 @@ async fn handle_connection(socket: WebSocket, state: SharedState, ip: String) {
         let mut guard = lock(&state);
         guard.on_disconnect(&state, conn_id);
     }
+    debug!(conn_id, "connection closed");
 }
 
 /// Handles one text frame: rate limit, size guard, parse, dispatch.
@@ -483,6 +586,8 @@ fn on_text(state: &SharedState, conn_id: u64, text: &str) {
         }
         let rate_window = guard.options.rate_window();
         let max_messages = guard.options.max_messages_per_window;
+        let metrics = guard.metrics.clone();
+        ServerMetrics::inc(&metrics.messages_received);
         let now = Instant::now();
         let Some(meta) = guard.connections.get_mut(&conn_id) else {
             return;
@@ -495,6 +600,8 @@ fn on_text(state: &SharedState, conn_id: u64, text: &str) {
         let over_rate = meta.message_count > max_messages;
         let tx = meta.tx.clone();
         if over_rate {
+            ServerMetrics::inc(&metrics.rate_limited);
+            warn!(conn_id, "connection rate limit exceeded");
             guard.connections.remove(&conn_id);
             Some((
                 tx,
@@ -509,7 +616,7 @@ fn on_text(state: &SharedState, conn_id: u64, text: &str) {
         }
     };
     if let Some((tx, code, reason)) = violation {
-        let _ = tx.send(Message::Close(Some(CloseFrame {
+        let _ = tx.try_send(Message::Close(Some(CloseFrame {
             code,
             reason: reason.into(),
         })));
@@ -520,6 +627,8 @@ fn on_text(state: &SharedState, conn_id: u64, text: &str) {
         match proto::parse_client_message(text) {
             Ok(message) => message,
             Err(error) => {
+                ServerMetrics::inc(&guard.metrics.parse_errors);
+                debug!(conn_id, error = %error, "message parse failed");
                 let reply = proto::ServerMessage::Error(error.to_server_error());
                 send_message(&guard.connections, conn_id, &reply);
                 return;
@@ -534,19 +643,34 @@ fn on_text(state: &SharedState, conn_id: u64, text: &str) {
 // Serialization / broadcast helpers (take split borrows of ServerState fields).
 // ---------------------------------------------------------------------------
 
+/// Pushes a frame into the bounded outbound queue.
+///
+/// A full queue means the peer is not draining its socket (slow consumer). The
+/// connection is marked failed so the writer task closes it instead of letting
+/// the queue or memory grow without bound. The reference server has no such
+/// path (ws buffers locally); this is documented in docs/specs/server-plan.md.
+fn try_send_frame(meta: &ConnectionMeta, message: Message) {
+    if meta.tx.try_send(message).is_err() {
+        if !meta.failed.swap(true, Ordering::Relaxed) {
+            ServerMetrics::inc(&meta.metrics.slow_consumers);
+            warn!("connection outbound queue full; closing slow consumer");
+        }
+    }
+}
+
 fn send_message(
     connections: &HashMap<u64, ConnectionMeta>,
     conn_id: u64,
     message: &proto::ServerMessage,
 ) {
     if let Some(meta) = connections.get(&conn_id) {
-        let _ = meta.tx.send(Message::Text(message.to_json_string().into()));
+        try_send_frame(meta, Message::Text(message.to_json_string().into()));
     }
 }
 
 fn send_text(connections: &HashMap<u64, ConnectionMeta>, conn_id: u64, text: String) {
     if let Some(meta) = connections.get(&conn_id) {
-        let _ = meta.tx.send(Message::Text(text.into()));
+        try_send_frame(meta, Message::Text(text.into()));
     }
 }
 
@@ -788,6 +912,8 @@ impl ServerState {
             let seed = self.room_seed();
             self.rooms
                 .insert(code.clone(), Room::new(code.clone(), config, seed));
+            ServerMetrics::inc(&self.metrics.rooms_created);
+            info!(room_code = %code, "room created");
         }
         let player_id = generate_player_id(&mut self.id_rng);
         let resume_token = generate_token(&mut self.id_rng);
@@ -1306,6 +1432,12 @@ impl ServerState {
             text.to_owned(),
             room,
         ));
+        if accepted {
+            ServerMetrics::inc(&self.metrics.actions_accepted);
+        } else {
+            ServerMetrics::inc(&self.metrics.actions_rejected);
+            debug!(room_code = %room.code, message = %text, "action rejected");
+        }
         let text = reply.to_json_string();
         if let Some(room) = self.rooms.get_mut(code) {
             if let Some(seat) = room.seats.get_mut(seat_index) {
@@ -1469,13 +1601,17 @@ impl ServerState {
         if let Some(old_conn) = old_conn {
             if old_conn != conn_id {
                 if let Some(meta) = self.connections.remove(&old_conn) {
-                    let _ = meta.tx.send(Message::Close(Some(CloseFrame {
+                    let _ = meta.tx.try_send(Message::Close(Some(CloseFrame {
                         code: proto::CLOSE_SESSION_REPLACED,
                         reason: proto::CLOSE_REASON_SESSION_REPLACED.into(),
                     })));
+                    ServerMetrics::inc(&meta.metrics.session_kicks);
+                    info!(room_code = %code, "session resumed elsewhere; old socket kicked");
                 }
             }
         }
+        ServerMetrics::inc(&self.metrics.resumes);
+        info!(room_code = %code, "session resumed");
         if let Some(room) = self.rooms.get_mut(&code) {
             room.cleanup_token = None;
             let seat = &mut room.seats[seat_index];
@@ -1790,7 +1926,7 @@ impl ServerState {
     }
 
     fn cleanup_room(&mut self, shared: &SharedState, code: &str) {
-        let (has_connected, has_game, already) = {
+        let (has_connected, has_pending_reconnect, has_game, already) = {
             let Some(room) = self.rooms.get(code) else {
                 return;
             };
@@ -1798,13 +1934,21 @@ impl ServerState {
                 .seats
                 .iter()
                 .any(|seat| seat.is_human && seat.connected && !seat.left);
+            // A socket that just dropped during its disconnect grace window can
+            // still resume. Keeping the game-less room alive until that timer
+            // fires makes lobby reconnect/resume work; the reference JS server
+            // deletes such rooms immediately, which loses the resume race.
+            let has_pending_reconnect = room.seats.iter().any(|seat| {
+                seat.is_human && !seat.connected && !seat.left && seat.disconnect_token.is_some()
+            });
             (
                 has_connected,
+                has_pending_reconnect,
                 room.game.is_some(),
                 room.cleanup_token.is_some(),
             )
         };
-        if has_connected {
+        if has_connected || has_pending_reconnect {
             if let Some(room) = self.rooms.get_mut(code) {
                 room.cleanup_token = None;
             }
@@ -1814,6 +1958,8 @@ impl ServerState {
             let Some(room) = self.rooms.remove(code) else {
                 return;
             };
+            ServerMetrics::inc(&self.metrics.rooms_closed);
+            info!(room_code = %code, "room closed (never started)");
             for seat in &room.seats {
                 if !seat.resume_token.is_empty() {
                     self.sessions.remove(&seat.resume_token);
@@ -1844,10 +1990,14 @@ impl ServerState {
             if room.cleanup_token != Some(token) {
                 return;
             }
-            !room
+            let has_connected = room
                 .seats
                 .iter()
-                .any(|seat| seat.is_human && seat.connected && !seat.left)
+                .any(|seat| seat.is_human && seat.connected && !seat.left);
+            let has_pending_reconnect = room.seats.iter().any(|seat| {
+                seat.is_human && !seat.connected && !seat.left && seat.disconnect_token.is_some()
+            });
+            !has_connected && !has_pending_reconnect
         };
         if !removable {
             return;
@@ -1855,6 +2005,8 @@ impl ServerState {
         let Some(room) = self.rooms.remove(code) else {
             return;
         };
+        ServerMetrics::inc(&self.metrics.rooms_closed);
+        info!(room_code = %code, "room closed (empty TTL)");
         for seat in &room.seats {
             if !seat.resume_token.is_empty() {
                 self.sessions.remove(&seat.resume_token);
@@ -2057,6 +2209,7 @@ async fn run_ai_turn(shared: SharedState, code: String, token: u64) {
         (seat_index, brain, view, hand_id, turn_id)
     };
     let (seat_index, brain, view, hand_id, turn_id) = prepared;
+    let decision_started = Instant::now();
     let outcome = tokio::task::spawn_blocking(move || {
         let mut brain = brain;
         let decision = brain.decide(&view);
@@ -2105,6 +2258,12 @@ async fn run_ai_turn(shared: SharedState, code: String, token: u64) {
         }
     };
     if applied {
+        let elapsed_ms = u64::try_from(decision_started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let metrics = guard.metrics.clone();
+        ServerMetrics::inc(&metrics.ai_decisions);
+        ServerMetrics::add(&metrics.ai_decision_total_ms, elapsed_ms);
+        ServerMetrics::observe_max(&metrics.ai_decision_max_ms, elapsed_ms);
+        debug!(decision_ms = elapsed_ms, "ai decision applied");
         guard.after_game_change(&shared, &code);
     }
 }
@@ -2225,5 +2384,39 @@ mod tests {
             options.max_messages_per_window,
             proto::MAX_MESSAGES_PER_WINDOW_MIN
         );
+    }
+
+    #[test]
+    fn outbound_overflow_marks_slow_consumer() {
+        let metrics = Arc::new(ServerMetrics::default());
+        let (tx, _rx) = mpsc::channel::<Message>(1);
+        tx.try_send(Message::Text("warmup".into()))
+            .expect("first frame fits the test queue");
+        let failed = Arc::new(AtomicBool::new(false));
+        let meta = ConnectionMeta {
+            ip: "127.0.0.1".to_owned(),
+            tx,
+            failed: failed.clone(),
+            alive: true,
+            metrics: metrics.clone(),
+            room_code: None,
+            player_id: None,
+            session_token: None,
+            rate_started: Instant::now(),
+            message_count: 0,
+        };
+        let connections = HashMap::from([(1u64, meta)]);
+        let hello = proto::ServerMessage::Hello(proto::Hello {
+            protocol_version: proto::PROTOCOL_VERSION,
+            server_id: proto::SERVER_ID.to_owned(),
+            server_name: None,
+            app_version: proto::COMPAT_APP_VERSION.to_owned(),
+        });
+        send_message(&connections, 1, &hello);
+        assert!(
+            failed.load(Ordering::Relaxed),
+            "slow consumer must be flagged"
+        );
+        assert_eq!(metrics.snapshot().slow_consumers, 1);
     }
 }

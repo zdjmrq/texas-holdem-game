@@ -7,12 +7,17 @@ use std::time::{Duration, Instant};
 use eframe::egui::{self, Color32, RichText};
 use poker_engine::{Action, ActionType, Phase};
 
-use crate::ai::DeterministicAi;
+use crate::ai_bridge;
 use crate::analysis::{AnalysisService, AnalysisSummary, analysis_key};
 use crate::assets;
 use crate::audio::AudioManager;
 use crate::cli::{CliOptions, Scenario};
 use crate::fonts;
+use crate::layout::WindowTier;
+use crate::local_server::{LocalServerHandle, ServerInfo};
+use crate::online_controller::{
+    NoopOnlineController, OnlineController, OnlineEvent, OnlineRequest,
+};
 use crate::platform::{PlatformShell, ShellEvent};
 use crate::screenshot::ScreenshotState;
 use crate::session::{TableConfig, TableSession, advance_ai_steps, autoplay_hand};
@@ -21,6 +26,7 @@ use crate::settings::{
     VariantSetting,
 };
 use crate::table_ctrl::{self, AnalysisMask, RaisePanel, TableCommand};
+use crate::theme::Theme;
 use crate::ui::table::{self, SeatView, TableSnapshot, TableUiAction};
 
 /// Top-level screens.
@@ -53,6 +59,20 @@ pub struct PokerApp {
     attention_until: Option<f64>,
     hint: Option<String>,
     open_raise_requested: bool,
+    /// Logical window tier (normal / compact / tiny) computed each frame.
+    window_tier: WindowTier,
+    /// Drag offset of the settlement dialog (ui.md 3.9: reset on reopen).
+    settlement_offset: egui::Vec2,
+    /// Request keyboard focus on the settlement dialog once it opens.
+    settlement_focus_pending: bool,
+    /// Request keyboard focus on the raise slider once it opens.
+    raise_focus_pending: bool,
+    /// Online controller (Noop until src/online/** lands and is mounted).
+    online: Box<dyn OnlineController>,
+    /// Embedded local poker server (Lead decision A).
+    local_server: Option<LocalServerHandle>,
+    server_info: Option<ServerInfo>,
+    server_error: Option<String>,
 }
 
 impl PokerApp {
@@ -64,11 +84,11 @@ impl PokerApp {
         icon: Option<egui::IconData>,
     ) -> Self {
         let _ = &icon;
-        cc.egui_ctx.set_visuals(egui::Visuals::dark());
-        cc.egui_ctx.all_styles_mut(|style| {
-            style.spacing.item_spacing = egui::vec2(8.0, 6.0);
-            style.spacing.button_padding = egui::vec2(10.0, 5.0);
-        });
+        if let Some(theme) = cli.theme {
+            settings.theme = theme;
+        }
+        settings.theme.apply(&cc.egui_ctx);
+        println!("[poker-app] theme: {}", settings.theme.label());
         let font_report = fonts::install(&cc.egui_ctx);
         println!("[poker-app] {}", font_report.summary());
         println!("[poker-app] music tracks: {}", assets::music_tracks().len());
@@ -84,6 +104,12 @@ impl PokerApp {
             .map(|path| ScreenshotState::new(path, cli.screenshot_frame));
         let audio = AudioManager::new(cli.no_audio);
         let open_raise_requested = cli.open_raise;
+        let online: Box<dyn OnlineController> = Box::new(NoopOnlineController::new());
+        let local_server = if cli.no_server {
+            None
+        } else {
+            Some(LocalServerHandle::start())
+        };
         let last_saved_settings = settings.clone();
         let mut app = Self {
             cli,
@@ -105,6 +131,14 @@ impl PokerApp {
             attention_until: None,
             hint: warning,
             open_raise_requested,
+            window_tier: WindowTier::Normal,
+            settlement_offset: egui::Vec2::ZERO,
+            settlement_focus_pending: false,
+            raise_focus_pending: false,
+            online,
+            local_server,
+            server_info: None,
+            server_error: None,
         };
         app.sync_audio_settings();
         app.setup_scenario();
@@ -124,6 +158,9 @@ impl PokerApp {
             }
             Scenario::Settings => {
                 self.screen = Screen::Settings;
+            }
+            Scenario::Online => {
+                self.screen = Screen::Online;
             }
             Scenario::Table
             | Scenario::TableFlop
@@ -156,9 +193,10 @@ impl PokerApp {
 
     fn start_session_fast(&mut self) {
         let seed = self.cli.scenario_seed();
-        let config = TableConfig::fast(&self.settings, seed);
+        let config = TableConfig::fast(&self.settings, seed.clone());
         let human_name = self.settings.player_name.clone();
-        let mut session = TableSession::new(&config, &human_name, Box::new(DeterministicAi));
+        let ai = ai_bridge::create_policy(&seed, config.variant.is_short_deck());
+        let mut session = TableSession::new(&config, &human_name, ai);
         if !session.start() {
             self.hint = Some("无法开始对局：玩家数量不足".to_owned());
         }
@@ -197,7 +235,8 @@ impl PokerApp {
         self.settings = self.settings.clone().sanitized();
         let config = TableConfig::from_settings(&self.settings, "poker-app-session");
         let human_name = self.settings.player_name.clone();
-        let mut session = TableSession::new(&config, &human_name, Box::new(DeterministicAi));
+        let ai = ai_bridge::create_policy("poker-app-session", config.variant.is_short_deck());
+        let mut session = TableSession::new(&config, &human_name, ai);
         let started = session.start();
         self.session = Some(session);
         self.screen = Screen::Table;
@@ -563,6 +602,18 @@ impl PokerApp {
         }
         ui.checkbox(&mut self.settings.show_analysis, "显示分析面板");
         ui.checkbox(&mut self.settings.hide_hole_cards, "默认隐藏手牌");
+        ui.horizontal(|ui| {
+            ui.label("主题");
+            for theme in Theme::ALL {
+                if ui
+                    .selectable_label(self.settings.theme == theme, theme.label())
+                    .clicked()
+                {
+                    self.settings.theme = theme;
+                    theme.apply(ui.ctx());
+                }
+            }
+        });
 
         ui.separator();
         ui.heading("对局");
@@ -618,18 +669,66 @@ impl PokerApp {
                     self.screen = Screen::Home;
                 }
                 ui.heading("联机对局");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(egui::RichText::new(format!("控制器：{}", self.online.name())).weak());
+                });
             });
         });
         egui::CentralPanel::default().show(ui, |ui| {
-            ui.add_space(40.0);
-            ui.vertical_centered(|ui| {
-                ui.heading("联机功能开发中");
-                ui.add_space(10.0);
-                ui.label("Phase 5 将实现 WebSocket 房间服务（创建/加入房间、准备、房主迁移、断线重连）。");
-                ui.label("本阶段只提供联机占位页；本地对局功能已完整可玩。");
-                ui.add_space(20.0);
-                if ui.button("返回主页").clicked() {
-                    self.screen = Screen::Home;
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.add_space(12.0);
+                ui.heading("本机联机服务（内嵌 poker-server）");
+                match (&self.server_info, &self.server_error) {
+                    (Some(info), _) => {
+                        ui.label(format!("地址：{}", info.url));
+                        ui.label(format!("appVersion：{}", info.app_version));
+                    }
+                    (None, Some(error)) => {
+                        ui.colored_label(Color32::from_rgb(230, 120, 120), error);
+                    }
+                    (None, None) => {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label("本地服务启动中…");
+                        });
+                    }
+                }
+                ui.separator();
+                ui.heading("连接状态");
+                ui.label(format!("客户端：{}", self.online.status_text()));
+                if let Some(url) = self.online.server_url() {
+                    ui.label(format!("目标服务：{url}"));
+                }
+                ui.horizontal_wrapped(|ui| {
+                    let can_connect = self.server_info.is_some();
+                    if ui
+                        .add_enabled(can_connect, egui::Button::new("连接本机服务"))
+                        .clicked()
+                        && let Some(info) = &self.server_info
+                    {
+                        let url = info.url.clone();
+                        self.online.handle(OnlineRequest::Connect { url });
+                    }
+                    let can_disconnect = !matches!(
+                        self.online.state(),
+                        crate::online_controller::ConnectionState::Disconnected
+                    );
+                    if ui
+                        .add_enabled(can_disconnect, egui::Button::new("断开"))
+                        .clicked()
+                    {
+                        self.online.handle(OnlineRequest::Disconnect);
+                    }
+                });
+                ui.separator();
+                ui.label(
+                    egui::RichText::new(
+                        "联机房间 UI 由 task-14（src/online/**）挂载到本控制器，本页当前是接入占位页；本地对局功能完整可用。",
+                    )
+                    .weak(),
+                );
+                if let Some(hint) = &self.hint {
+                    ui.colored_label(Color32::from_rgb(240, 190, 90), hint);
                 }
             });
         });
@@ -642,6 +741,7 @@ impl PokerApp {
         }
         let snapshot = self.build_snapshot();
         let mut pending: Option<TableUiAction> = None;
+        let tier = self.window_tier;
 
         egui::Panel::top("table_top").show(ui, |ui| {
             if let Some(action) = table::top_bar(ui, &snapshot) {
@@ -649,10 +749,16 @@ impl PokerApp {
             }
         });
         egui::Panel::bottom("table_actions").show(ui, |ui| {
-            if let Some(action) = table::action_bar(ui, &snapshot, &mut self.raise_panel) {
+            if let Some(action) = table::action_bar(
+                ui,
+                &snapshot,
+                &mut self.raise_panel,
+                self.raise_focus_pending,
+            ) {
                 pending = Some(action);
             }
         });
+        self.raise_focus_pending = false;
         if ui.available_width() > 940.0 {
             egui::Panel::right("table_analysis")
                 .default_size(232.0)
@@ -662,12 +768,29 @@ impl PokerApp {
                 });
         }
         egui::CentralPanel::default().show(ui, |ui| {
-            if let Some(action) = table::show(ui, &snapshot) {
+            let needs_scroll = crate::layout::needs_table_scroll(tier, ui.available_height());
+            if needs_scroll {
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.set_min_height(tier.min_table_height());
+                        if let Some(action) = table::show(ui, &snapshot) {
+                            pending = Some(action);
+                        }
+                    });
+            } else if let Some(action) = table::show(ui, &snapshot) {
                 pending = Some(action);
             }
         });
         let ctx = ui.ctx().clone();
-        if let Some(action) = table::settlement_modal(&ctx, &snapshot) {
+        let modal = table::settlement_modal(
+            &ctx,
+            &snapshot,
+            &mut self.settlement_offset,
+            self.settlement_focus_pending,
+        );
+        self.settlement_focus_pending = false;
+        if let Some(action) = modal.action {
             pending = Some(action);
         }
         if let Some(action) = pending {
@@ -786,6 +909,8 @@ impl PokerApp {
             music_enabled: self.audio.is_enabled(),
             show_analysis: self.settings.show_analysis,
             event_line,
+            tier: self.window_tier,
+            theme: self.settings.theme,
         }
     }
 
@@ -861,6 +986,8 @@ impl PokerApp {
         let mut panel = RaisePanel::open_for(&legal);
         panel.set_amount(default);
         self.raise_panel = panel;
+        // ui.md 4.5: opening the raise panel moves focus to the amount slider.
+        self.raise_focus_pending = true;
     }
 
     fn next_hand_or_home(&mut self) {
@@ -1082,6 +1209,49 @@ impl PokerApp {
         {
             self.last_settled_hand = Some(hand);
             self.audio.play_settlement_prompt();
+            // ui.md 3.9: the dialog is re-centred and gets keyboard focus on open.
+            self.settlement_offset = egui::Vec2::ZERO;
+            self.settlement_focus_pending = true;
+        }
+    }
+
+    /// Drain the embedded local server startup result (URL arrives async).
+    fn poll_embedded_server(&mut self) {
+        let mut results = Vec::new();
+        if let Some(server) = &self.local_server {
+            while let Some(result) = server.poll() {
+                results.push(result);
+            }
+        }
+        for result in results {
+            match result {
+                Ok(info) => {
+                    println!("[poker-app] embedded server: {}", info.url);
+                    self.online.set_server_url(info.url.clone());
+                    self.server_info = Some(info);
+                    self.server_error = None;
+                }
+                Err(error) => {
+                    eprintln!("[poker-app] {error}");
+                    self.server_error = Some(error);
+                }
+            }
+        }
+    }
+
+    /// Drive the online controller and fold its events into the app hint.
+    fn poll_online_events(&mut self) {
+        self.online.update(Instant::now());
+        while let Some(event) = self.online.poll_event() {
+            match event {
+                OnlineEvent::Connected { server_id } => {
+                    self.hint = Some(format!("联机服务已连接：{server_id}"));
+                }
+                OnlineEvent::Disconnected { reason } => {
+                    self.hint = Some(format!("联机已断开：{reason}"));
+                }
+                OnlineEvent::RoomUpdated(_) => {}
+            }
         }
     }
 
@@ -1153,6 +1323,9 @@ impl eframe::App for PokerApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.frame_index = self.frame_index.saturating_add(1);
+        self.window_tier = WindowTier::from_height(ctx.content_rect().height());
+        self.poll_embedded_server();
+        self.poll_online_events();
         self.analysis.poll();
         self.audio.tick();
         self.handle_screenshot(&ctx);
@@ -1188,6 +1361,10 @@ impl eframe::App for PokerApp {
         // persisted settings (e.g. --hide-cards) for later runs.
         if self.cli.scenario.is_none() && self.cli.screenshot.is_none() {
             let _ = self.settings.save();
+        }
+        self.online.shutdown();
+        if let Some(mut server) = self.local_server.take() {
+            server.shutdown();
         }
     }
 }

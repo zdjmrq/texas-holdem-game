@@ -17,6 +17,7 @@ poker-prob = { path = "crates/poker-prob" }
 poker-ai = { path = "crates/poker-ai" }
 poker-protocol = { path = "crates/poker-protocol" }
 poker-server = { path = "crates/poker-server" }
+poker-client = { path = "crates/poker-client" }
 poker-app = { path = "crates/poker-app" }
 poker-cli = { path = "crates/poker-cli" }
 

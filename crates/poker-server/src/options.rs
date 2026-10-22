@@ -37,6 +37,10 @@ pub struct ServerOptions {
     pub rate_window_ms: u32,
     /// Messages allowed per window per connection, 20..=500, default 80.
     pub max_messages_per_window: u32,
+    /// WebSocket ping interval, 10..=3_600_000 ms, default 15000. A connection
+    /// that has not answered the previous ping when the next tick fires is
+    /// dropped (the reference server terminates unanswered sockets).
+    pub heartbeat_interval_ms: u32,
     /// Trust the X-Forwarded-For header (POKER_TRUST_PROXY=1).
     pub trust_proxy: bool,
     /// Exact-match Origin allowlist.
@@ -67,6 +71,7 @@ impl std::fmt::Debug for ServerOptions {
             .field("max_connections_per_ip", &self.max_connections_per_ip)
             .field("rate_window_ms", &self.rate_window_ms)
             .field("max_messages_per_window", &self.max_messages_per_window)
+            .field("heartbeat_interval_ms", &self.heartbeat_interval_ms)
             .field("trust_proxy", &self.trust_proxy)
             .field("allowed_origins", &self.allowed_origins)
             .field("app_version", &self.app_version)
@@ -88,6 +93,7 @@ impl Default for ServerOptions {
             max_connections_per_ip: proto::MAX_CONNECTIONS_PER_IP_DEFAULT,
             rate_window_ms: proto::RATE_WINDOW_DEFAULT_MS,
             max_messages_per_window: proto::MAX_MESSAGES_PER_WINDOW_DEFAULT,
+            heartbeat_interval_ms: u32::try_from(proto::HEARTBEAT_INTERVAL_MS).unwrap_or(15_000),
             trust_proxy: false,
             allowed_origins: Vec::new(),
             app_version: proto::COMPAT_APP_VERSION.to_owned(),
@@ -205,6 +211,12 @@ impl ServerOptions {
             f64::from(proto::MAX_MESSAGES_PER_WINDOW_MIN),
             f64::from(proto::MAX_MESSAGES_PER_WINDOW_MAX),
         );
+        self.heartbeat_interval_ms = bounded_u32(
+            Some(&Value::from(self.heartbeat_interval_ms)),
+            proto::HEARTBEAT_INTERVAL_MS as f64,
+            10.0,
+            3_600_000.0,
+        );
         self.empty_room_ttl_ms = self.empty_room_ttl_ms.max(50);
         self.allowed_origins = self
             .allowed_origins
@@ -218,6 +230,11 @@ impl ServerOptions {
     /// Window duration of the per-connection rate limiter.
     pub(crate) fn rate_window(&self) -> Duration {
         Duration::from_millis(u64::from(self.rate_window_ms))
+    }
+
+    /// WebSocket ping interval.
+    pub(crate) fn heartbeat_interval(&self) -> Duration {
+        Duration::from_millis(u64::from(self.heartbeat_interval_ms))
     }
 
     /// Reconnect grace window.

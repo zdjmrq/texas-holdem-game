@@ -17,6 +17,8 @@ pub enum Scenario {
     Settlement,
     /// Settings screen.
     Settings,
+    /// Online connection placeholder (embedded local server URL + controller state).
+    Online,
 }
 
 impl Scenario {
@@ -28,6 +30,7 @@ impl Scenario {
             "table-shortdeck" | "shortdeck" => Some(Self::TableShortDeck),
             "settlement" | "result" => Some(Self::Settlement),
             "settings" => Some(Self::Settings),
+            "online" | "online-connect" => Some(Self::Online),
             _ => None,
         }
     }
@@ -40,6 +43,7 @@ impl Scenario {
             Self::TableShortDeck => "table-shortdeck",
             Self::Settlement => "settlement",
             Self::Settings => "settings",
+            Self::Online => "online",
         }
     }
 }
@@ -65,6 +69,14 @@ pub struct CliOptions {
     pub open_raise: bool,
     /// Seed for the deterministic demo scenario.
     pub seed: Option<String>,
+    /// Optional window size override for screenshot testing, e.g. 900x600.
+    pub window_size: Option<(f32, f32)>,
+    /// Theme override for screenshot testing (dark | light).
+    pub theme: Option<crate::theme::Theme>,
+    /// Force the detached small-window toolbar to stay visible (screenshot).
+    pub toolbar_pinned: bool,
+    /// Do not start the embedded local poker server.
+    pub no_server: bool,
     /// Headless: decode the bundled mp3 and print audio device info, then exit.
     pub audio_probe: bool,
     /// Headless: play the bundled mp3 for N seconds on the default device, then exit.
@@ -84,10 +96,32 @@ impl Default for CliOptions {
             hide_cards: false,
             open_raise: false,
             seed: None,
+            window_size: None,
+            theme: None,
+            toolbar_pinned: false,
+            no_server: false,
             audio_probe: false,
             audio_play_secs: None,
             help: false,
         }
+    }
+}
+
+fn parse_window_size(value: &str) -> Option<(f32, f32)> {
+    let (width, height) = value.split_once(['x', 'X'])?;
+    let width: f32 = width.trim().parse().ok()?;
+    let height: f32 = height.trim().parse().ok()?;
+    if width < 400.0 || height < 300.0 || width > 8000.0 || height > 8000.0 {
+        return None;
+    }
+    Some((width, height))
+}
+
+fn parse_theme(value: &str) -> Option<crate::theme::Theme> {
+    match value {
+        "dark" => Some(crate::theme::Theme::Dark),
+        "light" => Some(crate::theme::Theme::Light),
+        _ => None,
     }
 }
 
@@ -111,6 +145,10 @@ OPTIONS:
     --screenshot-frame <N>    Frame index used for the screenshot (default: 60)
     --scenario <NAME>         Deterministic demo state: home | table | table-flop | table-shortdeck | settlement | settings
     --seed <SEED>             Deck/AI seed for deterministic scenarios (default: poker-app-demo)
+    --window-size <WxH>       Override the initial window size, e.g. 900x600
+    --theme <THEME>           dark | light (overrides the persisted theme)
+    --toolbar-pinned          Keep the small-window hover toolbar visible
+    --no-server               Do not start the embedded local poker server
     --hide-cards              Start with the human hole cards hidden
     --open-raise              Open the raise panel once it is the human's turn
     --frameless               Start with the custom title bar (undecorated window)
@@ -148,6 +186,14 @@ OPTIONS:
                 "--seed" => options.seed = args.next(),
                 "--hide-cards" => options.hide_cards = true,
                 "--open-raise" => options.open_raise = true,
+                "--toolbar-pinned" => options.toolbar_pinned = true,
+                "--no-server" => options.no_server = true,
+                "--window-size" => {
+                    options.window_size = args.next().and_then(|value| parse_window_size(&value));
+                }
+                "--theme" => {
+                    options.theme = args.next().and_then(|value| parse_theme(&value));
+                }
                 "--frameless" => options.frameless = true,
                 "--low-memory" => options.low_memory = true,
                 "--no-audio" => options.no_audio = true,
@@ -173,6 +219,10 @@ OPTIONS:
                         }
                     } else if let Some(value) = other.strip_prefix("--seed=") {
                         options.seed = Some(value.to_owned());
+                    } else if let Some(value) = other.strip_prefix("--window-size=") {
+                        options.window_size = parse_window_size(value);
+                    } else if let Some(value) = other.strip_prefix("--theme=") {
+                        options.theme = parse_theme(value);
                     } else if let Some(value) = other.strip_prefix("--screenshot-frame=") {
                         options.screenshot_frame =
                             value.parse().unwrap_or(options.screenshot_frame);

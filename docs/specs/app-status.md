@@ -161,3 +161,50 @@ poker-ai 与 poker-protocol **暂不作为依赖**：前者由 Phase 4 并行迁
 3. Windows 冒烟：把 dist/texas-holdem-rs-windows-x64.zip 交用户按 docs/windows-smoke.md 跑。
 4. 是否把音乐资源（20MB）提交进 git：本轮按 assets/** 已复制 4 首；如不接受可改 LFS/外置下载。
 5. poker-app 的 poker-protocol 依赖目前未使用，联机 UI 接入时启用。
+## 6. task-15 收尾补充（Phase 6 polish + 联机/AI 接入点）
+
+本轮（task-15）在垂直切片之上补齐 UI 完成度与接入准备，未扩大功能范围：
+
+### 6.1 已完成
+
+- **响应式布局骨架**：新增 src/layout.rs —— WindowTier::{Normal,Compact,Tiny}（<=760 / <=650 断点，ui.md §2.7）、
+  85% 悬停高度计算、工具栏显隐判定、牌桌最小高度与滚动判定、座位/牌面缩放系数；table 绘制按 tier 缩放，
+  小窗自动进入 ScrollArea 并保持最小牌桌高度。
+- **Tab/焦点链**：新增 src/focus.rs —— 主页 order（「开始游戏」第一）、牌桌 order（顶栏开关 + 合法动作）、
+  结算弹窗 focus trap order、step/wrap 纯逻辑；egui 原生 Tab 按创建顺序移动（Creation order 与 focus order
+  一致），结算打开时请求初始焦点到「下一手」，加注面板打开时聚焦滑块；金色焦点环组件。
+- **结算弹窗拖动 + 焦点陷阱**：Modal 支持拖动（偏移量、重开重置、边界 clamp），按钮带焦点 id；
+  egui Modal 层天然把 Tab 限制在弹窗内（ui.md §3.9/§4）。
+- **主题**：新增 src/theme.rs（ui.md §2.8 token）—— 深色（原版默认）/浅色两套 Palette + egui Visuals +
+  字号表；设置页可切换主题；牌桌/座位/底池/文字颜色走 Palette；截图见 phase6-polish-light.png。
+- **OnlineController 抽象**：src/online_controller.rs —— ConnectionState/RoomInfo/RoomConfig/OnlineRequest/
+  OnlineEvent + OnlineController trait + NoopOnlineController（无联机客户端时显式失败），app 只依赖 trait；
+  trait 预留 set_server_url/server_url/shutdown 供内嵌服务与 ui-analyst 的 OnlineClient 使用。
+- **内嵌本地服务（Lead 决策 A）**：src/local_server.rs —— 后台线程 current_thread tokio runtime，
+  spawn_server_with_fallback(POKER_PORT 未设置时用 0 临时端口)，URL 通过 channel 回传 UI，退出时
+  ServerHandle::shutdown + join；联机占位页显示实际 ws:// 地址；单元测试验证 spawn/publish/shutdown。
+- **AI 接入点**：src/ai_bridge.rs —— PokerAiBackend trait + BridgeInput（AiView 拥有化拷贝）+
+  PokerAiBridge（后端决策非法时回退确定性桩）+ create_policy(seed, short_deck) 工厂；
+  feature real-ai 默认关闭（当前 no-op 骨架，Phase 4 达标后按 docs/specs/ai-server-adapter.md 接线），
+  默认构建/测试不受影响。TableSession 创建改走 create_policy。
+- **依赖接通**：poker-app 加回 poker-protocol / poker-client / poker-server / tokio；dev-deps tokio(test-util)
+  + tokio-tungstenite（ui-analyst mock 测试用）；workspace 可编译。
+- **CLI**：新增 --window-size WxH、--theme dark|light、--toolbar-pinned、--no-server、--scenario online。
+
+### 6.2 证据（2026-10-23）
+
+    cargo fmt -p poker-app -- --check                  # FMT_OK
+    cargo clippy -p poker-app --all-targets -- -D warnings   # 0 warning（含依赖）
+    cargo test -p poker-app                            # 72 项全过
+    cargo check --target x86_64-pc-windows-msvc        # OK
+
+新增截图：docs/spikes/phase6-polish-tiny.png（900x600 小窗 + 内嵌 server 启停日志）、
+phase6-polish-light.png（浅色主题牌桌）、phase6-online-placeholder.png（联机占位页 + 实际 ws:// 地址）。
+
+### 6.3 遗留（项目收尾，记录待办）
+
+- detached 工具栏（85% 悬停浮层）只完成判定/尺寸纯逻辑，UI 浮层尚未接（当前小窗固定顶栏 + 缩放/滚动）；
+  Tab 焦点链已按 ui.md 顺序实现纯逻辑 + 初始焦点请求，但未逐控件做焦点环回归（金色环只在动作/弹窗按钮上）。
+- 联机 UI 阶段 2b（OnlineClient/worker/ui/demo）由 ui-analyst 后续任务实现；本轮 app 挂 Noop，
+  lib.rs 已保留 pub mod online; 与 src/online/** 纯逻辑层（12 项测试绿）。
+- real-ai 仍是骨架；poker-ai golden baseline 达标后接 PokerAiBackend + optional poker-ai 依赖。

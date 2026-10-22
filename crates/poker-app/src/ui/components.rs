@@ -6,6 +6,8 @@ use eframe::egui::{
 };
 use poker_core::{Card, Suit};
 
+use crate::theme::Palette;
+
 /// Size of a centre/community card.
 #[must_use]
 pub fn card_size() -> Vec2 {
@@ -16,6 +18,30 @@ pub fn card_size() -> Vec2 {
 #[must_use]
 pub fn mini_card_size() -> Vec2 {
     egui::vec2(28.0, 40.0)
+}
+
+/// Community card size after applying the window-tier scale.
+#[must_use]
+pub fn scaled_card_size(scale: f32) -> Vec2 {
+    card_size() * scale
+}
+
+/// Seat hole card size after applying the window-tier scale.
+#[must_use]
+pub fn scaled_mini_card_size(scale: f32) -> Vec2 {
+    mini_card_size() * scale
+}
+
+/// Draw the golden keyboard-focus ring used by ui.md 2.8 (3px gold).
+pub fn focus_ring(ui: &Ui, response: &Response) {
+    if response.has_focus() {
+        ui.painter().rect_stroke(
+            response.rect.expand(2.0),
+            CornerRadius::same(6),
+            Stroke::new(2.0, crate::theme::DARK.gold),
+            StrokeKind::Outside,
+        );
+    }
 }
 
 pub fn card_back_color() -> Color32 {
@@ -33,12 +59,12 @@ pub fn suit_color(suit: Suit) -> Color32 {
     }
 }
 
-pub fn felt_color() -> Color32 {
-    Color32::from_rgb(18, 84, 66)
+pub fn felt_color(palette: &Palette) -> Color32 {
+    palette.felt_outer
 }
 
-pub fn table_edge_color() -> Color32 {
-    Color32::from_rgb(46, 30, 18)
+pub fn table_edge_color(palette: &Palette) -> Color32 {
+    palette.table_edge
 }
 
 /// Draw one playing card (face up or face down).
@@ -145,15 +171,15 @@ pub fn seat_positions(count: usize, area: Rect) -> Vec<Pos2> {
 }
 
 /// A rounded panel used for seat boxes.
-pub fn seat_color(is_human: bool, is_actor: bool, folded: bool) -> Color32 {
+pub fn seat_color(palette: &Palette, is_human: bool, is_actor: bool, folded: bool) -> Color32 {
     if folded {
-        return Color32::from_rgb(48, 52, 56);
+        return palette.seat_folded;
     }
     if is_actor {
-        return Color32::from_rgb(64, 84, 120);
+        return palette.seat_actor;
     }
     if is_human {
-        return Color32::from_rgb(40, 72, 112);
+        return palette.seat_human;
     }
-    Color32::from_rgb(44, 52, 60)
+    palette.seat_bg
 }

@@ -10,18 +10,25 @@
 #![forbid(unsafe_code)]
 
 pub mod ai;
+pub mod ai_bridge;
 pub mod analysis;
 pub mod app;
 pub mod assets;
 pub mod audio;
 pub mod cli;
+pub mod focus;
 pub mod fonts;
+pub mod layout;
+pub mod local_server;
+pub mod online;
+pub mod online_controller;
 pub mod platform;
 pub mod screenshot;
 pub mod session;
 pub mod settings;
 pub mod shell;
 pub mod table_ctrl;
+pub mod theme;
 pub mod ui;
 
 pub use cli::{CliOptions, Scenario};
@@ -73,9 +80,10 @@ pub fn run() -> eframe::Result {
     }
     let frameless = cli.frameless || settings.custom_titlebar;
     let icon = window_icon();
+    let initial_size = cli.window_size.unwrap_or((1280.0, 860.0));
     let mut viewport = eframe::egui::ViewportBuilder::default()
         .with_title("德州扑克 Rust 重制版")
-        .with_inner_size([1280.0, 860.0])
+        .with_inner_size([initial_size.0, initial_size.1])
         .with_min_inner_size([900.0, 600.0])
         .with_decorations(!frameless)
         .with_resizable(true)

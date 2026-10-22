@@ -12,6 +12,7 @@ use poker_engine::GameConfig;
 use serde::{Deserialize, Serialize};
 
 use crate::assets;
+use crate::theme::Theme;
 
 /// Starting stack choices (mirrors the original room configuration whitelist).
 pub const STACKS: [u64; 5] = [5_000, 10_000, 20_000, 50_000, 100_000];
@@ -98,6 +99,7 @@ pub struct Settings {
     pub custom_titlebar: bool,
     pub show_analysis: bool,
     pub hide_hole_cards: bool,
+    pub theme: Theme,
 }
 
 impl Default for Settings {
@@ -119,6 +121,7 @@ impl Default for Settings {
             custom_titlebar: false,
             show_analysis: true,
             hide_hole_cards: false,
+            theme: Theme::Dark,
         }
     }
 }
