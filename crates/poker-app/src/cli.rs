@@ -1,7 +1,7 @@
 //! Command line options for the spike binary.
 //!
-//! Hand-rolled parsing on purpose: the spike should not pull in `clap` before the real
-//! app architecture (and its CLI surface) is decided.
+//! Hand-rolled parsing on purpose: the spike should not pull in clap before the real app
+//! architecture (and its CLI surface) is decided.
 
 use std::path::PathBuf;
 
@@ -12,7 +12,7 @@ pub enum FontMode {
     SystemFallback,
     /// Explicitly load a known system CJK font file (handles TTC face indices).
     ExplicitSystem,
-    /// Load a font file from `assets/fonts/` (the packaged-font path used by the release build).
+    /// Load a font file from assets/fonts/ (the packaged-font path used by the release build).
     Bundled,
 }
 
@@ -40,7 +40,7 @@ impl FontMode {
 pub struct CliOptions {
     /// Save a PNG screenshot of the window to this path and exit.
     pub screenshot: Option<PathBuf>,
-    /// Frame index at which the screenshot is requested (default: 30, ~0.5 s at 60 fps).
+    /// Frame index at which the screenshot is requested (default: 30, about 0.5 s at 60 fps).
     pub screenshot_frame: u64,
     pub font_mode: FontMode,
     /// Start with an undecorated window and the custom title bar.
@@ -71,7 +71,8 @@ impl Default for CliOptions {
 
 impl CliOptions {
     pub fn usage() -> &'static str {
-        "poker-app — Phase 0 egui risk spike
+        "\
+poker-app - Phase 0 egui risk spike
 
 USAGE:
     poker-app [OPTIONS]
@@ -93,7 +94,7 @@ OPTIONS:
         I: IntoIterator<Item = String>,
     {
         let mut options = Self::default();
-        let mut args = args.into_iter();
+        let mut args = args.into_iter().peekable();
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--screenshot" => options.screenshot = args.next().map(PathBuf::from),
@@ -107,7 +108,9 @@ OPTIONS:
                     if let Some(value) = args.next() {
                         match FontMode::parse(&value) {
                             Some(mode) => options.font_mode = mode,
-                            None => eprintln!("[poker-app] unknown --font-mode {value:?}, keeping default"),
+                            None => eprintln!(
+                                "[poker-app] unknown --font-mode {value:?}, keeping default"
+                            ),
                         }
                     }
                 }
@@ -115,8 +118,15 @@ OPTIONS:
                 "--auto-play" => options.auto_play = true,
                 "--audio-test" => options.audio_probe = true,
                 "--audio-play" => {
-                    // The duration is optional: `--audio-play 3` or plain `--audio-play`.
-                    options.audio_play_secs = Some(2.0);
+                    // The duration is optional: "--audio-play 3" or plain "--audio-play".
+                    let requested = args.peek().and_then(|value| value.parse::<f32>().ok());
+                    match requested {
+                        Some(seconds) => {
+                            let _ = args.next();
+                            options.audio_play_secs = Some(seconds);
+                        }
+                        None => options.audio_play_secs = Some(2.0),
+                    }
                 }
                 "--help" | "-h" => options.help = true,
                 other => {
@@ -128,7 +138,8 @@ OPTIONS:
                             None => eprintln!("[poker-app] unknown --font-mode {value:?}"),
                         }
                     } else if let Some(value) = other.strip_prefix("--screenshot-frame=") {
-                        options.screenshot_frame = value.parse().unwrap_or(options.screenshot_frame);
+                        options.screenshot_frame =
+                            value.parse().unwrap_or(options.screenshot_frame);
                     } else {
                         eprintln!("[poker-app] ignoring unknown argument: {other}");
                     }

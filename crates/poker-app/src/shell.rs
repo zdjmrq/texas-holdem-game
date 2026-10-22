@@ -69,18 +69,10 @@ pub fn custom_title_bar(ui: &mut egui::Ui, title: &str) -> TitleBarAction {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
                 }
 
-                if ui
-                    .button("—")
-                    .on_hover_text("最小化")
-                    .clicked()
-                {
+                if ui.button("—").on_hover_text("最小化").clicked() {
                     action.minimize_requested = true;
                 }
-                if ui
-                    .button("▢")
-                    .on_hover_text("最大化 / 还原")
-                    .clicked()
-                {
+                if ui.button("▢").on_hover_text("最大化 / 还原").clicked() {
                     let maximized = ctx.input(|input| input.viewport().maximized.unwrap_or(false));
                     ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
                 }
@@ -117,14 +109,38 @@ pub fn handle_resize_edges(ui: &mut egui::Ui) {
     let bottom = pointer.y >= screen.bottom() - margin;
 
     let zone = match (top, bottom, left, right) {
-        (true, false, true, false) => Some((egui::ResizeDirection::NorthWest, egui::CursorIcon::ResizeNwSe)),
-        (true, false, false, true) => Some((egui::ResizeDirection::NorthEast, egui::CursorIcon::ResizeNeSw)),
-        (false, true, true, false) => Some((egui::ResizeDirection::SouthWest, egui::CursorIcon::ResizeNeSw)),
-        (false, true, false, true) => Some((egui::ResizeDirection::SouthEast, egui::CursorIcon::ResizeNwSe)),
-        (true, false, false, false) => Some((egui::ResizeDirection::North, egui::CursorIcon::ResizeVertical)),
-        (false, true, false, false) => Some((egui::ResizeDirection::South, egui::CursorIcon::ResizeVertical)),
-        (false, false, true, false) => Some((egui::ResizeDirection::West, egui::CursorIcon::ResizeHorizontal)),
-        (false, false, false, true) => Some((egui::ResizeDirection::East, egui::CursorIcon::ResizeHorizontal)),
+        (true, false, true, false) => Some((
+            egui::ResizeDirection::NorthWest,
+            egui::CursorIcon::ResizeNwSe,
+        )),
+        (true, false, false, true) => Some((
+            egui::ResizeDirection::NorthEast,
+            egui::CursorIcon::ResizeNeSw,
+        )),
+        (false, true, true, false) => Some((
+            egui::ResizeDirection::SouthWest,
+            egui::CursorIcon::ResizeNeSw,
+        )),
+        (false, true, false, true) => Some((
+            egui::ResizeDirection::SouthEast,
+            egui::CursorIcon::ResizeNwSe,
+        )),
+        (true, false, false, false) => Some((
+            egui::ResizeDirection::North,
+            egui::CursorIcon::ResizeVertical,
+        )),
+        (false, true, false, false) => Some((
+            egui::ResizeDirection::South,
+            egui::CursorIcon::ResizeVertical,
+        )),
+        (false, false, true, false) => Some((
+            egui::ResizeDirection::West,
+            egui::CursorIcon::ResizeHorizontal,
+        )),
+        (false, false, false, true) => Some((
+            egui::ResizeDirection::East,
+            egui::CursorIcon::ResizeHorizontal,
+        )),
         _ => None,
     };
 
@@ -148,7 +164,10 @@ pub fn handle_resize_edges(ui: &mut egui::Ui) {
                 egui::pos2(screen.right(), screen.bottom() - margin),
             ),
             _ => egui::Rect::from_min_max(
-                egui::pos2(pointer.x.min(screen.right() - margin), pointer.y.min(screen.bottom() - margin)),
+                egui::pos2(
+                    pointer.x.min(screen.right() - margin),
+                    pointer.y.min(screen.bottom() - margin),
+                ),
                 egui::pos2(
                     (pointer.x + margin).min(screen.right()),
                     (pointer.y + margin).min(screen.bottom()),
@@ -157,7 +176,8 @@ pub fn handle_resize_edges(ui: &mut egui::Ui) {
         };
         let response = ui.interact(
             rect,
-            egui::Id::new(("poker-app-resize-edge", direction_index(direction))),
+            ui.scope_id()
+                .with(("poker-app-resize-edge", direction_index(direction))),
             egui::Sense::drag(),
         );
         if response.drag_started() {

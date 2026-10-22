@@ -58,7 +58,8 @@ impl ScreenshotState {
             match result.lock() {
                 Ok(mut slot) => *slot = Some(saved),
                 Err(poisoned) => {
-                    *poisoned.into_inner() = Some(Err("screenshot result mutex poisoned".to_owned()));
+                    *poisoned.into_inner() =
+                        Some(Err("screenshot result mutex poisoned".to_owned()));
                 }
             }
             done.store(true, Ordering::SeqCst);
@@ -83,7 +84,10 @@ pub fn save_color_image(image: &egui::ColorImage, path: &Path) -> Result<(), Str
     for pixel in &image.pixels {
         rgba.extend_from_slice(&pixel.to_array());
     }
-    if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
         std::fs::create_dir_all(parent)
             .map_err(|error| format!("create screenshot dir {}: {error}", parent.display()))?;
     }

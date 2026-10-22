@@ -12,6 +12,8 @@
 use std::io::Cursor;
 use std::time::Duration;
 
+use rodio::Source as _;
+
 /// Embedded copy of assets/music/01.mp3 (originally from the reference repo's assets/music).
 pub const BACKGROUND_TRACK_MP3: &[u8] = include_bytes!("../../../assets/music/01.mp3");
 
@@ -52,8 +54,6 @@ impl DecodeProbe {
 /// This exercises the whole decode path (demuxer + mp3 decoder + sample conversion) without
 /// requiring an audio device, which makes it usable in tests and on CI.
 pub fn decode_probe(seconds: f32) -> Result<DecodeProbe, String> {
-    use rodio::Source as _;
-
     let decoder = rodio::Decoder::try_from(Cursor::new(BACKGROUND_TRACK_MP3.to_vec()))
         .map_err(|error| format!("mp3 decode failed: {error}"))?;
     let sample_rate = decoder.sample_rate().get();
