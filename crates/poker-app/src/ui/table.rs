@@ -5,9 +5,7 @@
 
 use std::sync::Arc;
 
-use eframe::egui::{
-    self, Align2, Color32, CornerRadius, FontId, Id, Rect, Sense, Stroke, StrokeKind, Ui,
-};
+use eframe::egui::{self, Align2, Color32, FontId, Id, Rect, Sense, Stroke, StrokeKind, Ui};
 use poker_core::Card;
 use poker_engine::{ActionType, LegalActions};
 
@@ -94,6 +92,8 @@ pub enum TableUiAction {
 /// Top toolbar: navigation, hand info and quick toggles.
 pub fn top_bar(ui: &mut Ui, snapshot: &TableSnapshot) -> Option<TableUiAction> {
     let mut action = None;
+    crate::ui::original::header(ui, snapshot.hand_id, &snapshot.stakes_label);
+    ui.add_space(6.0);
     ui.horizontal(|ui| {
         if ui.button("← 主页").clicked() {
             action = Some(TableUiAction::BackHome);
@@ -140,6 +140,29 @@ pub fn action_bar(
     focus_raise_slider: bool,
 ) -> Option<TableUiAction> {
     let mut action = None;
+    if let Some(human) = snapshot.seats.iter().find(|s| s.is_human) {
+        ui.horizontal(|ui| {
+            for card in human.cards.iter().take(2) {
+                let (r, response) = ui.allocate_exact_size(components::card_size(), Sense::click());
+                components::draw_card(ui.painter(), r, Some(*card), snapshot.hide_cards, false);
+                if response.clicked() {
+                    action = Some(TableUiAction::ToggleHideCards);
+                }
+            }
+            ui.vertical(|ui| {
+                ui.label(egui::RichText::new(&human.name).strong());
+                ui.label(
+                    egui::RichText::new(format!("$ {}", human.stack))
+                        .size(22.0)
+                        .strong()
+                        .color(snapshot.theme.palette().win),
+                );
+                ui.label(format!("本轮投入 $ {}", human.bet));
+                ui.label(egui::RichText::new("点击手牌隐藏 / 显示").size(11.0).weak());
+            });
+        });
+        ui.add_space(8.0);
+    }
     if let Some(settlement) = &snapshot.settlement {
         ui.horizontal(|ui| {
             ui.label(
@@ -163,35 +186,63 @@ pub fn action_bar(
         ui.horizontal_wrapped(|ui| {
             let legal = &snapshot.legal;
             if legal.contains(ActionType::Fold) {
-                let response = ui.button("弃牌 (F)");
+                let response = ui.add(
+                    egui::Button::new(egui::RichText::new("弃牌 (F)").color(Color32::WHITE))
+                        .fill(Color32::from_rgb(198, 40, 40))
+                        .min_size(egui::vec2(110.0, 40.0))
+                        .corner_radius(8),
+                );
                 components::focus_ring(ui, &response);
                 if response.clicked() {
                     action = Some(TableUiAction::Fold);
                 }
             }
             if legal.contains(ActionType::Check) {
-                let response = ui.button("过牌 (Space)");
+                let response = ui.add(
+                    egui::Button::new(egui::RichText::new("过牌 (Space)").color(Color32::WHITE))
+                        .fill(Color32::from_rgb(21, 101, 192))
+                        .min_size(egui::vec2(110.0, 40.0))
+                        .corner_radius(8),
+                );
                 components::focus_ring(ui, &response);
                 if response.clicked() {
                     action = Some(TableUiAction::Check);
                 }
             }
             if legal.contains(ActionType::Call) {
-                let response = ui.button(format!("跟注 {} (C)", legal.to_call));
+                let response = ui.add(
+                    egui::Button::new(
+                        egui::RichText::new(format!("跟注 {} (C)", legal.to_call))
+                            .color(Color32::WHITE),
+                    )
+                    .fill(Color32::from_rgb(46, 125, 50))
+                    .min_size(egui::vec2(120.0, 40.0))
+                    .corner_radius(8),
+                );
                 components::focus_ring(ui, &response);
                 if response.clicked() {
                     action = Some(TableUiAction::Call);
                 }
             }
             if legal.contains(ActionType::Raise) {
-                let response = ui.button("加注 (R)");
+                let response = ui.add(
+                    egui::Button::new(egui::RichText::new("加注 (R)").color(Color32::WHITE))
+                        .fill(Color32::from_rgb(230, 81, 0))
+                        .min_size(egui::vec2(110.0, 40.0))
+                        .corner_radius(8),
+                );
                 components::focus_ring(ui, &response);
                 if response.clicked() {
                     action = Some(TableUiAction::OpenRaise);
                 }
             }
             if legal.contains(ActionType::AllIn) {
-                let response = ui.button("全下 (A)");
+                let response = ui.add(
+                    egui::Button::new(egui::RichText::new("全下 (A)").color(Color32::WHITE))
+                        .fill(Color32::from_rgb(136, 14, 79))
+                        .min_size(egui::vec2(110.0, 40.0))
+                        .corner_radius(8),
+                );
                 components::focus_ring(ui, &response);
                 if response.clicked() {
                     action = Some(TableUiAction::AllIn);
@@ -386,33 +437,19 @@ pub fn analysis_panel(ui: &mut Ui, snapshot: &TableSnapshot) {
 
 /// Central table canvas: felt, community cards, pot and every seat.
 pub fn show(ui: &mut Ui, snapshot: &TableSnapshot) -> Option<TableUiAction> {
-    let mut action = None;
+    let action = None;
     let palette = snapshot.theme.palette();
     let scale = snapshot.tier.scale();
     let (rect, _response) = ui.allocate_exact_size(ui.available_size(), Sense::hover());
     let painter = ui.painter().clone();
-    painter.rect_filled(rect, CornerRadius::same(0), palette.page_bg);
-    let table_rect = rect.shrink2(egui::vec2(28.0, 18.0));
-    painter.rect_filled(
-        table_rect,
-        CornerRadius::same(200),
-        components::table_edge_color(palette),
-    );
-    painter.rect_filled(
-        table_rect.shrink(9.0),
-        CornerRadius::same(192),
-        palette.felt_outer,
-    );
-    painter.rect_filled(
-        table_rect.shrink(46.0),
-        CornerRadius::same(170),
-        palette.felt_inner,
-    );
+    crate::ui::original::background(ui, rect);
+    let table_rect = rect.shrink2(egui::vec2(12.0, 12.0));
+    crate::ui::original::felt(&painter, table_rect);
 
     let card_size = components::scaled_card_size(scale);
     let gap = 8.0 * scale;
     let total_width = 5.0 * card_size.x + 4.0 * gap;
-    let community_center = table_rect.center() + egui::vec2(0.0, -card_size.y * 0.15);
+    let community_center = table_rect.center() + egui::vec2(0.0, table_rect.height() * 0.08);
     let first_x = community_center.x - total_width * 0.5;
     for index in 0..5 {
         let card_rect = Rect::from_min_size(
@@ -432,7 +469,7 @@ pub fn show(ui: &mut Ui, snapshot: &TableSnapshot) -> Option<TableUiAction> {
     }
 
     painter.text(
-        community_center - egui::vec2(0.0, card_size.y * 0.5 + 20.0),
+        community_center + egui::vec2(0.0, card_size.y * 0.5 + 48.0),
         Align2::CENTER_BOTTOM,
         format!(
             "底池 {} （{:.1} BB）",
@@ -443,7 +480,7 @@ pub fn show(ui: &mut Ui, snapshot: &TableSnapshot) -> Option<TableUiAction> {
         palette.gold,
     );
     painter.text(
-        community_center + egui::vec2(0.0, card_size.y * 0.5 + 20.0),
+        community_center - egui::vec2(0.0, card_size.y * 0.5 + 30.0),
         Align2::CENTER_TOP,
         format!("{} · 第 {} 手", snapshot.phase, snapshot.hand_id),
         FontId::proportional(14.0 * scale),
@@ -452,6 +489,9 @@ pub fn show(ui: &mut Ui, snapshot: &TableSnapshot) -> Option<TableUiAction> {
 
     let positions = components::seat_positions(snapshot.seats.len(), table_rect);
     for (seat, position) in snapshot.seats.iter().zip(positions.iter()) {
+        if seat.is_human {
+            continue;
+        }
         draw_seat(
             &painter,
             *position,
@@ -463,182 +503,132 @@ pub fn show(ui: &mut Ui, snapshot: &TableSnapshot) -> Option<TableUiAction> {
         );
     }
 
-    // Clicking the human hole cards toggles their visibility.
-    let human_seat = snapshot.seats.iter().find(|seat| seat.is_human);
-    if let Some(human) = human_seat {
-        let positions = components::seat_positions(snapshot.seats.len(), table_rect);
-        if !human.cards.is_empty()
-            && let Some(position) = positions.get(human.seat)
-        {
-            let cards_rect = hole_cards_rect(*position, scale);
-            let response = ui.interact(
-                cards_rect,
-                ui.scope_id().with("human-hole-cards"),
-                Sense::click(),
-            );
-            if response.clicked() {
-                action = Some(TableUiAction::ToggleHideCards);
-            }
-        }
-    }
     action
-}
-
-fn hole_cards_rect(seat_position: egui::Pos2, scale: f32) -> Rect {
-    let card_size = components::scaled_mini_card_size(scale);
-    let width = card_size.x * 2.0 + 4.0 * scale;
-    Rect::from_center_size(
-        seat_position - egui::vec2(0.0, 58.0 * scale),
-        egui::vec2(width, card_size.y),
-    )
 }
 
 fn draw_seat(
     painter: &egui::Painter,
     position: egui::Pos2,
     seat: &SeatView,
-    big_blind: u64,
-    table_center: egui::Pos2,
+    _big_blind: u64,
+    _table_center: egui::Pos2,
     scale: f32,
     palette: &Palette,
 ) {
-    let box_rect = Rect::from_center_size(position, egui::vec2(158.0 * scale, 74.0 * scale));
+    let width = 104.0 * scale;
+    let box_rect = Rect::from_center_size(position, egui::vec2(width, 210.0 * scale));
+    let color = if seat.is_actor {
+        palette.gold
+    } else if seat.is_winner {
+        palette.win
+    } else {
+        Color32::from_white_alpha(38)
+    };
     painter.rect_filled(
         box_rect,
-        CornerRadius::same(10),
-        components::seat_color(palette, seat.is_human, seat.is_actor, seat.folded),
-    );
-    let border = if seat.is_winner {
-        palette.gold
-    } else if seat.is_actor {
-        Color32::from_rgb(255, 190, 60)
-    } else {
-        palette.text_secondary
-    };
-    painter.rect_stroke(
-        box_rect,
-        CornerRadius::same(10),
-        Stroke::new(
-            if seat.is_actor || seat.is_winner {
-                2.5
-            } else {
-                1.0
-            },
-            border,
-        ),
-        StrokeKind::Inside,
-    );
-
-    let avatar_center = box_rect.left_center() + egui::vec2(26.0 * scale, 0.0);
-    let avatar_color = if seat.is_human {
-        Color32::from_rgb(70, 130, 180)
-    } else {
-        Color32::from_rgb(110, 90, 140)
-    };
-    painter.circle_filled(avatar_center, 19.0 * scale, avatar_color);
-    let initial = seat.name.chars().next().unwrap_or('?').to_string();
-    painter.text(
-        avatar_center,
-        Align2::CENTER_CENTER,
-        initial,
-        FontId::proportional(17.0),
-        Color32::WHITE,
-    );
-
-    let text_left = box_rect.left() + 50.0 * scale;
-    painter.text(
-        egui::pos2(text_left, box_rect.top() + 7.0 * scale),
-        Align2::LEFT_TOP,
-        &seat.name,
-        FontId::proportional(15.0 * scale),
-        if seat.folded {
-            Color32::from_gray(150)
+        10,
+        if seat.is_actor {
+            Color32::from_rgba_unmultiplied(76, 66, 20, 235)
         } else {
-            Color32::WHITE
+            Color32::from_black_alpha(if seat.folded { 80 } else { 155 })
         },
     );
-    painter.text(
-        egui::pos2(text_left, box_rect.top() + 27.0 * scale),
-        Align2::LEFT_TOP,
-        format_bb(seat.stack, big_blind),
-        FontId::proportional(13.0 * scale),
-        Color32::from_rgb(210, 220, 200),
+    painter.rect_stroke(
+        box_rect,
+        10,
+        Stroke::new(if seat.is_actor { 2.0 } else { 1.0 }, color),
+        StrokeKind::Inside,
     );
-    if let Some(last_action) = &seat.last_action {
-        painter.text(
-            egui::pos2(text_left, box_rect.top() + 48.0 * scale),
-            Align2::LEFT_TOP,
-            last_action,
-            FontId::proportional(11.5 * scale),
-            Color32::from_rgb(240, 200, 120),
-        );
-    }
-
-    let mut badge_x = box_rect.left() + 4.0 * scale;
-    for (label, color) in [
-        (
-            seat.is_dealer.then_some("D"),
-            Color32::from_rgb(240, 240, 240),
-        ),
-        (
-            seat.is_small_blind.then_some("SB"),
-            Color32::from_rgb(120, 180, 240),
-        ),
-        (
-            seat.is_big_blind.then_some("BB"),
-            Color32::from_rgb(160, 220, 160),
-        ),
-        (
-            seat.all_in.then_some("ALL-IN"),
-            Color32::from_rgb(230, 110, 110),
-        ),
-    ] {
-        if let Some(label) = label {
-            let width = if label == "ALL-IN" { 42.0 } else { 18.0 } * scale;
-            let badge = Rect::from_min_size(
-                egui::pos2(badge_x, box_rect.top() - 9.0),
-                egui::vec2(width, 16.0 * scale),
-            );
-            painter.rect_filled(badge, CornerRadius::same(8), color);
-            painter.text(
-                badge.center(),
-                Align2::CENTER_CENTER,
-                label,
-                FontId::proportional(10.0 * scale),
-                Color32::from_rgb(20, 20, 24),
-            );
-            badge_x += width + 3.0;
-        }
-    }
-
-    if !seat.cards.is_empty() && !seat.folded {
-        let cards_rect = hole_cards_rect(position, scale);
-        let card_size = components::scaled_mini_card_size(scale);
-        for (index, card) in seat.cards.iter().take(2).enumerate() {
-            let rect = Rect::from_min_size(
-                egui::pos2(
-                    cards_rect.left() + index as f32 * (card_size.x + 4.0 * scale),
-                    cards_rect.top(),
-                ),
+    let opacity = if seat.folded { 0.45 } else { 1.0 };
+    let center_x = position.x;
+    let avatar = if seat.is_human {
+        "♠"
+    } else {
+        ["😎", "🤠", "🕶", "🎩", "👑", "🦊", "🐺", "🦅", "🐯"][seat.seat.saturating_sub(1) % 9]
+    };
+    painter.text(
+        egui::pos2(center_x, box_rect.top() + 23.0 * scale),
+        Align2::CENTER_CENTER,
+        avatar,
+        FontId::proportional(22.0 * scale),
+        palette.gold.gamma_multiply(opacity),
+    );
+    painter.text(
+        egui::pos2(center_x, box_rect.top() + 47.0 * scale),
+        Align2::CENTER_CENTER,
+        &seat.name,
+        FontId::proportional(11.0 * scale),
+        Color32::WHITE.gamma_multiply(opacity),
+    );
+    painter.text(
+        egui::pos2(center_x, box_rect.top() + 65.0 * scale),
+        Align2::CENTER_CENTER,
+        format!("$ {}", seat.stack),
+        FontId::proportional(14.0 * scale),
+        palette.win.gamma_multiply(opacity),
+    );
+    let card_size = components::scaled_mini_card_size(scale);
+    let cards = Rect::from_center_size(
+        egui::pos2(center_x, box_rect.top() + 100.0 * scale),
+        egui::vec2(card_size.x * 2.0 + 4.0 * scale, card_size.y),
+    );
+    if !seat.folded {
+        for index in 0..2 {
+            let r = Rect::from_min_size(
+                cards.min + egui::vec2(index as f32 * (card_size.x + 4.0 * scale), 0.0),
                 card_size,
             );
             components::draw_card(
                 painter,
-                rect,
-                Some(*card),
+                r,
+                seat.cards.get(index).copied(),
                 !seat.cards_visible,
-                seat.is_actor,
+                false,
             );
         }
     }
-
-    if seat.bet > 0 {
-        let direction = (table_center - position).normalized();
+    let badge = if seat.is_dealer {
+        "D"
+    } else if seat.is_small_blind {
+        "SB"
+    } else if seat.is_big_blind {
+        "BB"
+    } else {
+        ""
+    };
+    if !badge.is_empty() {
+        let c = box_rect.left_top() + egui::vec2(10.0, 10.0);
+        painter.circle_filled(c, 10.0, palette.gold);
         painter.text(
-            position + direction * 88.0 * scale,
+            c,
             Align2::CENTER_CENTER,
-            format!("● {}", seat.bet),
-            FontId::proportional(14.0 * scale),
+            badge,
+            FontId::proportional(9.0),
+            Color32::BLACK,
+        );
+    }
+    let status = if seat.folded {
+        "已弃牌".to_owned()
+    } else if seat.all_in {
+        "ALL IN".to_owned()
+    } else if seat.is_actor {
+        "思考中 ···".to_owned()
+    } else {
+        seat.last_action.clone().unwrap_or_default()
+    };
+    painter.text(
+        egui::pos2(center_x, box_rect.bottom() - 13.0 * scale),
+        Align2::CENTER_CENTER,
+        status,
+        FontId::proportional(11.0 * scale),
+        palette.gold.gamma_multiply(opacity),
+    );
+    if seat.bet > 0 {
+        painter.text(
+            egui::pos2(center_x, box_rect.bottom() - 45.0 * scale),
+            Align2::CENTER_CENTER,
+            format!("● $ {}", seat.bet),
+            FontId::proportional(12.0 * scale),
             palette.gold,
         );
     }
@@ -802,4 +792,37 @@ pub fn settlement_modal(
             });
         });
     result
+}
+
+/// Reference bottom panel: player cards/actions on the left, analysis on the right.
+pub fn bottom_panel(
+    ui: &mut Ui,
+    snapshot: &TableSnapshot,
+    raise: &mut RaisePanel,
+    focus: bool,
+) -> Option<TableUiAction> {
+    let mut action = None;
+    if snapshot.show_analysis && ui.available_width() > 940.0 {
+        ui.horizontal_top(|ui| {
+            let width = (ui.available_width() - 300.0).max(500.0);
+            ui.allocate_ui_with_layout(
+                egui::vec2(width, 190.0),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    action = action_bar(ui, snapshot, raise, focus);
+                },
+            );
+            ui.separator();
+            ui.allocate_ui_with_layout(
+                egui::vec2(280.0, 190.0),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    analysis_panel(ui, snapshot);
+                },
+            );
+        });
+    } else {
+        action = action_bar(ui, snapshot, raise, focus);
+    }
+    action
 }

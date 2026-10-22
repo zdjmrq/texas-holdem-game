@@ -11,13 +11,13 @@ use crate::theme::Palette;
 /// Size of a centre/community card.
 #[must_use]
 pub fn card_size() -> Vec2 {
-    egui::vec2(50.0, 70.0)
+    egui::vec2(58.0, 82.0)
 }
 
 /// Size of a seat hole card.
 #[must_use]
 pub fn mini_card_size() -> Vec2 {
-    egui::vec2(28.0, 40.0)
+    egui::vec2(38.0, 56.0)
 }
 
 /// Community card size after applying the window-tier scale.
@@ -45,11 +45,11 @@ pub fn focus_ring(ui: &Ui, response: &Response) {
 }
 
 pub fn card_back_color() -> Color32 {
-    Color32::from_rgb(28, 46, 92)
+    Color32::from_rgb(32, 45, 132)
 }
 
 pub fn card_face_color() -> Color32 {
-    Color32::from_rgb(246, 244, 236)
+    Color32::from_rgb(255, 255, 255)
 }
 
 pub fn suit_color(suit: Suit) -> Color32 {
@@ -84,12 +84,29 @@ pub fn draw_card(
             Stroke::new(1.0, Color32::from_rgb(96, 126, 196)),
             StrokeKind::Inside,
         );
-        painter.line_segment(
-            [
-                rect.left_top() + egui::vec2(6.0, 6.0),
-                rect.right_bottom() - egui::vec2(6.0, 6.0),
-            ],
-            Stroke::new(1.5, Color32::from_rgb(70, 100, 170)),
+        let mut x = rect.left() - rect.height();
+        while x < rect.right() {
+            painter.line_segment(
+                [
+                    egui::pos2(
+                        x.max(rect.left()),
+                        rect.bottom() - (rect.left() - x).max(0.0),
+                    ),
+                    egui::pos2(
+                        (x + rect.height()).min(rect.right()),
+                        rect.top() + (x + rect.height() - rect.right()).max(0.0),
+                    ),
+                ],
+                Stroke::new(3.0, Color32::from_white_alpha(12)),
+            );
+            x += 10.0;
+        }
+        painter.text(
+            rect.center(),
+            Align2::CENTER_CENTER,
+            "♠",
+            FontId::proportional(rect.width() * 0.55),
+            Color32::from_white_alpha(55),
         );
         return;
     }
@@ -157,17 +174,34 @@ pub fn seat_positions(count: usize, area: Rect) -> Vec<Pos2> {
     if count == 0 {
         return Vec::new();
     }
-    let center = area.center() + egui::vec2(0.0, -8.0);
-    let radius_x = area.width() * 0.34;
-    let radius_y = area.height() * 0.33;
-    (0..count)
-        .map(|index| {
-            #[allow(clippy::cast_precision_loss)]
-            let angle =
-                std::f32::consts::FRAC_PI_2 + index as f32 * std::f32::consts::TAU / count as f32;
-            center + egui::vec2(angle.cos() * radius_x, angle.sin() * radius_y)
-        })
-        .collect()
+    let mut positions = vec![egui::pos2(area.center().x, area.bottom() - 83.0)];
+    let ai = count.saturating_sub(1);
+    if ai == 0 {
+        return positions;
+    }
+    let cap = ((area.width() / 130.0) as usize).clamp(3, 7);
+    let sides = ai.saturating_sub(cap).min(2);
+    let top = ai - sides;
+    let margin = 66.0 + if sides > 0 { 20.0 } else { 0.0 };
+    let y = area.top() + 117.0;
+    if sides > 0 {
+        positions.push(egui::pos2(area.left() + 66.0, area.bottom() - 112.0));
+    }
+    for i in 0..top {
+        let t = if top > 1 {
+            i as f32 / (top - 1) as f32
+        } else {
+            0.5
+        };
+        positions.push(egui::pos2(
+            area.left() + margin + (area.width() - margin * 2.0) * t,
+            y + 24.0 * (t - 0.5).abs() * 2.0,
+        ));
+    }
+    if sides > 1 {
+        positions.push(egui::pos2(area.right() - 66.0, area.bottom() - 95.0));
+    }
+    positions
 }
 
 /// A rounded panel used for seat boxes.

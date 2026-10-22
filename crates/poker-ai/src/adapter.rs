@@ -200,7 +200,7 @@ impl StandardBrain {
                 target_focus,
                 false,
             );
-            let uncertainty = if equity.standard_error > 0.0 {
+            let uncertainty = if equity.standard_error.is_finite() {
                 equity.standard_error
             } else {
                 equity.std_dev * (1.0 - equity.confidence)
@@ -440,7 +440,8 @@ impl StandardBrain {
     ) -> Option<(crate::input::RiverDecision, crate::input::RiverTrace)> {
         if !crate::river::is_available()
             || self.profile.river_cfr_weight <= 0.0
-            || context.strategy_focus() != crate::input::StrategyFocus::TenPlayer25Bb
+            || (context.strategy_focus() != crate::input::StrategyFocus::TenPlayer25Bb
+                && context.river_iterations <= 800)
             || context.street != Street::River
             || context.active_opponent_seats.len() != 1
             || context.hole_cards.len() != 2
@@ -550,7 +551,7 @@ impl StandardBrain {
             unit: context.wager_unit,
             checked_before,
             can_raise: context.can_raise,
-            iterations: 800,
+            iterations: context.river_iterations,
             weights,
         };
         let solution = crate::river::solve(&request).ok()?;

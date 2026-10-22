@@ -1,5 +1,7 @@
 # 德州扑克 Rust 重写 — 最终交付报告（2026-10-23）
 
+> 历史交付记录：后续修复与当前验证请看 [RESTORATION_REPORT.md](RESTORATION_REPORT.md)。本文的“已知差距”保留作为接手时的基线。
+
 > 目标：用 Rust 从零重写原 JS/Electron 德州扑克 v1.5.8 的主桌面版（Windows x64，含标准德州 + 短牌、本地 AI、WebSocket 联机、egui 原生 UI）。
 > 范围：不做 Android、不做 32 位 Windows（用户已确认）。原项目只读参考，不修改。
 

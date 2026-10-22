@@ -1,11 +1,11 @@
-//! Precomputed lookup tables for the fast seven-card evaluator.
+//! Precomputed lookup tables for the fast complete-hand evaluator.
 //!
 //! Design:
 //!
 //! * A seven-card hand is reduced to per-rank counts packed as four-bit
 //!   nibbles in a `u64` (rank 2 is nibble 0, ... ace is nibble 12).
 //! * When no suit has five or more cards, the best five-card hand depends only
-//!   on that histogram. All 49,205 legal seven-card rank patterns are
+//!   on that histogram. All 73,775 legal five/six/seven-card rank patterns are
 //!   enumerated once (lazily, behind `OnceLock`) and stored in a bucket-sorted
 //!   table keyed by the packed histogram.
 //! * Flush and straight-flush evaluation uses 8,192-entry tables over the
@@ -326,8 +326,10 @@ fn enumerate_patterns(
 
 fn collect_patterns() -> Vec<Pattern> {
     let mut counts = [0u8; RANK_COUNT];
-    let mut patterns = Vec::with_capacity(49_205);
-    enumerate_patterns(0, 7, &mut counts, &mut patterns);
+    let mut patterns = Vec::with_capacity(73_775);
+    for size in 5..=7 {
+        enumerate_patterns(0, size, &mut counts, &mut patterns);
+    }
     patterns
 }
 
@@ -424,7 +426,11 @@ fn build_tables() -> Tables {
     let top_five = build_top_five_table();
 
     let patterns = collect_patterns();
-    debug_assert_eq!(patterns.len(), 49_205, "seven-card rank pattern count");
+    debug_assert_eq!(
+        patterns.len(),
+        73_775,
+        "five/six/seven-card rank pattern count"
+    );
     let hash_mul = choose_hash(&patterns);
 
     let mut bucket_sizes = vec![0u32; BUCKET_COUNT];

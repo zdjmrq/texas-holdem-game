@@ -15,16 +15,11 @@ use crate::cli::{CliOptions, Scenario};
 use crate::fonts;
 use crate::layout::WindowTier;
 use crate::local_server::{LocalServerHandle, ServerInfo};
-use crate::online_controller::{
-    NoopOnlineController, OnlineController, OnlineEvent, OnlineRequest,
-};
+use crate::online::native::OnlineClient;
 use crate::platform::{PlatformShell, ShellEvent};
 use crate::screenshot::ScreenshotState;
 use crate::session::{TableConfig, TableSession, advance_ai_steps, autoplay_hand};
-use crate::settings::{
-    AI_DELAYS_MS, MAX_PLAYERS, PlayMode, SHORT_DECK_ANTES, STACKS, STANDARD_BLINDS, Settings,
-    VariantSetting,
-};
+use crate::settings::{AI_DELAYS_MS, PlayMode, Settings, VariantSetting};
 use crate::table_ctrl::{self, AnalysisMask, RaisePanel, TableCommand};
 use crate::theme::Theme;
 use crate::ui::table::{self, SeatView, TableSnapshot, TableUiAction};
@@ -44,6 +39,7 @@ pub struct PokerApp {
     settings: Settings,
     last_saved_settings: Settings,
     screen: Screen,
+    home_online: bool,
     session: Option<TableSession>,
     analysis: AnalysisService,
     current_analysis: Option<Arc<AnalysisSummary>>,
@@ -68,7 +64,7 @@ pub struct PokerApp {
     /// Request keyboard focus on the raise slider once it opens.
     raise_focus_pending: bool,
     /// Online controller (Noop until src/online/** lands and is mounted).
-    online: Box<dyn OnlineController>,
+    online: OnlineClient,
     /// Embedded local poker server (Lead decision A).
     local_server: Option<LocalServerHandle>,
     server_info: Option<ServerInfo>,
@@ -104,7 +100,7 @@ impl PokerApp {
             .map(|path| ScreenshotState::new(path, cli.screenshot_frame));
         let audio = AudioManager::new(cli.no_audio);
         let open_raise_requested = cli.open_raise;
-        let online: Box<dyn OnlineController> = Box::new(NoopOnlineController::new());
+        let online = OnlineClient::new(cc.egui_ctx.clone());
         let local_server = if cli.no_server {
             None
         } else {
@@ -116,6 +112,7 @@ impl PokerApp {
             settings,
             last_saved_settings,
             screen: Screen::Home,
+            home_online: false,
             session: None,
             analysis: AnalysisService::new(),
             current_analysis: None,
@@ -313,207 +310,18 @@ impl PokerApp {
     // ---------------------------------------------------------------- screens
 
     fn home_ui(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::top("home_top").show(ui, |ui| {
-            ui.add_space(2.0);
-            ui.horizontal(|ui| {
-                ui.heading("德州扑克 Rust 重制版");
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(RichText::new("Phase 6 垂直切片 · 本地对局").weak());
-                });
-            });
-            ui.add_space(2.0);
-        });
-        egui::CentralPanel::default().show(ui, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                self.home_content(ui);
-            });
-        });
-    }
-
-    fn home_content(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(8.0);
-        ui.label(RichText::new("标准德州（52 张）与短牌 6+（36 张）本地 AI 对局。").size(15.0));
-        ui.add_space(8.0);
-
-        egui::Frame::new()
-            .fill(ui.visuals().faint_bg_color)
-            .corner_radius(egui::CornerRadius::same(8))
-            .inner_margin(egui::Margin::same(12))
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
             .show(ui, |ui| {
-                ui.heading("对局设置");
-                egui::Grid::new("home_settings_grid")
-                    .num_columns(2)
-                    .spacing([16.0, 10.0])
-                    .show(ui, |ui| {
-                        ui.label("玩法");
-                        ui.horizontal(|ui| {
-                            ui.selectable_value(
-                                &mut self.settings.variant,
-                                VariantSetting::Standard,
-                                "标准德州",
-                            );
-                            ui.selectable_value(
-                                &mut self.settings.variant,
-                                VariantSetting::ShortDeck,
-                                "短牌 6+",
-                            );
-                        });
-                        ui.end_row();
-
-                        let max_players = if self.settings.is_short_deck() {
-                            8
-                        } else {
-                            MAX_PLAYERS
-                        };
-                        if self.settings.players > max_players {
-                            self.settings.players = max_players;
-                        }
-                        ui.label("玩家人数");
-                        egui::ComboBox::from_id_salt("home_players")
-                            .selected_text(format!(
-                                "{} 人（1 人类 + {} AI）",
-                                self.settings.players,
-                                self.settings.players.saturating_sub(1)
-                            ))
-                            .show_ui(ui, |ui| {
-                                for players in 2..=max_players {
-                                    ui.selectable_value(
-                                        &mut self.settings.players,
-                                        players,
-                                        format!("{players} 人"),
-                                    );
-                                }
-                            });
-                        ui.end_row();
-
-                        ui.label("起始筹码");
-                        egui::ComboBox::from_id_salt("home_stack")
-                            .selected_text(format!("{}", self.settings.starting_stack))
-                            .show_ui(ui, |ui| {
-                                for stack in STACKS {
-                                    ui.selectable_value(
-                                        &mut self.settings.starting_stack,
-                                        stack,
-                                        format!("{stack}"),
-                                    );
-                                }
-                            });
-                        ui.end_row();
-
-                        if self.settings.is_short_deck() {
-                            ui.label("前注");
-                            egui::ComboBox::from_id_salt("home_ante")
-                                .selected_text(format!(
-                                    "前注 {}（最小下注 {}）",
-                                    self.settings.ante,
-                                    self.settings.ante * 2
-                                ))
-                                .show_ui(ui, |ui| {
-                                    for ante in SHORT_DECK_ANTES {
-                                        ui.selectable_value(
-                                            &mut self.settings.ante,
-                                            ante,
-                                            format!("前注 {}（最小下注 {}）", ante, ante * 2),
-                                        );
-                                    }
-                                });
-                        } else {
-                            ui.label("盲注");
-                            egui::ComboBox::from_id_salt("home_blinds")
-                                .selected_text(format!(
-                                    "{}/{}",
-                                    self.settings.small_blind, self.settings.big_blind
-                                ))
-                                .show_ui(ui, |ui| {
-                                    for (small, big) in STANDARD_BLINDS {
-                                        let selected = self.settings.small_blind == small
-                                            && self.settings.big_blind == big;
-                                        if ui
-                                            .selectable_label(selected, format!("{small}/{big}"))
-                                            .clicked()
-                                        {
-                                            self.settings.small_blind = small;
-                                            self.settings.big_blind = big;
-                                        }
-                                    }
-                                });
-                        }
-                        ui.end_row();
-
-                        ui.label("玩家名字");
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.settings.player_name)
-                                .desired_width(200.0)
-                                .hint_text("最多 8 个字符"),
-                        );
-                        ui.end_row();
-
-                        ui.label("AI 速度");
-                        egui::ComboBox::from_id_salt("home_ai_delay")
-                            .selected_text(self.settings.ai_delay_label())
-                            .show_ui(ui, |ui| {
-                                for delay in AI_DELAYS_MS {
-                                    ui.selectable_value(
-                                        &mut self.settings.ai_delay_ms,
-                                        delay,
-                                        format!("{delay} ms"),
-                                    );
-                                }
-                            });
-                        ui.end_row();
-                    });
-
-                ui.add_space(10.0);
-                ui.horizontal_wrapped(|ui| {
-                    let start = ui.add_sized(
-                        [200.0, 42.0],
-                        egui::Button::new(RichText::new("开始本地对局").size(17.0)),
-                    );
-                    if start.clicked() {
-                        self.start_local_game();
-                    }
-                    if ui
-                        .add_sized([170.0, 42.0], egui::Button::new("联机对局（开发中）"))
-                        .clicked()
-                    {
-                        self.screen = Screen::Online;
-                    }
-                    if ui
-                        .add_sized([120.0, 42.0], egui::Button::new("设置"))
-                        .clicked()
-                    {
-                        self.screen = Screen::Settings;
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    match crate::ui::original::home(ui, &mut self.settings, &mut self.home_online) {
+                        3 => self.screen = Screen::Online,
+                        1 => self.start_local_game(),
+                        2 => self.screen = Screen::Settings,
+                        _ => {}
                     }
                 });
             });
-
-        ui.add_space(10.0);
-        egui::Frame::new()
-            .fill(ui.visuals().faint_bg_color)
-            .corner_radius(egui::CornerRadius::same(8))
-            .inner_margin(egui::Margin::same(12))
-            .show(ui, |ui| {
-                ui.heading("状态");
-                ui.label(format!("中文字体：{}", self.font_report.summary()));
-                ui.label(format!(
-                    "音乐资源：{} 首（assets/music）",
-                    self.audio.track_count()
-                ));
-                ui.label(format!(
-                    "AI：{}（poker-ai 就绪后替换为正式策略）",
-                    "确定性临时策略桩"
-                ));
-                ui.label(format!("设置文件：{}", assets::settings_path().display()));
-                if let Some(hint) = &self.hint {
-                    ui.colored_label(Color32::from_rgb(240, 190, 90), hint);
-                }
-            });
-        ui.add_space(6.0);
-        ui.label(
-            RichText::new("提示：Space/Enter 主操作，F 弃牌，C 跟注/过牌，R 加注，A 全下，加注面板 1/←/↓ 减、2/→/↑ 加一个单位，Esc 取消，N 下一手")
-                .weak()
-                .small(),
-        );
     }
 
     fn settings_ui(&mut self, ui: &mut egui::Ui) {
@@ -533,6 +341,11 @@ impl PokerApp {
     }
 
     fn settings_content(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("玩家昵称");
+            ui.add(egui::TextEdit::singleline(&mut self.settings.player_name).desired_width(180.0));
+        });
+        ui.label("AI 推演：深度（本地和联机均已启用）");
         ui.add_space(6.0);
         ui.heading("音频");
         let music_changed = ui
@@ -668,75 +481,9 @@ impl PokerApp {
     }
 
     fn online_ui(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::top("online_top").show(ui, |ui| {
-            ui.horizontal(|ui| {
-                if ui.button("← 返回主页").clicked() {
-                    self.screen = Screen::Home;
-                }
-                ui.heading("联机对局");
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(egui::RichText::new(format!("控制器：{}", self.online.name())).weak());
-                });
-            });
-        });
-        egui::CentralPanel::default().show(ui, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.add_space(12.0);
-                ui.heading("本机联机服务（内嵌 poker-server）");
-                match (&self.server_info, &self.server_error) {
-                    (Some(info), _) => {
-                        ui.label(format!("地址：{}", info.url));
-                        ui.label(format!("appVersion：{}", info.app_version));
-                    }
-                    (None, Some(error)) => {
-                        ui.colored_label(Color32::from_rgb(230, 120, 120), error);
-                    }
-                    (None, None) => {
-                        ui.horizontal(|ui| {
-                            ui.spinner();
-                            ui.label("本地服务启动中…");
-                        });
-                    }
-                }
-                ui.separator();
-                ui.heading("连接状态");
-                ui.label(format!("客户端：{}", self.online.status_text()));
-                if let Some(url) = self.online.server_url() {
-                    ui.label(format!("目标服务：{url}"));
-                }
-                ui.horizontal_wrapped(|ui| {
-                    let can_connect = self.server_info.is_some();
-                    if ui
-                        .add_enabled(can_connect, egui::Button::new("连接本机服务"))
-                        .clicked()
-                        && let Some(info) = &self.server_info
-                    {
-                        let url = info.url.clone();
-                        self.online.handle(OnlineRequest::Connect { url });
-                    }
-                    let can_disconnect = !matches!(
-                        self.online.state(),
-                        crate::online_controller::ConnectionState::Disconnected
-                    );
-                    if ui
-                        .add_enabled(can_disconnect, egui::Button::new("断开"))
-                        .clicked()
-                    {
-                        self.online.handle(OnlineRequest::Disconnect);
-                    }
-                });
-                ui.separator();
-                ui.label(
-                    egui::RichText::new(
-                        "联机房间 UI 由 task-14（src/online/**）挂载到本控制器，本页当前是接入占位页；本地对局功能完整可用。",
-                    )
-                    .weak(),
-                );
-                if let Some(hint) = &self.hint {
-                    ui.colored_label(Color32::from_rgb(240, 190, 90), hint);
-                }
-            });
-        });
+        if self.online.show(ui, &self.settings) {
+            self.screen = Screen::Home;
+        }
     }
 
     fn table_ui(&mut self, ui: &mut egui::Ui) {
@@ -745,61 +492,96 @@ impl PokerApp {
             return;
         }
         let snapshot = self.build_snapshot();
-        let mut pending: Option<TableUiAction> = None;
-        let tier = self.window_tier;
-
-        egui::Panel::top("table_top").show(ui, |ui| {
-            if let Some(action) = table::top_bar(ui, &snapshot) {
-                pending = Some(action);
-            }
-        });
-        egui::Panel::bottom("table_actions").show(ui, |ui| {
-            if let Some(action) = table::action_bar(
-                ui,
-                &snapshot,
-                &mut self.raise_panel,
-                self.raise_focus_pending,
-            ) {
-                pending = Some(action);
-            }
-        });
-        self.raise_focus_pending = false;
-        if ui.available_width() > 940.0 {
-            egui::Panel::right("table_analysis")
-                .default_size(232.0)
-                .min_size(200.0)
-                .show(ui, |ui| {
-                    table::analysis_panel(ui, &snapshot);
-                });
-        }
-        egui::CentralPanel::default().show(ui, |ui| {
-            let needs_scroll = crate::layout::needs_table_scroll(tier, ui.available_height());
-            if needs_scroll {
+        let mut pending = None;
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ui, |ui| {
+                crate::ui::original::background(ui, ui.max_rect());
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        ui.set_min_height(tier.min_table_height());
-                        if let Some(action) = table::show(ui, &snapshot) {
-                            pending = Some(action);
-                        }
+                        let margin = ((ui.available_width() - 1180.0) / 2.0).clamp(10.0, 120.0);
+                        egui::Frame::new()
+                            .inner_margin(egui::Margin {
+                                left: margin as i8,
+                                right: margin as i8,
+                                top: 10,
+                                bottom: 10,
+                            })
+                            .show(ui, |ui| {
+                                if !self.window_tier.toolbar_detached() || self.cli.toolbar_pinned {
+                                    if let Some(a) = table::top_bar(ui, &snapshot) {
+                                        pending = Some(a);
+                                    }
+                                } else {
+                                    ui.label(&snapshot.event_line);
+                                    if ui.ctx().input(|i| {
+                                        i.pointer.hover_pos().is_some_and(|p| p.y < 80.0)
+                                    }) {
+                                        egui::Area::new(egui::Id::unique("detached-table-header"))
+                                            .order(egui::Order::Foreground)
+                                            .fixed_pos(egui::pos2(10.0, 0.0))
+                                            .show(ui.ctx(), |ui| {
+                                                ui.set_width(
+                                                    ui.ctx().content_rect().width() - 20.0,
+                                                );
+                                                egui::Frame::new()
+                                                    .fill(snapshot.theme.palette().panel_bg)
+                                                    .inner_margin(8)
+                                                    .show(ui, |ui| {
+                                                        if let Some(a) =
+                                                            table::top_bar(ui, &snapshot)
+                                                        {
+                                                            pending = Some(a);
+                                                        }
+                                                    });
+                                            });
+                                    }
+                                }
+                                ui.add_space(10.0);
+                                let height = if self.window_tier == WindowTier::Normal {
+                                    520.0
+                                } else {
+                                    480.0
+                                };
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(ui.available_width(), height),
+                                    egui::Layout::top_down(egui::Align::Min),
+                                    |ui| {
+                                        table::show(ui, &snapshot);
+                                    },
+                                );
+                                ui.add_space(12.0);
+                                egui::Frame::new()
+                                    .fill(self.settings.theme.palette().panel_bg)
+                                    .corner_radius(14)
+                                    .inner_margin(12)
+                                    .show(ui, |ui| {
+                                        if let Some(a) = table::bottom_panel(
+                                            ui,
+                                            &snapshot,
+                                            &mut self.raise_panel,
+                                            self.raise_focus_pending,
+                                        ) {
+                                            pending = Some(a);
+                                        }
+                                    });
+                            });
                     });
-            } else if let Some(action) = table::show(ui, &snapshot) {
-                pending = Some(action);
-            }
-        });
-        let ctx = ui.ctx().clone();
+            });
+        self.raise_focus_pending = false;
         let modal = table::settlement_modal(
-            &ctx,
+            ui.ctx(),
             &snapshot,
             &mut self.settlement_offset,
             self.settlement_focus_pending,
         );
         self.settlement_focus_pending = false;
-        if let Some(action) = modal.action {
-            pending = Some(action);
+        if let Some(a) = modal.action {
+            pending = Some(a);
         }
-        if let Some(action) = pending {
-            self.apply_table_action(action);
+        if let Some(a) = pending {
+            self.apply_table_action(a);
         }
     }
 
@@ -1072,6 +854,10 @@ impl PokerApp {
     }
 
     fn handle_keyboard(&mut self, ctx: &egui::Context) {
+        if self.screen == Screen::Online {
+            self.online.handle_keys(ctx);
+            return;
+        }
         if ctx.text_edit_focused() {
             return;
         }
@@ -1245,17 +1031,21 @@ impl PokerApp {
     }
 
     /// Drive the online controller and fold its events into the app hint.
-    fn poll_online_events(&mut self) {
-        self.online.update(Instant::now());
-        while let Some(event) = self.online.poll_event() {
-            match event {
-                OnlineEvent::Connected { server_id } => {
-                    self.hint = Some(format!("联机服务已连接：{server_id}"));
+    fn poll_online_events(&mut self, ctx: &egui::Context) {
+        for effect in self.online.poll() {
+            match effect {
+                crate::online::view::OnlineEffect::Hint(message) => self.hint = Some(message),
+                crate::online::view::OnlineEffect::PlayTurnPrompt => self.audio.play_turn_prompt(),
+                crate::online::view::OnlineEffect::PlaySettlementPrompt => {
+                    self.audio.play_settlement_prompt()
                 }
-                OnlineEvent::Disconnected { reason } => {
-                    self.hint = Some(format!("联机已断开：{reason}"));
+                crate::online::view::OnlineEffect::RequestAttention => {
+                    if !ctx.input(|i| i.viewport().focused.unwrap_or(false)) {
+                        crate::shell::request_attention(ctx, true);
+                        self.attention_until = Some(ctx.input(|i| i.time) + 4.0);
+                        self.platform.set_alert_icon(true);
+                    }
                 }
-                OnlineEvent::RoomUpdated(_) => {}
             }
         }
     }
@@ -1330,7 +1120,7 @@ impl eframe::App for PokerApp {
         self.frame_index = self.frame_index.saturating_add(1);
         self.window_tier = WindowTier::from_height(ctx.content_rect().height());
         self.poll_embedded_server();
-        self.poll_online_events();
+        self.poll_online_events(&ctx);
         self.analysis.poll();
         self.audio.tick();
         self.handle_screenshot(&ctx);

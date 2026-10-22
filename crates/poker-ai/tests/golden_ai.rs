@@ -561,6 +561,18 @@ fn golden_decisions_baseline() {
     );
     let samples: Vec<Sample> = cases.iter().map(replay_case).collect();
     summarize(&samples, "decision corpus");
+    let standard: Vec<_> = samples
+        .iter()
+        .filter(|s| s.tags.iter().any(|tag| tag == "standard"))
+        .collect();
+    let hits = standard
+        .iter()
+        .filter(|s| s.expected_action == s.actual_action)
+        .count();
+    assert!(
+        percent(hits, standard.len()) >= 95.0,
+        "standard decision parity must remain >=95%"
+    );
     let trajectories = load_trajectories();
     let mut trajectory_samples = Vec::new();
     for trajectory in &trajectories {

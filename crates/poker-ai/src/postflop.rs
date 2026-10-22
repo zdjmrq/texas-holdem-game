@@ -947,7 +947,7 @@ pub fn build_postflop_candidates(
                 1.0
             };
             let payment = called_equity * expected_call;
-            let called_ev = contestable_pot(context, invest).min(
+            let called_ev = (contestable_pot(context, invest) + invest).min(
                 contestable_return(context, invest, &info) * (called_equity / info.mean.max(0.001)),
             ) * factor
                 + payment
@@ -1063,6 +1063,17 @@ pub fn select_candidate(
     profile: &AiProfile,
     spot_frequencies: &mut HashMap<String, f64>,
 ) -> PostflopCandidate {
+    if let Some(terminal) = candidates
+        .iter()
+        .find(|c| c.terminal_call.as_deref() == Some("allin"))
+    {
+        return candidates
+            .iter()
+            .filter(|c| std::ptr::eq(*c, terminal) || c.action == "fold")
+            .max_by(|a, b| a.ev.partial_cmp(&b.ev).unwrap_or(Ordering::Equal))
+            .cloned()
+            .unwrap_or_else(|| terminal.clone());
+    }
     let mut filtered: Vec<PostflopCandidate> = candidates
         .iter()
         .filter(|candidate| candidate.terminal_call.is_none() || candidate.ev >= 0.0)
@@ -1101,8 +1112,6 @@ pub fn select_candidate(
         })
         .collect();
     if eligible.len() <= 1 {
-        let key = spot_key(context, &best);
-        *spot_frequencies.entry(key).or_insert(0.0) += 1.0;
         return best;
     }
     let temperature = (context.big_blind * 0.10).max(context.pot * 0.012)

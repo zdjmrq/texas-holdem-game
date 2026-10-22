@@ -11,7 +11,7 @@ use std::time::Duration;
 use poker_protocol as proto;
 use serde_json::Value;
 
-use crate::ai::{AiFactory, StubAiFactory};
+use crate::ai::{AiFactory, PokerAiFactory};
 
 /// Options of the authoritative room server.
 ///
@@ -54,7 +54,7 @@ pub struct ServerOptions {
     /// Empty-room TTL for rooms that have dealt a hand. Defaults to the
     /// reference constant 15000 ms; tests override it to keep runs fast.
     pub empty_room_ttl_ms: u32,
-    /// AI seat factory. Defaults to the deterministic check/call stub.
+    /// AI seat factory. Defaults to the production v1.5.8 decision pipeline.
     pub ai_factory: Arc<dyn AiFactory>,
 }
 
@@ -99,7 +99,7 @@ impl Default for ServerOptions {
             app_version: proto::COMPAT_APP_VERSION.to_owned(),
             rng_seed: None,
             empty_room_ttl_ms: u32::try_from(proto::EMPTY_ROOM_TTL_MS).unwrap_or(15_000),
-            ai_factory: Arc::new(StubAiFactory),
+            ai_factory: Arc::new(PokerAiFactory),
         }
     }
 }

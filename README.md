@@ -11,6 +11,10 @@
 | `rust-rewrite` | **Rust 全量重写版（当前分支）**：9 个 crate + egui 桌面应用 + 联机服务端/客户端 |
 | 标签 `v2.0.0-rust-preview.1` | Windows 测试基线：附带在 Linux 上交叉构建的 x86_64 便携包（冒烟用）；正式构建用 Windows 原生 MSVC |
 
+## 本轮原生界面与核心收尾
+
+本轮工作分支为 `codex/rust-ui-completion`，基于 `rust-rewrite`，继续使用 Rust + egui。原版源码仅作只读参考，不作为运行时依赖。当前进展及 Windows 原生验证见 [docs/RESTORATION_REPORT.md](docs/RESTORATION_REPORT.md)，以下早期交付描述以新报告为准。
+
 ## 当前状态
 
 - **本地对局可玩**：标准/短牌，真实 v1.5.8 移植 AI（人格/Range/River CFR/短牌策略），分析面板、加注面板、快捷键、音频、设置、双主题。

@@ -19,17 +19,12 @@ workspace = true
 default = []
 # 内嵌 01.mp3 作为无 assets 目录时的兜底；发布版默认从外置 assets/music 加载。
 embedded-music = []
-# 接入真实 poker-ai 的开关（当前是 no-op 骨架；Phase 4 完成后在此加 optional 依赖，
-# 见 src/ai_bridge.rs）。默认关闭，默认构建不受影响。
-real-ai = []
 
 [dependencies]
 poker-core = { workspace = true }
 poker-engine = { workspace = true }
 poker-prob = { workspace = true }
-# Online integration (Lead decision A): embedded poker-server + poker-client,
-# exposing the OnlineController mount point. poker-ai is still not a dependency;
-# the temporary DeterministicAi is behind the AiPolicy trait (see ai_bridge.rs).
+# Native online screens use the embedded Rust server and WebSocket client.
 poker-protocol = { workspace = true }
 poker-client = { workspace = true }
 poker-server = { workspace = true }

@@ -53,6 +53,12 @@ pub trait AiPolicy: Send {
     fn name(&self) -> &str;
     /// Decide an action. Implementations must return a legal action.
     fn decide(&mut self, view: &AiView<'_>) -> Action;
+    /// Non-blocking decision hook used by the interactive GUI.
+    fn poll_decision(&mut self, view: &AiView<'_>) -> Option<Action> {
+        Some(self.decide(view))
+    }
+    fn observe(&mut self, _event: &poker_ai::ObservedAction) {}
+    fn showdown(&mut self, _seat: usize, _result: &poker_ai::ShowdownResult) {}
 }
 
 /// Deterministic temporary policy (placeholder until poker-ai is ready).

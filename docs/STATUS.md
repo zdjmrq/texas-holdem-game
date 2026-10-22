@@ -1,30 +1,13 @@
-# 项目状态（2026-10-23 交付）
+# 当前状态（2026-10-23，原生界面收尾）
 
-> 用户已确认：所有待拍板项按推荐默认值执行；Windows 实机验收由用户完成；不做 Android / 32 位 Windows。
-> 详细交付与验收证据见 **docs/FINAL_REPORT.md**。一键验证：`scripts/verify-all.sh«。
+工作分支：codex/rust-ui-completion；基线：远端 rust-rewrite / 33d3afc。原版 main 与本地 D:\德州扑克\repo（e0c6c6f）只读参考。
 
-## 总览
+- Rust + egui 原生界面：恢复雾蓝背景、红金主题、居中开局面板、顶部/侧边座位、底部手牌操作与分析区；没有引入 Electron、WebView 或 JavaScript 运行时。
+- 联机已接入真实后台 worker：连接、创建/加入房间、房主开始、行动、结算准备、自动重连和 session 恢复；不再挂载 Noop 控制器。
+- 服务端默认使用真实 poker-ai；本地与服务端都广播公开行动和已亮牌摊牌信息，跨手保存模型。
+- 生产 AI 已启用深度预算：20,000 采样、8,000 CFR 迭代；本地后台线程计算，单挑河牌不再限于原参考桌型。
+- 参考预算 AI 黄金决策：标准 174/180（96.7%）、短牌 82/82（100%）；总计 256/262（97.7%）。标准 >=95% 已成为默认测试门槛。
+- 5/6/7 张完整手牌均走查表评估；全部 73,775 个合法点数直方图和随机差分由测试覆盖。
+- Windows MSVC 原生 release 构建及截图验收；详细证据、交付路径与仍需人工验证的项目见 [RESTORATION_REPORT.md](RESTORATION_REPORT.md)。
 
-- 9 个 crate 全部实现并有测试；`cargo fmt/clippy -D warnings/test --workspace« 全绿（最终验证已通过）。
-- 黄金语料：评估/引擎/概率/AI/协议全部从原 JS v1.5.8 导出并可复现；规则、底池、协议、MC 逐样本对齐。
-- 桌面应用本地标准/短牌对局可玩，已接入真实 v1.5.8 移植 AI；分析面板/键盘/音频/设置/双主题完成。
-- 联机：Rust 服务端与旧 JS 客户端、Rust 客户端与旧 JS 服务端双向互通通过；联机 UI 逻辑层完成、屏幕层待续（阶段 2b）。
-- Windows：交叉构建便携 zip 已产出（dist/）；原生 MSVC 构建脚本与 15 节冒烟清单已交付，实机验收待做。
-- 性能：7 张评估 42.1 M/s（标准）/ 49.8 M/s（短牌），较原实现 6.55/7.40 提升 6.4/6.7 倍。
-
-## 剩余工作（详见 FINAL_REPORT §5）
-
-1. AI 标准模式决策对齐 88.9% → ≥95%（已定位两处根因）
-2. 服务端接入真实 AI（工厂接口已就绪）
-3. 联机 UI 阶段 2b（worker + 连接/大厅/房间/结算屏幕）
-4. 5/6 张评估查表优化
-5. Windows 实机冒烟（IME/托盘/DX12/DPI/性能）——需用户机器
-
-## 快速命令
-
-```bash
-cargo run -p poker-app                       # 本地对局
-cargo test --workspace                       # 全测试
-scripts/verify-all.sh                        # 完整验收（含黄金语料复现）
-cargo run -p poker-server --example serve    # 联机服务
-```
+旧交付记录保留在 FINAL_REPORT.md；当前状态以本页和 RESTORATION_REPORT.md 为准。

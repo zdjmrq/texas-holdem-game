@@ -390,6 +390,8 @@ impl OnlineView {
     }
 
     fn apply_room_info(&mut self, room: RoomInfo, resumed: bool) {
+        self.pending = None;
+        self.error_line = None;
         self.players = room.players.clone();
         self.is_host = room.is_host;
         self.host_id = room.host_id.clone();

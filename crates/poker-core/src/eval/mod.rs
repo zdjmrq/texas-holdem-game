@@ -24,7 +24,7 @@
 //! plus flush-mask tables). Every other size (including partial hands) uses the
 //! straightforward [`reference`] implementation. Both paths share the same
 //! score assembly, and the fast path is validated exhaustively against the
-//! reference implementation: every one of the 49,205 seven-card rank patterns
+//! reference implementation: every one of the 49,205 5/6/7-card rank patterns
 //! and every one of the 8,192 flush masks is compared field by field, plus a
 //! 100,000-hand-per-variant random differential test.
 
@@ -173,7 +173,7 @@ fn finish(variant: Variant, category: HandCategory, values: &[u8]) -> EvaluatedH
 
 /// Evaluates the best five-card hand from at most seven cards.
 ///
-/// Seven-card hands use the table-driven fast path; smaller hands (including
+/// Complete 5/6/7-card hands use the table-driven fast path; partial hands (including
 /// partial 2/3/4-card hands) use the reference implementation. Both produce
 /// bit-identical `rank_index`, `score` and `name`.
 ///
@@ -189,8 +189,8 @@ pub fn evaluate(cards: &[Card], variant: Variant) -> EvaluatedHand {
         "evaluator supports at most {MAX_EVALUATED_CARDS} cards, got {}",
         cards.len()
     );
-    if cards.len() == MAX_EVALUATED_CARDS {
-        fast::evaluate_seven(cards, variant)
+    if cards.len() >= 5 {
+        fast::evaluate_complete(cards, variant)
     } else {
         reference::evaluate(cards, variant)
     }
@@ -236,7 +236,7 @@ mod tests {
                 suit_cursor += 1;
             }
         }
-        assert_eq!(hand.len(), MAX_EVALUATED_CARDS);
+        assert!((5..=MAX_EVALUATED_CARDS).contains(&hand.len()));
         hand
     }
 
@@ -415,7 +415,7 @@ mod tests {
     #[test]
     fn fast_path_matches_reference_for_every_rank_pattern() {
         let keys = tables::pattern_keys();
-        assert_eq!(keys.len(), 49_205, "seven-card rank patterns");
+        assert_eq!(keys.len(), 73_775, "seven-card rank patterns");
         for key in keys {
             let cards = synthetic_hand_from_counts(&counts_from_key(key));
             for variant in Variant::ALL {

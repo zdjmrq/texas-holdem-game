@@ -1,8 +1,7 @@
 //! Texas Hold'em desktop application (egui/eframe).
 //!
-//! Phase 6 vertical slice: a playable local game for standard hold'em and 6+
-//! short deck, with a temporary deterministic AI policy (poker-ai will replace
-//! it through the AiPolicy trait), background equity analysis via poker-prob,
+//! Native local and online games for standard hold'em and 6+ short deck,
+//! with the production poker-ai decision pipeline and background equity via poker-prob,
 //! persisted settings, background music and Windows shell integration.
 //!
 //! Linux/WSL is used for automated tests and screenshots; Windows x64 is the
@@ -10,6 +9,7 @@
 #![forbid(unsafe_code)]
 
 pub mod ai;
+pub mod ai_background;
 pub mod ai_bridge;
 pub mod analysis;
 pub mod app;
@@ -21,7 +21,6 @@ pub mod fonts;
 pub mod layout;
 pub mod local_server;
 pub mod online;
-pub mod online_controller;
 pub mod platform;
 pub mod screenshot;
 pub mod session;

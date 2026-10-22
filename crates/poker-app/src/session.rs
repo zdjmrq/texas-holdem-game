@@ -142,7 +142,10 @@ impl TableSession {
                     Player::new(
                         format!("ai-{seat}"),
                         seat,
-                        format!("AI {seat}"),
+                        [
+                            "Alex", "Blake", "Casey", "Drew", "Emma", "Finn", "Grace", "Hayes",
+                            "Ivy",
+                        ][seat - 1],
                         config.starting_stack,
                     )
                     .with_human(false)
@@ -249,9 +252,9 @@ impl TableSession {
         if !self.is_human_turn() {
             return Err("现在不是你的行动".to_owned());
         }
-        self.game
-            .act(self.human_seat, action)
+        let event = poker_ai::host::act(&mut self.game, self.human_seat, action)
             .map_err(|error: ActError| error.to_string())?;
+        self.ai.observe(&event);
         self.push_event(format!(
             "你：{}",
             action_label(&action, self.game.config().variant)
@@ -263,6 +266,10 @@ impl TableSession {
     /// Advance the AI when its scheduled delay has elapsed. Executes at most one
     /// action per call so the UI stays responsive and shows AI pacing.
     pub fn tick(&mut self, now: Instant) -> bool {
+        self.tick_impl(now, false)
+    }
+
+    fn tick_impl(&mut self, now: Instant, blocking: bool) -> bool {
         let Some(due) = self.next_ai_at else {
             return false;
         };
@@ -282,7 +289,10 @@ impl TableSession {
             return false;
         }
         self.next_ai_at = None;
-        let action = self.decide_ai_action(actor);
+        let Some(action) = self.decide_ai_action(actor, blocking) else {
+            self.next_ai_at = Some(now + Duration::from_millis(10));
+            return false;
+        };
         let action = if self
             .game
             .legal_actions(actor)
@@ -292,12 +302,14 @@ impl TableSession {
         } else {
             crate::ai::fallback_action(&self.game.legal_actions(actor))
         };
-        match self.game.act(actor, action) {
-            Ok(_) => {}
+        match poker_ai::host::act(&mut self.game, actor, action) {
+            Ok(event) => self.ai.observe(&event),
             Err(_) => {
                 // Safety net: never let a policy error wedge the table.
                 let fallback = crate::ai::fallback_action(&self.game.legal_actions(actor));
-                let _ = self.game.act(actor, fallback);
+                if let Ok(event) = poker_ai::host::act(&mut self.game, actor, fallback) {
+                    self.ai.observe(&event);
+                }
             }
         }
         self.push_event(format!(
@@ -313,7 +325,7 @@ impl TableSession {
     pub fn advance_ai_immediately(&mut self) -> bool {
         let now = Instant::now();
         self.next_ai_at = Some(now);
-        self.tick(now)
+        self.tick_impl(now, true)
     }
 
     /// Start the next hand after a settlement.
@@ -343,7 +355,7 @@ impl TableSession {
         true
     }
 
-    fn decide_ai_action(&mut self, actor: usize) -> Action {
+    fn decide_ai_action(&mut self, actor: usize, blocking: bool) -> Option<Action> {
         let legal = self.game.legal_actions(actor);
         let players = self.game.players();
         let view = AiView {
@@ -372,7 +384,11 @@ impl TableSession {
             starting_stack: self.game.config().starting_stack,
             big_blind: self.game.minimum_bet(),
         };
-        self.ai.decide(&view)
+        if blocking {
+            Some(self.ai.decide(&view))
+        } else {
+            self.ai.poll_decision(&view)
+        }
     }
 
     fn after_action(&mut self, now: Instant) {
@@ -391,6 +407,9 @@ impl TableSession {
     }
 
     fn settle(&mut self, result: HandResult) {
+        for (seat, result) in poker_ai::host::showdown(&self.game) {
+            self.ai.showdown(seat, &result);
+        }
         let players = self.game.players();
         let human = self.human_seat;
         let human_stack = players[human].stack;

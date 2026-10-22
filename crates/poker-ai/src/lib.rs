@@ -100,3 +100,7 @@ pub struct DecisionWithTrace {
     /// Trace produced by the last decision (always available for diagnostics).
     pub trace: DecisionTrace,
 }
+
+pub mod host;
+
+pub mod search;

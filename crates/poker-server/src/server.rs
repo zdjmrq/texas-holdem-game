@@ -1382,12 +1382,7 @@ impl ServerState {
         let Some(room) = self.rooms.get_mut(code) else {
             return Err(TEXT_ILLEGAL_ACTION.to_owned());
         };
-        let Some(game) = room.game.as_mut() else {
-            return Err(TEXT_ILLEGAL_ACTION.to_owned());
-        };
-        game.act(seat_index, action)
-            .map(|_| ())
-            .map_err(|error| error.to_string())
+        apply_observed_action(room, seat_index, action).map_err(|error| error.to_string())
     }
 
     fn reject_action(
@@ -2121,6 +2116,7 @@ fn build_ai_view(room: &Room, seat_index: usize) -> Option<AiView> {
         .collect();
     Some(AiView {
         seat: seat_index,
+        context: crate::ai::decision_context(game, seat_index),
         seat_count: room.seats.len(),
         starting_stack: u64::try_from(room.config.starting_stack).unwrap_or(0),
         stack: seat.stack,
@@ -2249,10 +2245,14 @@ async fn run_ai_turn(shared: SharedState, code: String, token: u64) {
             .map(|decision| decision.action)
             .or_else(|| fallback_action(game, seat_index));
         let Some(action) = action else { return };
-        if game.act(seat_index, action).is_ok() {
+        if apply_observed_action(room, seat_index, action).is_ok() {
             true
-        } else if let Some(fallback) = fallback_action(game, seat_index) {
-            game.act(seat_index, fallback).is_ok()
+        } else if let Some(fallback) = room
+            .game
+            .as_ref()
+            .and_then(|game| fallback_action(game, seat_index))
+        {
+            apply_observed_action(room, seat_index, fallback).is_ok()
         } else {
             false
         }
@@ -2309,6 +2309,29 @@ fn spawn_cleanup_timer(shared: &SharedState, code: String, token: u64, ttl: Dura
         }
         guard.on_cleanup_deadline(&shared, &code, token);
     });
+}
+
+fn apply_observed_action(
+    room: &mut Room,
+    seat: usize,
+    action: poker_engine::Action,
+) -> Result<(), poker_engine::ActError> {
+    let game = room.game.as_mut().expect("active game");
+    let event = poker_ai::host::act(game, seat, action)?;
+    let revealed = if game.phase() == poker_engine::Phase::Idle {
+        poker_ai::host::showdown(game)
+    } else {
+        Vec::new()
+    };
+    for seat in &mut room.seats {
+        if let Some(brain) = &mut seat.ai {
+            brain.observe(&event);
+            for (seat, result) in &revealed {
+                brain.showdown(*seat, result);
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

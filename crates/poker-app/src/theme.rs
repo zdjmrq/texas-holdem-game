@@ -40,6 +40,10 @@ impl Theme {
 
     /// Apply the theme to an egui context (visuals + text styles).
     pub fn apply(self, ctx: &egui::Context) {
+        ctx.set_theme(match self {
+            Self::Dark => egui::ThemePreference::Dark,
+            Self::Light => egui::ThemePreference::Light,
+        });
         ctx.set_visuals(self.visuals());
         ctx.all_styles_mut(apply_text_styles);
     }

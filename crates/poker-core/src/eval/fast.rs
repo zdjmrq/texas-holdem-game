@@ -1,4 +1,4 @@
-//! Fast seven-card evaluator.
+//! Fast five-, six- and seven-card evaluator.
 //!
 //! Two-stage evaluation, proven bit-identical to the reference path:
 //!
@@ -24,12 +24,12 @@ use crate::variant::Variant;
 use super::tables::{self, CARD_COUNT, CARD_RANK_BIT, CARD_SUIT};
 use super::{EvaluatedHand, HandCategory, MAX_EVALUATED_CARDS, finish};
 
-/// Evaluates a hand of exactly seven cards. Callers must pass seven distinct
+/// Evaluates a hand of five to seven cards. Callers must pass distinct
 /// cards; invalid input is still handled correctly because a histogram without
 /// a table entry falls back to the reference evaluator.
 #[inline]
-pub(super) fn evaluate_seven(cards: &[Card], variant: Variant) -> EvaluatedHand {
-    debug_assert_eq!(cards.len(), MAX_EVALUATED_CARDS);
+pub(super) fn evaluate_complete(cards: &[Card], variant: Variant) -> EvaluatedHand {
+    debug_assert!((5..=MAX_EVALUATED_CARDS).contains(&cards.len()));
     let mut rank_key = 0u64;
     let mut suit_masks = [0u16; 4];
     for card in cards {

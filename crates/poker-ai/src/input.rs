@@ -188,6 +188,8 @@ pub struct DecisionContext {
     pub time_budget_ms: f64,
     /// Fixed Monte Carlo samples override (0 = use defaults).
     pub mc_samples: f64,
+    /// River CFR iteration override (800 preserves reference behaviour).
+    pub river_iterations: u32,
     /// Public seat snapshots (all seats, including folded ones).
     pub public_players: Vec<PublicPlayer>,
 }
@@ -496,6 +498,8 @@ pub struct RawDecisionContext {
     pub time_budget_ms: Option<f64>,
     /// Monte Carlo samples override.
     pub mc_samples: Option<f64>,
+    /// River CFR iteration override for deeper production search.
+    pub river_iterations: Option<u32>,
     /// Public seats.
     pub public_players: Vec<PublicPlayer>,
 }
@@ -707,6 +711,7 @@ impl RawDecisionContext {
             wager_unit,
             time_budget_ms,
             mc_samples: self.mc_samples.unwrap_or(0.0),
+            river_iterations: self.river_iterations.unwrap_or(800).clamp(100, 20_000),
             public_players: self.public_players,
         }
     }

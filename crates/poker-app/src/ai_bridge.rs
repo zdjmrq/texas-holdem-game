@@ -93,6 +93,8 @@ pub trait PokerAiBackend: Send {
     fn name(&self) -> &str;
     /// Return None to delegate to the deterministic fallback.
     fn decide(&mut self, input: &BridgeInput) -> Option<Action>;
+    fn observe(&mut self, _event: &poker_ai::ObservedAction) {}
+    fn showdown(&mut self, _seat: usize, _result: &poker_ai::ShowdownResult) {}
 }
 
 /// AiPolicy adapter: delegates to a backend when present, otherwise (or on an
@@ -127,6 +129,16 @@ impl PokerAiBridge {
 }
 
 impl AiPolicy for PokerAiBridge {
+    fn showdown(&mut self, seat: usize, result: &poker_ai::ShowdownResult) {
+        if let Some(backend) = &mut self.backend {
+            backend.showdown(seat, result);
+        }
+    }
+    fn observe(&mut self, event: &poker_ai::ObservedAction) {
+        if let Some(backend) = &mut self.backend {
+            backend.observe(event);
+        }
+    }
     fn name(&self) -> &str {
         match &self.backend {
             Some(backend) => backend.name(),
@@ -211,6 +223,16 @@ impl PokerAiBackendImpl {
 }
 
 impl PokerAiBackend for PokerAiBackendImpl {
+    fn showdown(&mut self, seat: usize, result: &poker_ai::ShowdownResult) {
+        for brain in self.brains.values_mut() {
+            brain.record_showdown(seat, result);
+        }
+    }
+    fn observe(&mut self, event: &poker_ai::ObservedAction) {
+        for seat in 0..10 {
+            self.brain(seat).record_opponent_action(event);
+        }
+    }
     fn name(&self) -> &str {
         "poker-ai v1.5.8 port"
     }
@@ -218,7 +240,8 @@ impl PokerAiBackend for PokerAiBackendImpl {
     fn decide(&mut self, input: &BridgeInput) -> Option<Action> {
         let brain = self.brain(input.seat);
         brain.set_hole_cards(&input.hole_cards);
-        let context = build_raw_context(input).normalize();
+        let mut context = build_raw_context(input).normalize();
+        poker_ai::search::deepen_context(&mut context);
         let decision = brain.decide(&context);
         Some(match decision.action {
             ActionType::Fold => Action::Fold,
@@ -409,8 +432,11 @@ fn build_raw_context(input: &BridgeInput) -> poker_ai::input::RawDecisionContext
 #[must_use]
 pub fn create_policy(seed: &str, short_deck: bool, starting_stack: u64) -> Box<dyn AiPolicy> {
     let _ = seed;
-    Box::new(PokerAiBridge::with_backend(Box::new(
-        PokerAiBackendImpl::new(short_deck, starting_stack),
+    Box::new(crate::ai_background::BackgroundAi::new(Box::new(
+        PokerAiBridge::with_backend(Box::new(PokerAiBackendImpl::new(
+            short_deck,
+            starting_stack,
+        ))),
     )))
 }
 

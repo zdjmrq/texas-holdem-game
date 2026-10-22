@@ -3823,6 +3823,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "futures-util",
+ "poker-ai",
  "poker-client",
  "poker-core",
  "poker-engine",

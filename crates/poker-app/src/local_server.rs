@@ -60,7 +60,7 @@ impl LocalServerHandle {
                         Ok(handle) => {
                             publish(&info_tx, &handle);
                             // Block until the app asks us to stop.
-                            let _ = shutdown_rx.recv();
+                            let _ = tokio::task::spawn_blocking(move || shutdown_rx.recv()).await;
                             handle.shutdown().await;
                             log::info!("embedded poker server stopped");
                         }
