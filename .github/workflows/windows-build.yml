@@ -1,0 +1,33 @@
+name: windows-build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [rust-rewrite]
+
+jobs:
+  portable:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build release
+        run: cargo build --release -p poker-app
+      - name: Stage portable folder
+        shell: pwsh
+        run: |
+          $dist = "dist/texas-holdem-rs-windows-x64"
+          New-Item -ItemType Directory -Force -Path $dist | Out-Null
+          Copy-Item "target/release/poker-app.exe" "$dist/texas-holdem-rs.exe"
+          Copy-Item -Recurse "assets" "$dist/assets"
+          Copy-Item "docs/windows-smoke.md" "$dist/WINDOWS-SMOKE.md"
+          Copy-Item "scripts/README.md" "$dist/BUILD-NOTES.md"
+          Copy-Item "README.md" "$dist/README.md"
+          Compress-Archive -Path $dist -DestinationPath "dist/texas-holdem-rs-windows-x64.zip" -Force
+          Get-Item "dist/texas-holdem-rs-windows-x64.zip" | Select-Object Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: texas-holdem-rs-windows-x64
+          path: dist/texas-holdem-rs-windows-x64.zip
+          retention-days: 30

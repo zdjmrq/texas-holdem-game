@@ -7,6 +7,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  REFERENCE_REPO: ${{ github.workspace }}/reference/texas-holdem-game
 
 jobs:
   fmt-clippy-test:
@@ -14,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         # Windows is the target platform for the product; Linux is the
-        # development/automation platform used by the Rust rewrite.
+        # development/automation platform for the Rust rewrite.
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
@@ -25,7 +26,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      # The two interop tests spawn the original JS project and need Node + the
+      # reference checkout; they run in the golden-oracle job below.
+      - run: cargo test --workspace --exclude poker-server
+      - run: cargo test -p poker-server --lib --test integration --test phase_b --test rust_interop
 
   golden-oracle:
     # Re-generates every golden corpus from the pinned reference JS project and
@@ -53,3 +57,5 @@ jobs:
           node oracle/golden-protocol.js
       - name: Fail on any corpus drift
         run: git diff --exit-code -- tests/golden
+      - name: Bidirectional interop (JS client <-> Rust server, Rust client <-> JS server)
+        run: cargo test -p poker-server --test interop -- --test-threads=1
