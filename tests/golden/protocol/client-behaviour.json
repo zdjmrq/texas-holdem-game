@@ -1,0 +1,52 @@
+{
+  "scenario": "client-behaviour",
+  "terminalCloseCodes": [
+    1000,
+    1008,
+    1009,
+    1013,
+    4001
+  ],
+  "sessionStorageKey": "texas-holdem-network-session-v2",
+  "requestIdPrefixes": [
+    "action",
+    "create",
+    "join",
+    "leave",
+    "ready",
+    "resume",
+    "start"
+  ],
+  "reconnectDelayCapMs": 10000,
+  "reconnectBaseDelayMs": 650,
+  "reconnectMaxDoublings": 4,
+  "reconnectJitterMs": 350,
+  "reconnectDelaysMs": [
+    {
+      "attempt": 0,
+      "delayMs": 825
+    },
+    {
+      "attempt": 1,
+      "delayMs": 1475
+    },
+    {
+      "attempt": 2,
+      "delayMs": 2775
+    },
+    {
+      "attempt": 3,
+      "delayMs": 5375
+    },
+    {
+      "attempt": 4,
+      "delayMs": 10175
+    },
+    {
+      "attempt": 5,
+      "delayMs": 10175
+    }
+  ],
+  "protocolVersionInSend": 2,
+  "sendMessage": "renderOnlineGame"
+}

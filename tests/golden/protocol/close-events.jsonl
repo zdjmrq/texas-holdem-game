@@ -1,0 +1,5 @@
+{"scenario":"resume-and-snapshot","kind":"ws-close","context":"resume-session-elsewhere","code":4001,"reason":"session resumed elsewhere"}
+{"scenario":"limits","kind":"ws-close","context":"message-rate-exceeded","code":1008,"reason":"message rate exceeded"}
+{"scenario":"capacity","kind":"ws-close","context":"server-capacity-reached","code":1013,"reason":"server capacity reached"}
+{"scenario":"payload","kind":"ws-close","context":"message-too-large","code":1009,"reason":""}
+{"scenario":"origin","kind":"http-upgrade","context":"disallowed-origin","statusCode":401}

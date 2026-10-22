@@ -8,6 +8,10 @@ license.workspace = true
 [lib]
 path = "src/lib.rs"
 
+[[bin]]
+name = "poker-app"
+path = "src/main.rs"
+
 [lints]
 workspace = true
 
@@ -19,3 +23,19 @@ poker-ai = { workspace = true }
 poker-protocol = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+# GUI: egui/eframe 0.37.x (Phase 0 spike).
+# Default features = wgpu renderer + system font fallback (fontique) + wayland/x11.
+eframe = { version = "0.37" }
+# Audio playback: rodio 0.23, lean feature set (playback + mp3 via symphonia).
+rodio = { version = "0.23", default-features = false, features = ["playback", "mp3"] }
+# PNG encode/decode for the spike window icon and screenshots.
+image = { version = "0.25", default-features = false, features = ["png"] }
+log = "0.4"
+env_logger = "0.11"
+
+# Windows-only shell integration: tray icon + single-instance lock.
+# All of it is behind cfg(target_os = "windows"); Linux/WSL builds use the stub module.
+[target.'cfg(windows)'.dependencies]
+tray-icon = "0.26"
+single-instance = "0.3"

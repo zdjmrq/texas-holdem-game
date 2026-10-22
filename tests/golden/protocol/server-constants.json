@@ -1,0 +1,69 @@
+{
+  "scenario": "constants",
+  "referenceCommit": "e0c6c6f88d3e64324e1d83bfc700dd3a77f71b90",
+  "appVersion": "1.5.8",
+  "protocolVersion": 2,
+  "serverId": "texas-holdem-game",
+  "serverName": "德州扑克服务",
+  "emptyRoomTtlMs": 15000,
+  "maxNameLength": 8,
+  "rxMaxPayloadBytes": 16384,
+  "heartbeatIntervalMs": 15000,
+  "nextHandDelayMs": 250,
+  "roomCodes": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5"
+  ],
+  "stackLevels": [
+    5000,
+    10000,
+    20000,
+    50000,
+    100000
+  ],
+  "blindLevels": [
+    [
+      10,
+      20
+    ],
+    [
+      20,
+      40
+    ],
+    [
+      40,
+      80
+    ],
+    [
+      50,
+      100
+    ],
+    [
+      100,
+      200
+    ],
+    [
+      200,
+      400
+    ]
+  ],
+  "aiDelayLevels": [
+    800,
+    1800,
+    3200
+  ],
+  "defaults": {
+    "aiDelay": 450,
+    "disconnectGraceMs": 1800,
+    "maxRooms": 3,
+    "maxConnections": 24,
+    "maxConnectionsPerIp": 20,
+    "rateWindowMs": 10000,
+    "maxMessagesPerWindow": 80,
+    "trustProxy": false,
+    "allowedOrigins": []
+  }
+}

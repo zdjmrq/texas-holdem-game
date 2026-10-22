@@ -1,0 +1,39 @@
+{
+  "generator": "oracle/golden-equity.js",
+  "authoritativeOracle": "reference/texas-holdem-game/js/probability-core.js",
+  "referenceCommit": "e0c6c6f88d3e64324e1d83bfc700dd3a77f71b90",
+  "variants": [
+    "standard",
+    "shortdeck"
+  ],
+  "omittedFields": [
+    "elapsedMs"
+  ],
+  "notes": [
+    "Exact heads-up rows use calculate() with numOpponents = 1 and a board of 4 or 5 cards.",
+    "Monte Carlo rows pass minSamples equal to the effective target sample count, disabling the JS time-budget early exit.",
+    "All probabilities/counts are deterministic; only elapsedMs was dropped when exporting."
+  ],
+  "exactSampleTotal": 105646,
+  "monteCarloSampleTotal": 19800,
+  "files": [
+    {
+      "file": "exact-heads-up.jsonl",
+      "rows": 6,
+      "sha256": "d43c89446a6e3a6701e9dfcefd834c563a19ef824f006a906b80b034d160f1bd",
+      "bytes": 6845
+    },
+    {
+      "file": "monte-carlo.jsonl",
+      "rows": 17,
+      "sha256": "9daf2f2138a50f8fbcfceb1b60591def07aa4f327de643355977ffacd1990f45",
+      "bytes": 17405
+    },
+    {
+      "file": "improvements.jsonl",
+      "rows": 14,
+      "sha256": "7e7dd91202a88d74a0ab7c15f4fb34b8df5f792eb02f5a22789b3c58902f805f",
+      "bytes": 18992
+    }
+  ]
+}

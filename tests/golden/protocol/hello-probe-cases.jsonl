@@ -1,0 +1,6 @@
+{"scenario":"hello-probe","hello":{"type":"hello","appVersion":"1.5.8","serverId":"texas-holdem-game","protocolVersion":2},"expected":true}
+{"scenario":"hello-probe","hello":{"type":"hello","appVersion":"1.5.7","serverId":"texas-holdem-game","protocolVersion":2},"expected":false}
+{"scenario":"hello-probe","hello":{"type":"hello","serverId":"texas-holdem-game","protocolVersion":2},"expected":false}
+{"scenario":"hello-probe","hello":{"type":"hello","appVersion":"1.5.8","serverId":"other-service","protocolVersion":2},"expected":false}
+{"scenario":"hello-probe","hello":{"type":"hello","appVersion":"1.5.8","serverId":"texas-holdem-game","protocolVersion":3},"expected":false}
+{"scenario":"hello-probe","hello":{"type":"not_hello","appVersion":"1.5.8","serverId":"texas-holdem-game","protocolVersion":2},"expected":false}

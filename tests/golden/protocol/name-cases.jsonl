@@ -1,0 +1,30 @@
+{"scenario":"name","input":"Alice","output":"Alice"}
+{"scenario":"name","input":"  Bob  ","output":"Bob"}
+{"scenario":"name","input":"<b>Alice</b>","output":"<b>Alice"}
+{"scenario":"name","input":"玩家","output":"玩家"}
+{"scenario":"name","input":"玩家玩家玩家玩家玩家","output":"玩家玩家玩家玩家"}
+{"scenario":"name","input":"123456789","output":"12345678"}
+{"scenario":"name","input":"","output":"玩家"}
+{"scenario":"name","input":" ","output":"玩家"}
+{"scenario":"name","input":"\u0000A\u0001B","output":"AB"}
+{"scenario":"name","input":"ＡＢＣ","output":"ABC"}
+{"scenario":"name","input":"Ｔｏｍ","output":"Tom"}
+{"scenario":"name","input":"😀😀😀😀😀😀😀😀😀","output":"😀😀😀😀😀😀😀😀"}
+{"scenario":"name","input":"😀","output":"😀"}
+{"scenario":"name","input":"👤👤👤👤👤👤👤👤👤","output":"👤👤👤👤👤👤👤👤"}
+{"scenario":"name","input":"①②③④⑤⑥⑦⑧⑨","output":"12345678"}
+{"scenario":"name","input":"ﬁle","output":"file"}
+{"scenario":"name","input":"ẛ̣","output":"ṩ"}
+{"scenario":"name","input":"A\tB\nC","output":"ABC"}
+{"scenario":"name","input":"Alice👤","output":"Alice👤"}
+{"scenario":"name","input":"ab","output":"ab"}
+{"scenario":"name","input":null,"output":"玩家"}
+{"scenario":"name","input":42,"output":"42"}
+{"scenario":"name","input":0,"output":"玩家"}
+{"scenario":"name","input":false,"output":"玩家"}
+{"scenario":"name","input":true,"output":"true"}
+{"scenario":"name","input":"Ｋｉｎｇ","output":"King"}
+{"scenario":"name","input":"Ωμέγα","output":"Ωμέγα"}
+{"scenario":"name","input":"ЖЖЖЖЖЖЖЖЖ","output":"ЖЖЖЖЖЖЖЖ"}
+{"scenario":"name","input":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","output":"xxxxxxxx"}
+{"scenario":"name","input":"ＡＡＡＡＡＡＡＡＡＡ","output":"AAAAAAAA"}
