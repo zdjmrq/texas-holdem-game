@@ -1,6 +1,16 @@
 # 原生界面与核心收尾报告（2026-10-23）
 
-分支：codex/rust-ui-completion，基于 rust-rewrite 的 33d3afc。原版 main / D:\德州扑克\repo（e0c6c6f）仅作只读对照。
+已发布到 rust-rewrite；本地工作分支 codex/rust-ui-completion，基于 33d3afc。原版 main / D:\德州扑克\repo（e0c6c6f）仅作只读对照。
+
+## 基础功能检查与修复（本轮追加）
+
+- 根因：正常开始游戏使用了固定的 poker-app-session 种子，导致每次重新开局重放相同牌序。改为由操作系统独立播种的 StdRng；只有显式 --seed 或测试场景才使用原 JS 兼容的确定性随机流。AI 采样也取得新的独立种子。
+- 联机正常运行时，身份/恢复令牌与每个房间的牌堆使用独立的系统随机流；显式测试种子仍可复现。修复 XorShift 零状态永远输出零、牌堆不变以及 ID 重复的问题。
+- 引擎拒绝在活动牌局中再次开局，防止清掉底池；会话 start 只允许首次开局，后续必须通过结算后的 next_hand。对局中误按 N 不再返回主页丢失本地牌局。
+- AI 返回非法加注金额时，实际执行合法兜底行动，行动日志同步显示实际动作。
+- 新增正常开局/重新开局 128 次独立牌序检查、固定种子重放和连续下一手检查；标准 2–10 人与短牌 2–8 人共 3,200 手混合行动，逐步验证唯一牌张、筹码守恒、非法行动原子拒绝、行动推进及结算总额。固定牌例验证主池/边池归属、平分零头顺序、短码全下不重新开放加注。
+- Windows 构建脚本统一生成一个 dist/texas-holdem-rs-current 目录，不再创建 zip；旧产物使用回收站处置。正在运行的程序目录保留，避免影响当前对局。
+- GitHub CI 失败根因另行定位：Ubuntu 缺少 ALSA 开发库，Windows 的新版 Clippy 拒绝固定大小 chunks_exact_mut。已补依赖、改用 as_chunks_mut，并固定构建工具链为 1.95。GitHub 下载包仅在 Actions 临时环境生成 zip 和 SHA256 清单；发布后本地不留 zip。
 
 ## 实现
 
@@ -23,19 +33,20 @@
 
 参考预算黄金决策：标准 174/180（96.7%）、短牌 82/82（100%），总计 256/262（97.7%）；金额一致 254/262，RNG 调用一致 259/262。标准动作 >=95% 纳入默认测试门槛。11 个标准轨迹决策仍有 2 个差异，不宣称逐手完全一致。深度生产模式允许作出不同决策。
 
-- cargo test --workspace --offline：238 项通过（含深度采样、8,000 轮 CFR、后台不阻塞测试）。
+- cargo +stable test --workspace --offline（WSL）：249 项通过，另有 2 项穷举测试默认忽略（含深度采样、8,000 轮 CFR、后台不阻塞与本轮基础回归）。Windows 1.95 本机 dealing / fundamentals 共 6 项也通过，其中混合行动覆盖 3,200 手。
 - cargo clippy --workspace --all-targets --offline -- -D warnings：通过；cargo fmt --all --check：通过。
 - GOLDEN_AI_STRICT=1 的黄金决策测试：通过；标准 >=95% 默认门槛同时通过。
+- 本轮安装原版 ws 运行依赖后实际执行双向互通：JS 客户端驱动 Rust 服务端 11 项检查通过，Rust 客户端驱动原 JS 服务端通过（非环境缺失跳过）。
 - Windows 本机 MSVC + Windows SDK 原生 release 构建：通过。
 - 从实际便携目录运行并截图：home / table / table-flop / table-shortdeck / settlement / online / settings，以及 900x600 compact，均正常退出；截图见 screenshots/。
 - 原生音频探针：MP3 解码 44100Hz 双声道、可打开 48000Hz 双声道输出设备。没有将设备可打开等同于人工听音通过。
 
-Windows 原生发布包：dist/texas-holdem-rs-native-x64/texas-holdem-rs.exe，解压 zip 时保留同目录 assets。
+Windows 原生程序：dist/texas-holdem-rs-current/texas-holdem-rs.exe，保留同目录 assets。后续不生成 zip。
 本机复现构建：先运行 D:\Tools\VSBuildTools\Common7\Tools\VsDevCmd.bat -arch=x64 -host_arch=x64，再运行 cargo +1.95 build --release -p poker-app --offline。
 
 ## 仓库体积
 
-接手时已跟踪源码 crates 约 1.37MiB，字体/音乐资源约 22.68MiB，测试数据约 8.89MiB，文档约 3.34MiB。target、dist 不入 Git。新分支沿用验证过的核心，并不需要从零重写；只取当前分支可使用 --single-branch --branch rust-rewrite --depth 1。新工作分支尚未发布时，远端该命令取到的是旧基线。
+当前已跟踪文件约 40MiB。target、dist 不入 Git；本机约 9.3GiB 的大头是 target 编译缓存。克隆不含这些缓存，首次构建才重新生成。新分支沿用验证过的核心，并不需要从零重写；只取当前分支可使用 --single-branch --branch rust-rewrite --depth 1。
 
 ## 验收边界
 
@@ -43,8 +54,4 @@ Windows 原生发布包：dist/texas-holdem-rs-native-x64/texas-holdem-rs.exe，
 
 初始的 oracle/interop-rust-rust.sh 与 scripts/verify-all.sh 本地修改保留，本轮没有覆盖其内容。
 
-## 发布包校验
-
-- Windows x64 MSVC 主程序约 22.7MiB；zip 33,906,828 字节（约 32.3MiB）。
-- exe SHA256：2AE12AE9463689BC7C9E1E84B833FAE0F60C5EC3147B780BC5A5EEC450BEE01C。
-- 小窗口顶部工具栏使用悬浮显示；900x600 截图已用最终包复核。
+Windows x64 MSVC 主程序约 23MiB；最终下载文件的 SHA256 以同一 Actions 构建生成的 SHA256SUMS.txt 为准。本地不保留 zip。现有截图用于界面外观对照，确定性截图中的重复牌面不代表正常游戏发牌。

@@ -8,7 +8,7 @@
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
 
-use poker_core::{Card, XorShift32Rng};
+use poker_core::{Card, RuntimeRng};
 use poker_engine::{Game, GameConfig, LastAction, Player};
 use poker_protocol as proto;
 
@@ -188,7 +188,7 @@ pub(crate) struct Room {
     pub(crate) game: Option<Game>,
     pub(crate) state_version: i64,
     pub(crate) ready: BTreeSet<String>,
-    pub(crate) rng: XorShift32Rng,
+    pub(crate) rng: RuntimeRng,
     next_token: u64,
     pub(crate) ai_token: Option<u64>,
     pub(crate) next_hand_token: Option<u64>,
@@ -197,7 +197,7 @@ pub(crate) struct Room {
 
 impl Room {
     /// Creates a room from a sanitised protocol config.
-    pub(crate) fn new(code: String, config: proto::RoomConfig, rng_seed: u32) -> Self {
+    pub(crate) fn new(code: String, config: proto::RoomConfig, rng: RuntimeRng) -> Self {
         let engine_config = engine_config(&config);
         Self {
             code,
@@ -208,7 +208,7 @@ impl Room {
             game: None,
             state_version: 0,
             ready: BTreeSet::new(),
-            rng: XorShift32Rng::from_state(rng_seed),
+            rng,
             next_token: 0,
             ai_token: None,
             next_hand_token: None,

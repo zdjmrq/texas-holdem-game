@@ -17,7 +17,7 @@ pub enum Scenario {
     Settlement,
     /// Settings screen.
     Settings,
-    /// Online connection placeholder (embedded local server URL + controller state).
+    /// Native online connection screen.
     Online,
 }
 
@@ -144,7 +144,7 @@ OPTIONS:
     --screenshot <PATH>       Render frames, save a PNG and exit (screenshot mode)
     --screenshot-frame <N>    Frame index used for the screenshot (default: 60)
     --scenario <NAME>         Deterministic demo state: home | table | table-flop | table-shortdeck | settlement | settings
-    --seed <SEED>             Deck/AI seed for deterministic scenarios (default: poker-app-demo)
+    --seed <SEED>             Reproduce a deck/AI stream (normal play: system randomness; scenarios: poker-app-demo)
     --window-size <WxH>       Override the initial window size, e.g. 900x600
     --theme <THEME>           dark | light (overrides the persisted theme)
     --toolbar-pinned          Keep the small-window hover toolbar visible

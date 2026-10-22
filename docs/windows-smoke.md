@@ -14,18 +14,16 @@
 
 成功后会得到：
 
-    dist/texas-holdem-rs-windows-x64/          便携目录
-    dist/texas-holdem-rs-windows-x64.zip       发给别人用的 zip
-    dist/build-windows.log                     构建日志（失败时先看这个）
+    dist/texas-holdem-rs-current/              便携目录，不生成 zip
 
-如果构建失败，先看 scripts/README.md 的「常见问题」；仍然失败把 dist/build-windows.log 发回。
+如果构建失败，先看终端错误和 scripts/README.md 的「常见问题」。
 
 ### 0.2 运行
 
-    dist\\texas-holdem-rs-windows-x64\\poker-app.exe
+    dist\\texas-holdem-rs-current\\texas-holdem-rs.exe
 
 - 首次运行可能被 SmartScreen 拦截：更多信息 -> 仍要运行（未签名程序的正常现象）。
-- 低内存模式占位：run-low-memory.cmd（本轮只是传 --low-memory，功能 Phase 7 完善）。
+- 正常双击运行；--scenario 和 --seed 是可重复测试参数，不要用于普通游戏快捷方式。
 - 配置/存档位置：%APPDATA%\\texas-holdem-rs\\settings.json（问题反馈时请附带）。
 
 ### 0.3 取证方式
@@ -53,6 +51,8 @@
 | # | 步骤 | 期望 |
 | --- | --- | --- |
 | 1.1 | 双击 poker-app.exe | 窗口出现，标题为德州扑克 Rust 重制版，尺寸约 1280x860，无控制台窗口，窗口图标不是 egui 默认图标 |
+| 1.2a | 正常开始，记录手牌，返回主页重新开始，重复数次；退出程序再打开后重复 | 牌序不固定（偶尔同一副底牌可能自然重复），没有固定重放整副牌 |
+| 1.2b | 一手进行中按 N | 牌局不被清掉、不返回主页；结算后 N 才进入下一手 |
 | 1.2 | 观察主页 | 中文正常显示（无方块/乱码）；能看到标准德州/短牌、玩家人数、筹码、盲注、名字等设置 |
 | 1.3 | 点「设置」 | 设置页可进入、可返回，返回后主页状态不丢 |
 | 1.4 | 点「联机」（占位） | 显示「联机功能开发中」占位页，可返回，不崩溃 |

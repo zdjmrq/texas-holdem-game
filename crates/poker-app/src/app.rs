@@ -1,5 +1,5 @@
 //! Root application: screen routing, settings, audio, analysis, table session
-//! and the egui UI for every screen (home / table / settings / online placeholder).
+//! and the egui UI for every screen (home / table / settings / online).
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -63,7 +63,7 @@ pub struct PokerApp {
     settlement_focus_pending: bool,
     /// Request keyboard focus on the raise slider once it opens.
     raise_focus_pending: bool,
-    /// Online controller (Noop until src/online/** lands and is mounted).
+    /// Native online screens and their background network worker.
     online: OnlineClient,
     /// Embedded local poker server (Lead decision A).
     local_server: Option<LocalServerHandle>,
@@ -231,10 +231,15 @@ impl PokerApp {
     fn start_local_game(&mut self) {
         self.settings.player_name = crate::settings::sanitize_name(&self.settings.player_name);
         self.settings = self.settings.clone().sanitized();
-        let config = TableConfig::from_settings(&self.settings, "poker-app-session");
+        let config = TableConfig::from_settings(&self.settings, self.cli.seed.clone());
+        let ai_seed = self
+            .cli
+            .seed
+            .clone()
+            .unwrap_or_else(poker_core::RuntimeRng::fresh_seed);
         let human_name = self.settings.player_name.clone();
         let ai = ai_bridge::create_policy(
-            "poker-app-session",
+            &ai_seed,
             config.variant.is_short_deck(),
             config.starting_stack,
         );
@@ -779,15 +784,18 @@ impl PokerApp {
 
     fn next_hand_or_home(&mut self) {
         let Some(session) = &mut self.session else {
-            self.back_home();
             return;
         };
+        // N is a global table shortcut: ignore it while a hand is still live.
+        if session.last_settlement().is_none() {
+            return;
+        }
         if session.game_over().is_some() {
             self.back_home();
             return;
         }
         if !session.next_hand() {
-            self.back_home();
+            self.hint = Some("无法开始下一手，请检查牌桌状态".to_owned());
             return;
         }
         self.raise_panel.close();

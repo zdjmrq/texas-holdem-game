@@ -7,7 +7,7 @@
 
 use std::time::{Duration, Instant};
 
-use poker_core::{Card, EvaluatedHand, Variant, XorShift32Rng, evaluate};
+use poker_core::{Card, EvaluatedHand, RuntimeRng, Variant, evaluate};
 use poker_engine::{ActError, Action, Game, GameConfig, HandResult, LegalActions, Phase, Player};
 
 use crate::ai::{AiPolicy, AiView};
@@ -44,11 +44,12 @@ pub struct TableConfig {
     pub big_blind: u64,
     pub ante: u64,
     pub ai_delay: Duration,
-    pub seed: String,
+    /// None for normal play; Some only for an explicitly reproducible game.
+    pub seed: Option<String>,
 }
 
 impl TableConfig {
-    pub fn from_settings(settings: &Settings, seed: impl Into<String>) -> Self {
+    pub fn from_settings(settings: &Settings, seed: Option<String>) -> Self {
         Self {
             variant: settings.variant(),
             players: settings.players,
@@ -57,7 +58,7 @@ impl TableConfig {
             big_blind: settings.big_blind,
             ante: settings.ante,
             ai_delay: settings.ai_delay(),
-            seed: seed.into(),
+            seed,
         }
     }
 
@@ -65,7 +66,7 @@ impl TableConfig {
     pub fn fast(settings: &Settings, seed: impl Into<String>) -> Self {
         Self {
             ai_delay: Duration::ZERO,
-            ..Self::from_settings(settings, seed)
+            ..Self::from_settings(settings, Some(seed.into()))
         }
     }
 
@@ -115,7 +116,7 @@ impl Settlement {
 /// A playable local table.
 pub struct TableSession {
     game: Game,
-    rng: XorShift32Rng,
+    rng: RuntimeRng,
     human_seat: usize,
     ai: Box<dyn AiPolicy + Send>,
     ai_delay: Duration,
@@ -155,7 +156,7 @@ impl TableSession {
         let game = Game::new(config.game_config(), players);
         Self {
             game,
-            rng: XorShift32Rng::from_seed(&config.seed),
+            rng: RuntimeRng::from_optional_seed(config.seed.as_deref()),
             human_seat: 0,
             ai,
             ai_delay: config.ai_delay,
@@ -169,6 +170,9 @@ impl TableSession {
 
     /// Start the first hand. Returns false when the table cannot be dealt.
     pub fn start(&mut self) -> bool {
+        if self.game.hand_id() != 0 {
+            return false;
+        }
         self.start_next_hand(Instant::now())
     }
 
@@ -302,16 +306,18 @@ impl TableSession {
         } else {
             crate::ai::fallback_action(&self.game.legal_actions(actor))
         };
-        match poker_ai::host::act(&mut self.game, actor, action) {
-            Ok(event) => self.ai.observe(&event),
+        let (action, event) = match poker_ai::host::act(&mut self.game, actor, action) {
+            Ok(event) => (action, event),
             Err(_) => {
                 // Safety net: never let a policy error wedge the table.
                 let fallback = crate::ai::fallback_action(&self.game.legal_actions(actor));
-                if let Ok(event) = poker_ai::host::act(&mut self.game, actor, fallback) {
-                    self.ai.observe(&event);
+                match poker_ai::host::act(&mut self.game, actor, fallback) {
+                    Ok(event) => (fallback, event),
+                    Err(_) => return false,
                 }
             }
-        }
+        };
+        self.ai.observe(&event);
         self.push_event(format!(
             "{}：{}",
             self.game.players()[actor].name,
@@ -542,6 +548,7 @@ pub fn autoplay_hand(session: &mut TableSession) -> bool {
 mod tests {
     use super::*;
     use crate::ai::DeterministicAi;
+    use poker_engine::ActionType;
 
     fn fast_config(players: usize, variant: Variant) -> TableConfig {
         TableConfig {
@@ -552,7 +559,7 @@ mod tests {
             big_blind: 100,
             ante: 40,
             ai_delay: Duration::ZERO,
-            seed: "session-test".to_owned(),
+            seed: Some("session-test".to_owned()),
         }
     }
 
@@ -654,5 +661,51 @@ mod tests {
             }
             assert!(table.next_hand(), "hand {hand} should start the next one");
         }
+    }
+
+    #[test]
+    fn invalid_ai_raise_falls_back_and_logs_the_action_actually_applied() {
+        struct BadRaise;
+        impl AiPolicy for BadRaise {
+            fn name(&self) -> &str {
+                "invalid raise test"
+            }
+            fn decide(&mut self, _: &AiView<'_>) -> Action {
+                Action::Raise { to: 1 }
+            }
+        }
+        let config = fast_config(4, Variant::Standard);
+        let mut table = TableSession::new(&config, "Human", Box::new(BadRaise));
+        assert!(table.start());
+        for _ in 0..4 {
+            if !table.is_human_turn() {
+                break;
+            }
+            table
+                .human_act(crate::ai::fallback_action(&table.legal_actions()))
+                .unwrap();
+        }
+        assert!(!table.is_human_turn());
+        let actor = table.current_actor().unwrap();
+        assert!(
+            table
+                .game()
+                .legal_actions(actor)
+                .contains(ActionType::Raise)
+        );
+        let fallback = crate::ai::fallback_action(&table.game().legal_actions(actor));
+        assert!(table.advance_ai_immediately());
+        assert_eq!(
+            table.events().last().unwrap(),
+            &format!(
+                "{}：{}",
+                table.game().players()[actor].name,
+                action_label(&fallback, config.variant)
+            )
+        );
+        assert_eq!(
+            table.game().players().iter().map(|p| p.stack).sum::<u64>() + table.game().pot(),
+            8_000
+        );
     }
 }

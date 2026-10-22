@@ -20,7 +20,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use futures_util::{SinkExt, StreamExt};
-use poker_core::XorShift32Rng;
+use poker_core::{RandomSource, RuntimeRng};
 use poker_protocol as proto;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -109,7 +109,7 @@ struct ServerState {
     sessions: HashMap<String, SessionRef>,
     connections: HashMap<u64, ConnectionMeta>,
     next_conn_id: u64,
-    id_rng: XorShift32Rng,
+    id_rng: RuntimeRng,
     next_joined_seq: u64,
     shutdown: bool,
     metrics: Arc<ServerMetrics>,
@@ -117,20 +117,14 @@ struct ServerState {
 
 impl ServerState {
     fn new(options: ServerOptions) -> Self {
-        let seed = options.rng_seed.unwrap_or_else(|| {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|duration| duration.as_nanos() as u64)
-                .unwrap_or(0x9e37_79b9);
-            now ^ (u64::from(std::process::id()) << 32)
-        });
+        let id_rng = RuntimeRng::from_optional_state(options.rng_seed.map(|seed| seed as u32));
         Self {
             options,
             rooms: BTreeMap::new(),
             sessions: HashMap::new(),
             connections: HashMap::new(),
             next_conn_id: 1,
-            id_rng: XorShift32Rng::from_state(seed as u32),
+            id_rng,
             next_joined_seq: 1,
             shutdown: false,
             metrics: Arc::new(ServerMetrics::default()),
@@ -143,9 +137,10 @@ impl ServerState {
         id
     }
 
-    fn room_seed(&mut self) -> u32 {
-        use poker_core::RandomSource;
-        self.id_rng.next_u32()
+    fn room_rng(&mut self) -> RuntimeRng {
+        // Live decks must not share their stream with publicly observable IDs.
+        let seed = self.options.rng_seed.map(|_| self.id_rng.next_u32());
+        RuntimeRng::from_optional_state(seed)
     }
 }
 
@@ -909,9 +904,9 @@ impl ServerState {
         }
         if created {
             let config = options.sanitize(f64::from(self.options.ai_delay_ms));
-            let seed = self.room_seed();
+            let rng = self.room_rng();
             self.rooms
-                .insert(code.clone(), Room::new(code.clone(), config, seed));
+                .insert(code.clone(), Room::new(code.clone(), config, rng));
             ServerMetrics::inc(&self.metrics.rooms_created);
             info!(room_code = %code, "room created");
         }
@@ -1223,8 +1218,7 @@ fn is_valid_room_code(code: &str) -> bool {
     proto::ROOM_CODES.contains(&code)
 }
 
-fn generate_player_id(rng: &mut XorShift32Rng) -> String {
-    use poker_core::RandomSource;
+fn generate_player_id(rng: &mut impl RandomSource) -> String {
     let a = rng.next_u32();
     let b = rng.next_u32();
     let c = rng.next_u32();
@@ -1240,8 +1234,7 @@ fn generate_player_id(rng: &mut XorShift32Rng) -> String {
     )
 }
 
-fn generate_token(rng: &mut XorShift32Rng) -> String {
-    use poker_core::RandomSource;
+fn generate_token(rng: &mut impl RandomSource) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut token = String::with_capacity(24);
     for _ in 0..6 {
@@ -2339,6 +2332,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn live_servers_and_rooms_have_independent_random_streams() {
+        let mut a = ServerState::new(ServerOptions::default());
+        let mut b = ServerState::new(ServerOptions::default());
+        assert_ne!(generate_token(&mut a.id_rng), generate_token(&mut b.id_rng));
+        let mut room_a = a.room_rng();
+        let mut room_b = a.room_rng();
+        let first: Vec<_> = (0..16).map(|_| room_a.next_u32()).collect();
+        let second: Vec<_> = (0..16).map(|_| room_b.next_u32()).collect();
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn zero_seed_server_remains_reproducible_without_repeating_ids() {
+        let options = ServerOptions {
+            rng_seed: Some(0),
+            ..Default::default()
+        };
+        let mut a = ServerState::new(options.clone());
+        let mut b = ServerState::new(options);
+        let first = generate_player_id(&mut a.id_rng);
+        assert_eq!(first, generate_player_id(&mut b.id_rng));
+        let next = generate_player_id(&mut a.id_rng);
+        assert_ne!(first, next);
+        assert_eq!(next, generate_player_id(&mut b.id_rng));
+    }
+
+    #[test]
     fn origin_allowlist_matches_reference_semantics() {
         let allowed = vec!["https://cards.example".to_owned()];
         assert!(origin_allowed(None, &allowed));
@@ -2372,7 +2392,7 @@ mod tests {
 
     #[test]
     fn generated_tokens_and_player_ids_match_the_wire_shape() {
-        let mut rng = XorShift32Rng::from_state(0x1234_5678);
+        let mut rng = RuntimeRng::from_optional_state(Some(0x1234_5678));
         let token = generate_token(&mut rng);
         assert_eq!(token.len(), 24);
         assert!(

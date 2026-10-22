@@ -371,6 +371,9 @@ impl Game {
 
     /// Starts a hand with a freshly shuffled deck from the supplied RNG.
     pub fn start_hand<R: RandomSource + ?Sized>(&mut self, rng: &mut R) -> bool {
+        if self.phase != Phase::Idle {
+            return false;
+        }
         let eligible = self.eligible_seats();
         let dealer_override = if self.dealer_pos < 0 && eligible.len() >= 2 {
             let raw = (rng.next_f64() * eligible.len() as f64) as usize;
@@ -385,6 +388,9 @@ impl Game {
 
     /// Starts a hand from an explicit deck order (golden replay / deterministic tests).
     pub fn start_hand_with_deck(&mut self, deck: Deck, dealer_override: Option<usize>) -> bool {
+        if self.phase != Phase::Idle {
+            return false;
+        }
         let previous_bb = self.bb_idx;
         let previous_dealt_count = self.players_dealt_last_hand.len();
         let eligible = self.eligible_seats();

@@ -8,26 +8,35 @@ on:
 jobs:
   portable:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.95'
       - uses: Swatinem/rust-cache@v2
-      - name: Build release
-        run: cargo build --release -p poker-app
-      - name: Stage portable folder
+      - name: Build and stage native release
+        shell: pwsh
+        run: ./scripts/build-windows.ps1
+      - name: Verify executable and package release download
         shell: pwsh
         run: |
-          $dist = "dist/texas-holdem-rs-windows-x64"
-          New-Item -ItemType Directory -Force -Path $dist | Out-Null
-          Copy-Item "target/release/poker-app.exe" "$dist/texas-holdem-rs.exe"
-          Copy-Item -Recurse "assets" "$dist/assets"
-          Copy-Item "docs/windows-smoke.md" "$dist/WINDOWS-SMOKE.md"
-          Copy-Item "scripts/README.md" "$dist/BUILD-NOTES.md"
-          Copy-Item "README.md" "$dist/README.md"
+          $dist = "dist/texas-holdem-rs-current"
+          $exe = "$dist/texas-holdem-rs.exe"
+          $process = Start-Process -FilePath $exe -ArgumentList '--help' -PassThru -Wait -WindowStyle Hidden
+          if ($process.ExitCode -ne 0) { throw "Executable failed to start: $($process.ExitCode)" }
+          if (-not (Test-Path "$dist/assets/fonts/NotoSansSC-Regular.otf")) { throw 'Missing font' }
+          if ((Get-ChildItem "$dist/assets/music/*.mp3").Count -ne 4) { throw 'Missing music' }
+          "Commit: ${{ github.sha }}" | Set-Content "$dist/VERSION.txt" -Encoding ascii
           Compress-Archive -Path $dist -DestinationPath "dist/texas-holdem-rs-windows-x64.zip" -Force
-          Get-Item "dist/texas-holdem-rs-windows-x64.zip" | Select-Object Length
+          $exeHash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $zipHash = (Get-FileHash "dist/texas-holdem-rs-windows-x64.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          @("$zipHash  texas-holdem-rs-windows-x64.zip", "$exeHash  texas-holdem-rs-current/texas-holdem-rs.exe") | Set-Content "dist/SHA256SUMS.txt" -Encoding ascii
+          Get-Content "dist/SHA256SUMS.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: texas-holdem-rs-windows-x64
-          path: dist/texas-holdem-rs-windows-x64.zip
+          path: |
+            dist/texas-holdem-rs-windows-x64.zip
+            dist/SHA256SUMS.txt
           retention-days: 30

@@ -63,7 +63,10 @@ impl XorShift32Rng {
     /// Creates a generator from a raw state word.
     #[must_use]
     pub const fn from_state(state: u32) -> Self {
-        Self { state }
+        // Zero is an absorbing state: it would produce an unshuffled deck forever.
+        Self {
+            state: if state == 0 { 0x9e37_79b9 } else { state },
+        }
     }
 
     /// Current internal state.
@@ -83,6 +86,69 @@ impl RandomSource for XorShift32Rng {
 
     fn next_f64(&mut self) -> f64 {
         f64::from(self.next_u32()) / 4_294_967_296.0
+    }
+}
+
+/// Runtime randomness. Live games use an independently OS-seeded generator;
+/// explicitly seeded tests retain the reference JS stream.
+#[derive(Clone, Debug)]
+pub struct RuntimeRng {
+    source: RuntimeSource,
+}
+
+#[derive(Clone, Debug)]
+enum RuntimeSource {
+    Reference(XorShift32Rng),
+    Live(Box<rand::rngs::StdRng>),
+}
+
+impl RuntimeRng {
+    /// Select OS randomness for normal play or the JS stream for a supplied seed.
+    #[must_use]
+    pub fn from_optional_seed(seed: Option<&str>) -> Self {
+        Self {
+            source: match seed {
+                Some(seed) => RuntimeSource::Reference(XorShift32Rng::from_seed(seed)),
+                None => RuntimeSource::Live(Box::new(rand::rngs::StdRng::from_os_rng())),
+            },
+        }
+    }
+
+    /// Select OS randomness or an explicit legacy state for server replay tests.
+    #[must_use]
+    pub fn from_optional_state(seed: Option<u32>) -> Self {
+        match seed {
+            Some(seed) => Self {
+                source: RuntimeSource::Reference(XorShift32Rng::from_state(seed)),
+            },
+            None => Self::from_optional_seed(None),
+        }
+    }
+
+    /// Fresh independent seed for AI sampling; never persisted in user settings.
+    #[must_use]
+    pub fn fresh_seed() -> String {
+        let bytes: [u8; 32] = rand::random();
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+}
+
+impl RandomSource for RuntimeRng {
+    fn next_u32(&mut self) -> u32 {
+        match &mut self.source {
+            RuntimeSource::Reference(rng) => rng.next_u32(),
+            RuntimeSource::Live(rng) => rng.next_u32(),
+        }
+    }
+
+    fn next_f64(&mut self) -> f64 {
+        match &mut self.source {
+            RuntimeSource::Reference(rng) => rng.next_f64(),
+            RuntimeSource::Live(rng) => {
+                let bits = rng.next_u64() >> 11;
+                bits as f64 * (1.0 / ((1u64 << 53) as f64))
+            }
+        }
     }
 }
 
@@ -125,6 +191,28 @@ impl RandomSource for ChaChaAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn zero_state_does_not_freeze_the_generator() {
+        let mut rng = XorShift32Rng::from_state(0);
+        let samples: Vec<_> = (0..100).map(|_| rng.next_u32()).collect();
+        assert!(samples.iter().all(|sample| *sample != 0));
+        assert_ne!(samples[0], samples[1]);
+    }
+
+    #[test]
+    fn runtime_rng_only_repeats_when_explicitly_seeded() {
+        let mut first = RuntimeRng::from_optional_seed(None);
+        let mut second = RuntimeRng::from_optional_seed(None);
+        let a: Vec<_> = (0..16).map(|_| first.next_u32()).collect();
+        let b: Vec<_> = (0..16).map(|_| second.next_u32()).collect();
+        assert_ne!(a, b);
+        let mut seeded = RuntimeRng::from_optional_seed(Some("golden-seed"));
+        let mut reference = XorShift32Rng::from_seed("golden-seed");
+        for _ in 0..100 {
+            assert_eq!(seeded.next_f64(), reference.next_f64());
+        }
+    }
 
     #[test]
     fn js_hash_seed_matches_known_values() {

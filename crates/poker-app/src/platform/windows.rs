@@ -129,7 +129,7 @@ impl PlatformShell {
 /// Red-tinted variant of the tray icon, used while a "your turn" reminder flashes.
 fn tint_red(rgba: &[u8]) -> Vec<u8> {
     let mut pixels = rgba.to_vec();
-    for chunk in pixels.chunks_exact_mut(4) {
+    for chunk in pixels.as_chunks_mut::<4>().0 {
         chunk[0] = chunk[0].saturating_add(96);
         chunk[1] /= 3;
         chunk[2] /= 3;

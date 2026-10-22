@@ -25,5 +25,5 @@ pub use card::{Card, Rank, Suit};
 pub use deck::Deck;
 pub use error::{CardParseError, DeckError};
 pub use eval::{EvaluatedHand, HandCategory, MAX_EVALUATED_CARDS, evaluate};
-pub use rng::{ChaChaAdapter, RandomSource, XorShift32Rng, hash_seed};
+pub use rng::{ChaChaAdapter, RandomSource, RuntimeRng, XorShift32Rng, hash_seed};
 pub use variant::Variant;
