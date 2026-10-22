@@ -144,7 +144,7 @@ pub fn find_uncalled_refund(round_bets: &[u64]) -> Option<UncalledRefund> {
     }
     let mut entries: Vec<(usize, u64)> = round_bets.iter().copied().enumerate().collect();
     // Descending stable sort by amount, matching JS Array.sort stability.
-    entries.sort_by(|left, right| right.1.cmp(&left.1));
+    entries.sort_by_key(|entry| std::cmp::Reverse(entry.1));
     let top = entries[0];
     let second = entries.get(1).map_or(0, |entry| entry.1);
     if top.1 == second {
