@@ -124,6 +124,15 @@ impl OnlineView {
         self.server_url = Some(url);
     }
 
+    /// A new transport must not render or act on snapshots from the old server.
+    pub fn prepare_connection(&mut self, url: String, session: Option<SessionCredentials>) {
+        let local = self.local_server_url.clone();
+        *self = Self::new(Some(url.clone()));
+        self.local_server_url = local;
+        self.session = session.filter(|s| s.server_url == url);
+        self.status = ConnStatus::Connecting;
+    }
+
     /// Current server URL, if known.
     pub fn server_url(&self) -> Option<&str> {
         self.server_url.as_deref()
@@ -245,7 +254,10 @@ impl OnlineView {
                 self.status_line = text::connect_error(&error);
             }
             WorkerEvent::CommandSent(receipt) => self.begin_command(receipt, now),
-            WorkerEvent::CommandFailed { message, .. } => {
+            WorkerEvent::CommandFailed { kind, message } => {
+                if self.pending.as_ref().is_some_and(|p| p.kind == kind) {
+                    self.pending = None;
+                }
                 self.error_line = Some(message);
             }
             WorkerEvent::WorkerClosed => {
@@ -468,6 +480,13 @@ impl OnlineView {
     }
 
     fn apply_error(&mut self, error: poker_protocol::ErrorMessage) {
+        if error.request_id.as_ref().is_some_and(|id| {
+            self.pending
+                .as_ref()
+                .is_some_and(|p| p.request_id == mapping::request_id_key(id))
+        }) {
+            self.pending = None;
+        }
         match error.code {
             ErrorCode::ResumeExpired => {
                 self.session = None;
@@ -497,6 +516,20 @@ impl OnlineView {
             expected_state_version: receipt.expected_state_version,
             sent_at: now,
         });
+    }
+
+    /// Reserve immediately on the GUI thread, before the worker writes the socket.
+    pub fn reserve_command(&mut self, kind: PendingKind, now: Instant) {
+        self.begin_command(
+            CommandReceipt {
+                request_id: String::new(),
+                kind,
+                hand_id: self.hand_id(),
+                turn_id: self.turn_id(),
+                expected_state_version: self.last_state_version,
+            },
+            now,
+        );
     }
 
     fn clear_room(&mut self) {

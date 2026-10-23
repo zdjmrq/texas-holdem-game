@@ -30,7 +30,7 @@ use tracing::{debug, info, warn};
 use crate::ai::AiView;
 use crate::metrics::{ServerMetrics, ServerMetricsSnapshot};
 use crate::options::ServerOptions;
-use crate::room::{Room, Seat, request_key};
+use crate::room::{BrainEvent, Room, Seat, request_key};
 use crate::wire;
 
 /// Text of the "already in a room" join error.
@@ -1739,6 +1739,28 @@ impl ServerState {
             if !seat.dealt_in || seat.folded || seat.is_all_in {
                 return false;
             }
+            let (position, count) = game.hand_position_info(seat_index);
+            let event = poker_ai::input::ObservedAction {
+                seat_id: seat_index,
+                action: "fold".into(),
+                street: poker_ai::input::Street::from_name(game.phase().as_str())
+                    .unwrap_or(poker_ai::input::Street::Preflop),
+                hand_id: game.hand_id(),
+                meta: poker_ai::input::ObservedActionMeta {
+                    to_call_before: game
+                        .current_bet()
+                        .saturating_sub(seat.round_bet)
+                        .min(seat.stack) as f64,
+                    current_bet_before: game.current_bet() as f64,
+                    pot_before: game.pot() as f64,
+                    pot_after: game.pot() as f64,
+                    minimum_bet: game.minimum_bet() as f64,
+                    position_from_button: Some(position as i32),
+                    player_count: Some(count as usize),
+                    community_cards: game.community_cards().to_vec(),
+                    ..Default::default()
+                },
+            };
             let player_id = seat.id.clone();
             room.seats[seat_index].folded = true;
             room.seats[seat_index].last_action = Some(poker_engine::LastAction {
@@ -1767,6 +1789,7 @@ impl ServerState {
             if in_hand <= 1 || current == i32::try_from(seat_index).unwrap_or(-1) {
                 game.advance_after_action();
             }
+            broadcast_evidence(room, event);
         }
         self.after_game_change(shared, code);
         true
@@ -2041,10 +2064,10 @@ impl ServerState {
         shared: &SharedState,
         code: &str,
         player_id: &str,
-        seat_index: usize,
+        _seat_index: usize,
         token: u64,
     ) {
-        {
+        let seat_index = {
             let ServerState {
                 rooms, sessions, ..
             } = self;
@@ -2054,9 +2077,9 @@ impl ServerState {
             let Some(current_index) = room.seat_index(player_id) else {
                 return;
             };
-            if current_index != seat_index {
-                return;
-            }
+            // Lobby departures compact the vector; only the player identity
+            // and generation token remain stable during the grace window.
+            let seat_index = current_index;
             let seat = &room.seats[seat_index];
             if seat.disconnect_token != Some(token) || seat.connected || seat.left {
                 return;
@@ -2068,8 +2091,16 @@ impl ServerState {
             if !resume_token.is_empty() {
                 sessions.remove(&resume_token);
             }
+            if room.game.is_none() {
+                room.seats.remove(seat_index);
+                None
+            } else {
+                Some(seat_index)
+            }
+        };
+        if let Some(seat_index) = seat_index {
+            self.fold_disconnected(shared, code, seat_index);
         }
-        self.fold_disconnected(shared, code, seat_index);
         self.migrate_host(shared, code, false);
         {
             let ServerState {
@@ -2195,17 +2226,27 @@ async fn run_ai_turn(shared: SharedState, code: String, token: u64) {
         };
         let hand_id = game.hand_id();
         let turn_id = game.turn_id();
-        (seat_index, brain, view, hand_id, turn_id)
+        (
+            seat_index,
+            brain,
+            view,
+            hand_id,
+            turn_id,
+            room.state_version,
+        )
     };
-    let (seat_index, brain, view, hand_id, turn_id) = prepared;
+    let (seat_index, brain, view, hand_id, turn_id, state_version) = prepared;
     let decision_started = Instant::now();
     let outcome = tokio::task::spawn_blocking(move || {
         let mut brain = brain;
-        let decision = brain.decide(&view);
+        // A strategy failure must not remove the brain and strand the room.
+        let decision =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| brain.decide(&view)))
+                .unwrap_or(None);
         (brain, decision)
     })
     .await;
-    let Ok((brain, decision)) = outcome else {
+    let Ok((mut brain, decision)) = outcome else {
         return;
     };
     let mut guard = lock(&shared);
@@ -2223,15 +2264,22 @@ async fn run_ai_turn(shared: SharedState, code: String, token: u64) {
         if seat.ai.is_some() {
             return;
         }
+        for event in seat.pending_evidence.drain(..) {
+            event.deliver(brain.as_mut());
+        }
         seat.ai = Some(brain);
         let Some(game) = room.game.as_mut() else {
             return;
         };
-        if game.hand_id() != hand_id
+        if room.state_version != state_version
+            || game.hand_id() != hand_id
             || game.turn_id() != turn_id
             || game.current_player_idx() != i32::try_from(seat_index).unwrap_or(-1)
             || game.phase() == poker_engine::Phase::Idle
         {
+            // Another timer may have found this brain temporarily absent.
+            // Reschedule the current actor after discarding the stale result.
+            guard.after_game_change(&shared, &code);
             return;
         }
         let action = decision
@@ -2311,25 +2359,223 @@ fn apply_observed_action(
 ) -> Result<(), poker_engine::ActError> {
     let game = room.game.as_mut().expect("active game");
     let event = poker_ai::host::act(game, seat, action)?;
+    broadcast_evidence(room, event);
+    Ok(())
+}
+
+fn broadcast_evidence(room: &mut Room, event: poker_ai::input::ObservedAction) {
+    let game = room.game.as_ref().expect("active game");
     let revealed = if game.phase() == poker_engine::Phase::Idle {
         poker_ai::host::showdown(game)
     } else {
         Vec::new()
     };
     for seat in &mut room.seats {
+        if seat.is_human {
+            continue;
+        }
         if let Some(brain) = &mut seat.ai {
             brain.observe(&event);
             for (seat, result) in &revealed {
                 brain.showdown(*seat, result);
             }
+        } else {
+            seat.pending_evidence
+                .push(BrainEvent::Action(Box::new(event.clone())));
+            for (index, result) in &revealed {
+                seat.pending_evidence
+                    .push(BrainEvent::Showdown(*index, *result));
+            }
         }
     }
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn lobby_disconnect_expiry_survives_an_earlier_seat_leaving() {
+        let shared = Arc::new(Mutex::new(ServerState::new(ServerOptions::default())));
+        let mut state = lock(&shared);
+        let config = proto::RoomOptionsInput::default().sanitize(0.0);
+        let mut room = Room::new("1".into(), config, RuntimeRng::from_optional_state(Some(1)));
+        for index in 0..3 {
+            room.insert_seat(Seat::human(
+                format!("p{index}"),
+                index,
+                format!("P{index}"),
+                20000,
+                format!("token{index}"),
+                index as u64,
+                index as u64,
+            ));
+        }
+        room.host_id = Some("p0".into());
+        room.seats[1].connected = false;
+        room.seats[1].disconnect_token = Some(7);
+        room.seats.remove(0);
+        state.rooms.insert("1".into(), room);
+        state.sessions.insert(
+            "token1".into(),
+            SessionRef {
+                room_code: "1".into(),
+                player_id: "p1".into(),
+            },
+        );
+        state.on_disconnect_deadline(&shared, "1", "p1", 1, 7);
+        let room = state.rooms.get("1").unwrap();
+        assert_eq!(room.seats.len(), 1);
+        assert_eq!(room.seats[0].id, "p2");
+        assert_eq!(room.host_id.as_deref(), Some("p2"));
+        assert_eq!(room.free_seat_id(), Some(0));
+        assert!(!state.sessions.contains_key("token1"));
+    }
+
+    struct PanickingBrain;
+    impl crate::ai::ServerAi for PanickingBrain {
+        fn decide(&mut self, _: &AiView) -> Option<crate::ai::AiDecision> {
+            panic!("deliberate strategy failure");
+        }
+    }
+
+    struct RecordingBrain(Arc<Mutex<Vec<poker_ai::input::ObservedAction>>>);
+    impl crate::ai::ServerAi for RecordingBrain {
+        fn decide(&mut self, _: &AiView) -> Option<crate::ai::AiDecision> {
+            None
+        }
+        fn observe(&mut self, event: &poker_ai::input::ObservedAction) {
+            self.0.lock().unwrap().push(event.clone());
+        }
+    }
+
+    struct GatedBrain {
+        started: Option<tokio::sync::oneshot::Sender<()>>,
+        release: std::sync::mpsc::Receiver<()>,
+    }
+    impl crate::ai::ServerAi for GatedBrain {
+        fn decide(&mut self, _: &AiView) -> Option<crate::ai::AiDecision> {
+            self.started.take().unwrap().send(()).unwrap();
+            self.release.recv_timeout(Duration::from_secs(5)).unwrap();
+            Some(crate::ai::AiDecision::new(poker_engine::Action::Fold))
+        }
+    }
+
+    #[tokio::test]
+    async fn ai_revalidates_state_changes_even_when_the_turn_has_not_changed() {
+        let shared = Arc::new(Mutex::new(ServerState::new(ServerOptions::default())));
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let actor;
+        let turn;
+        {
+            let mut state = lock(&shared);
+            let config = proto::RoomOptionsInput::default().sanitize(10000.0);
+            let mut room = Room::new("1".into(), config, RuntimeRng::from_optional_state(Some(1)));
+            for index in 0..2 {
+                room.seats
+                    .push(Seat::ai(index, 20000, state.options.ai_factory.as_ref()));
+            }
+            let mut game = poker_engine::Game::new(
+                room.engine_config.clone(),
+                room.seats.iter().map(Seat::to_engine_player).collect(),
+            );
+            assert!(game.start_hand(&mut room.rng));
+            actor = game.current_player_idx() as usize;
+            turn = game.turn_id();
+            room.game = Some(game);
+            room.sync_from_game();
+            room.seats[actor].ai = Some(Box::new(GatedBrain {
+                started: Some(started_tx),
+                release: release_rx,
+            }));
+            room.ai_token = Some(1);
+            state.rooms.insert("1".into(), room);
+        }
+        let task = tokio::spawn(run_ai_turn(shared.clone(), "1".into(), 1));
+        started_rx.await.unwrap();
+        // Disconnect/resume and out-of-turn departures change public state
+        // without necessarily moving the actor or incrementing engine turn_id.
+        lock(&shared).rooms.get_mut("1").unwrap().state_version += 1;
+        release_tx.send(()).unwrap();
+        task.await.unwrap();
+        let state = lock(&shared);
+        let room = &state.rooms["1"];
+        assert_eq!(room.game.as_ref().unwrap().turn_id(), turn);
+        assert_ne!(
+            room.game.as_ref().unwrap().phase(),
+            poker_engine::Phase::Idle
+        );
+        assert!(room.seats[actor].ai.is_some());
+        assert!(room.ai_token.is_some(), "current actor must be rescheduled");
+    }
+
+    #[test]
+    fn evidence_waits_for_the_in_flight_brain_without_leaking_cards() {
+        let state = ServerState::new(ServerOptions::default());
+        let config = proto::RoomOptionsInput::default().sanitize(0.0);
+        let mut room = Room::new("1".into(), config, RuntimeRng::from_optional_state(Some(1)));
+        for index in 0..2 {
+            room.seats
+                .push(Seat::ai(index, 20000, state.options.ai_factory.as_ref()));
+        }
+        let recorded = Arc::new(Mutex::new(Vec::new()));
+        room.seats[0].ai = Some(Box::new(RecordingBrain(recorded.clone())));
+        let mut brain = room.seats[0].ai.take().unwrap();
+        let mut game = poker_engine::Game::new(
+            room.engine_config.clone(),
+            room.seats.iter().map(Seat::to_engine_player).collect(),
+        );
+        assert!(game.start_hand(&mut room.rng));
+        let actor = game.current_player_idx() as usize;
+        room.game = Some(game);
+        room.sync_from_game();
+        apply_observed_action(&mut room, actor, poker_engine::Action::Call).unwrap();
+        assert!(recorded.lock().unwrap().is_empty());
+        assert_eq!(room.seats[0].pending_evidence.len(), 1);
+        for event in room.seats[0].pending_evidence.drain(..) {
+            event.deliver(brain.as_mut());
+        }
+        let events = recorded.lock().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].seat_id, actor);
+        assert_eq!(events[0].action, "call");
+        assert!(events[0].meta.community_cards.is_empty());
+    }
+
+    #[tokio::test]
+    async fn strategy_panic_falls_back_without_stranding_actor() {
+        let shared = Arc::new(Mutex::new(ServerState::new(ServerOptions::default())));
+        let actor;
+        let turn;
+        {
+            let mut state = lock(&shared);
+            let config = proto::RoomOptionsInput::default().sanitize(10000.0);
+            let mut room = Room::new("1".into(), config, RuntimeRng::from_optional_state(Some(1)));
+            for index in 0..2 {
+                let mut seat = Seat::ai(index, 20000, state.options.ai_factory.as_ref());
+                seat.ai = Some(Box::new(PanickingBrain));
+                room.seats.push(seat);
+            }
+            let mut game = poker_engine::Game::new(
+                room.engine_config.clone(),
+                room.seats.iter().map(Seat::to_engine_player).collect(),
+            );
+            assert!(game.start_hand(&mut room.rng));
+            actor = game.current_player_idx() as usize;
+            turn = game.turn_id();
+            room.game = Some(game);
+            room.sync_from_game();
+            room.ai_token = Some(1);
+            state.rooms.insert("1".into(), room);
+        }
+        run_ai_turn(shared.clone(), "1".into(), 1).await;
+        let state = lock(&shared);
+        let room = &state.rooms["1"];
+        assert!(room.seats[actor].ai.is_some());
+        assert!(room.game.as_ref().unwrap().turn_id() > turn);
+        assert_eq!(state.metrics.snapshot().ai_decisions, 1);
+    }
 
     #[test]
     fn live_servers_and_rooms_have_independent_random_streams() {

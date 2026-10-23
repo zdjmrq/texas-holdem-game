@@ -20,6 +20,8 @@ pub enum ProbError {
     },
     /// A card appears more than once across the hole and community cards.
     DuplicateKnownCard,
+    /// A supplied card is absent from the selected variant's deck.
+    CardOutsideVariant,
     /// The remaining deck cannot cover the board runout plus every opponent.
     TooManyOpponents {
         /// Number of opponents after clamping to the variant maximum.
@@ -49,6 +51,9 @@ impl fmt::Display for ProbError {
                 )
             }
             ProbError::DuplicateKnownCard => write!(f, "Duplicate known card"),
+            ProbError::CardOutsideVariant => {
+                write!(f, "Known card is absent from the variant deck")
+            }
             ProbError::TooManyOpponents {
                 opponents,
                 remaining,

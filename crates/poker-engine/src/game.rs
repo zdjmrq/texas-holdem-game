@@ -39,6 +39,7 @@ pub struct Game {
     last_aggressor: i32,
     last_aggressor_street: Option<Phase>,
     flop_had_aggression: bool,
+    flop_cbet_resolved: bool,
     hand_id: u64,
     turn_id: u64,
     actions_this_round: u32,
@@ -76,6 +77,7 @@ impl Game {
             last_aggressor: -1,
             last_aggressor_street: None,
             flop_had_aggression: false,
+            flop_cbet_resolved: false,
             hand_id: 0,
             turn_id: 0,
             actions_this_round: 0,
@@ -395,6 +397,15 @@ impl Game {
         let previous_dealt_count = self.players_dealt_last_hand.len();
         let eligible = self.eligible_seats();
 
+        // Validate explicit replay inputs before changing any table state. A
+        // full runout needs five board cards and three burns after the deal.
+        if deck.len() < eligible.len() * 2 + 8
+            || (self.is_short_deck() && deck.cards().iter().any(|card| card.rank_value() < 6))
+            || dealer_override.is_some_and(|seat| !eligible.contains(&seat))
+        {
+            return false;
+        }
+
         self.community_cards.clear();
         self.pot = 0;
         self.current_bet = 0;
@@ -428,6 +439,7 @@ impl Game {
         self.last_aggressor = -1;
         self.last_aggressor_street = None;
         self.flop_had_aggression = false;
+        self.flop_cbet_resolved = false;
         self.last_raise = self.minimum_bet();
         self.has_full_bet_this_round = false;
         self.sb_idx = -1;
@@ -672,6 +684,8 @@ impl Game {
         let pot_before = self.pot;
         let current_bet_before = self.current_bet;
         let preflop_raise_count_before = self.preflop_raise_count;
+        let last_aggressor_before = self.last_aggressor;
+        let last_aggressor_street_before = self.last_aggressor_street;
 
         match action {
             Action::Fold => {
@@ -763,6 +777,13 @@ impl Game {
                 self.flop_had_aggression = true;
             }
         }
+        let is_cbet_opportunity = self.phase == Phase::Flop
+            && seat as i32 == self.preflop_aggressor
+            && !self.flop_cbet_resolved
+            && current_bet_before == 0;
+        if self.phase == Phase::Flop && seat as i32 == self.preflop_aggressor {
+            self.flop_cbet_resolved = true;
+        }
         let additional_paid = self.players[seat].last_action.map_or(0, |last| last.amount);
         let raise_to = self.round_bets[seat];
         let meta = rules::build_action_meta(ActionMetaInput {
@@ -774,11 +795,15 @@ impl Game {
             pot_after: self.pot,
             minimum_bet: self.minimum_bet(),
             aggressive,
+            is_cbet_opportunity,
+            faced_cbet: self.phase == Phase::Flop
+                && to_call > 0
+                && last_aggressor_before == self.preflop_aggressor
+                && last_aggressor_street_before == Some(Phase::Flop),
             faced_3bet: self.phase == Phase::Preflop
                 && to_call > 0
                 && preflop_raise_count_before >= 2,
             preflop_raise_count_before,
-            ..ActionMetaInput::default()
         });
         self.actions_this_round += 1;
         self.last_action_meta = Some(meta);
@@ -851,6 +876,9 @@ impl Game {
     /// Advances after an action: finish the hand, close the street or move the
     /// action to the next seat.
     pub fn advance_after_action(&mut self) {
+        if self.phase == Phase::Idle {
+            return;
+        }
         let in_hand = self.in_hand();
         if in_hand.len() <= 1 {
             self.finish_by_fold(in_hand.first().copied());
@@ -887,6 +915,9 @@ impl Game {
 
     /// Deals the next street and resets per-round state.
     pub fn advance_street(&mut self) {
+        if matches!(self.phase, Phase::Idle | Phase::Showdown) {
+            return;
+        }
         self.reset_round_state();
         for player in &mut self.players {
             player.round_bet = 0;
@@ -943,6 +974,11 @@ impl Game {
 
     /// Runs the showdown and settles the pot.
     pub fn showdown(&mut self) {
+        // Settlement may be triggered again by a delayed room event. Previous
+        // contributions remain available for display, but must never pay twice.
+        if self.phase == Phase::Idle {
+            return;
+        }
         let live = self.in_hand();
         if live.len() <= 1 {
             self.finish_by_fold(live.first().copied());
@@ -1109,6 +1145,7 @@ impl Game {
         self.last_aggressor = -1;
         self.last_aggressor_street = None;
         self.flop_had_aggression = false;
+        self.flop_cbet_resolved = false;
         self.actions_this_round = 0;
         self.last_hand_result = None;
         self.players_dealt_last_hand.clear();

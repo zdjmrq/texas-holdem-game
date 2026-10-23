@@ -308,10 +308,12 @@ pub fn action_bar(
             format_bb(stack_of_human(snapshot), snapshot.big_blind)
         ));
         ui.separator();
-        ui.label(match snapshot.hand_name {
-            Some(name) => format!("当前牌型：{name}"),
-            None => "当前牌型：-".to_owned(),
-        });
+        ui.label(
+            match crate::table_ctrl::visible_hand_name(snapshot.hide_cards, snapshot.hand_name) {
+                Some(name) => format!("当前牌型：{name}"),
+                None => "当前牌型：-".to_owned(),
+            },
+        );
         ui.separator();
         ui.label(snapshot.event_line.as_str());
     });
@@ -659,7 +661,10 @@ pub fn settlement_modal(
     let modal_id = Id::unique("settlement-modal");
     // ui.md 3.9: the dialog is draggable and resets to the centre on reopen.
     let screen = ctx.content_rect();
-    let max_offset = egui::vec2(screen.width() * 0.5 - 160.0, screen.height() * 0.5 - 120.0);
+    let max_offset = egui::vec2(
+        (screen.width() * 0.5 - 160.0).max(0.0),
+        (screen.height() * 0.5 - 120.0).max(0.0),
+    );
     *offset = egui::vec2(
         offset.x.clamp(-max_offset.x, max_offset.x),
         offset.y.clamp(-max_offset.y, max_offset.y),

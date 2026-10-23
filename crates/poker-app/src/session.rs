@@ -180,6 +180,13 @@ impl TableSession {
         &self.game
     }
 
+    pub fn set_ai_delay(&mut self, delay: Duration) {
+        self.ai_delay = delay;
+        if self.next_ai_at.is_some() {
+            self.next_ai_at = Some(Instant::now() + delay);
+        }
+    }
+
     pub fn human_seat(&self) -> usize {
         self.human_seat
     }

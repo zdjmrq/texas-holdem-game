@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Build one native Windows portable directory. No zip archives are generated.
 .PARAMETER SkipBuild
@@ -86,6 +86,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $RepoRoot 'assets') -Destination (Join-Path $StageDir 'assets') -Recurse
     Copy-Item -LiteralPath (Join-Path $RepoRoot 'docs\windows-smoke.md') -Destination (Join-Path $StageDir 'WINDOWS-SMOKE.md')
     Copy-Item -LiteralPath (Join-Path $RepoRoot 'docs\RESTORATION_REPORT.md') -Destination (Join-Path $StageDir 'RESTORATION_REPORT.md')
+    Copy-Item -LiteralPath (Join-Path $RepoRoot 'docs\STABLE_AUDIT.md') -Destination (Join-Path $StageDir 'STABLE_AUDIT.md')
     @'
 德州扑克 Rust 重制版 - Windows x64
 

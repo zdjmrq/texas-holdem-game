@@ -17,12 +17,15 @@ use std::time::Instant;
 pub struct OnlineClient {
     pub view: OnlineView,
     worker: Worker,
+    ctx: egui::Context,
     pub url: String,
     room_code: String,
     raise: RaisePanel,
     analysis: crate::analysis::AnalysisService,
     hidden: Option<bool>,
+    raise_decision: Option<(i64, i64)>,
 }
+
 impl OnlineClient {
     pub fn new(ctx: egui::Context) -> Self {
         let session = super::session_store::load();
@@ -33,12 +36,14 @@ impl OnlineClient {
         view.session = session;
         Self {
             view,
-            worker: Worker::new(ctx),
+            worker: Worker::new(ctx.clone()),
+            ctx,
             url,
             room_code: "1".into(),
             raise: RaisePanel::default(),
             analysis: crate::analysis::AnalysisService::new(),
             hidden: None,
+            raise_decision: None,
         }
     }
     pub fn set_server_url(&mut self, url: String) {
@@ -46,10 +51,45 @@ impl OnlineClient {
             self.url = url.clone();
         }
         self.view.local_server_url = Some(url.clone());
-        self.view.set_server_url(url);
+        if self.view.session.is_none() && !self.view.status.is_connected() {
+            self.view.set_server_url(url);
+        }
     }
     pub fn shutdown(&mut self) {
         self.worker.send(OnlineCommand::Shutdown);
+    }
+    fn renew_transport(&mut self) {
+        // Dropping the old receiver isolates queued AND later events from that
+        // connection. Drop also requests an orderly shutdown of its worker.
+        self.worker = Worker::new(self.ctx.clone());
+    }
+
+    fn prepare_connection(
+        &mut self,
+        url: String,
+        session: Option<poker_client::SessionCredentials>,
+    ) {
+        self.renew_transport();
+        self.view.prepare_connection(url, session);
+        self.raise.close();
+        self.raise_decision = None;
+    }
+    pub fn set_low_memory(&mut self) {
+        self.analysis.set_cache_limit(4);
+    }
+
+    fn sync_raise(&mut self) {
+        let decision = (self.view.hand_id(), self.view.turn_id());
+        if !self.view.can_act() || self.raise_decision != Some(decision) {
+            self.raise.close();
+        }
+        self.raise_decision = Some(decision);
+        if self.raise.open
+            && let Some(g) = &self.view.game
+        {
+            self.raise
+                .set_bounds(&mapping::legal_from_wire(&g.legal_actions, &g.room_config));
+        }
     }
     pub fn poll(&mut self) -> Vec<OnlineEffect> {
         let mut effects = Vec::new();
@@ -77,14 +117,52 @@ impl OnlineClient {
             self.view.pending = None;
             self.view.error_line = Some("请求超时，请重试或重新连接".into());
         }
+        self.sync_raise();
         effects
     }
-    pub fn send(&mut self, cmd: OnlineCommand) {
+    pub fn send(&mut self, mut cmd: OnlineCommand) {
+        if matches!(cmd, OnlineCommand::LeaveRoom { .. }) {
+            // Finish leave on the old socket, but never consume its queued room
+            // snapshots again. A fresh anonymous connection returns to the lobby.
+            self.worker.send(cmd);
+            self.prepare_connection(self.url.clone(), None);
+            super::session_store::save(None);
+            self.worker.send(OnlineCommand::Connect {
+                url: self.url.clone(),
+                session: None,
+            });
+            return;
+        }
+        if let OnlineCommand::Connect { url, session } = &mut cmd {
+            self.prepare_connection(url.clone(), session.take());
+            *session = self.view.session.clone();
+            self.raise.close();
+            self.raise_decision = None;
+            super::session_store::save(session.as_ref());
+        }
+        let kind = match &cmd {
+            OnlineCommand::CreateRoom { .. } | OnlineCommand::JoinRoom { .. } => {
+                Some(super::events::PendingKind::CreateOrJoin)
+            }
+            OnlineCommand::StartGame { .. } => Some(super::events::PendingKind::StartGame),
+            OnlineCommand::Action(_) => Some(super::events::PendingKind::Action),
+            OnlineCommand::ReadyNext { .. } => Some(super::events::PendingKind::ReadyNext),
+            _ => None,
+        };
+        if let Some(kind) = kind {
+            if self.view.pending.is_some() {
+                return;
+            }
+            self.view.reserve_command(kind, Instant::now());
+        }
         self.view.error_line = None;
         if matches!(
             cmd,
             OnlineCommand::LeaveRoom { .. } | OnlineCommand::Disconnect
         ) {
+            if matches!(cmd, OnlineCommand::Disconnect) {
+                self.renew_transport();
+            }
             let local = self.view.local_server_url.clone();
             let status = self.view.status.clone();
             self.view = OnlineView::new(Some(self.url.clone()));
@@ -176,7 +254,10 @@ impl OnlineClient {
         if let Some(g) = &self.view.game {
             let cards = mapping::cards_from_dtos(&g.your_cards);
             let board = mapping::cards_from_dtos(&g.community_cards);
-            if cards.len() == 2 {
+            if cards.len() == 2
+                && settings.show_analysis
+                && !self.hidden.unwrap_or(settings.hide_hole_cards)
+            {
                 let variant = mapping::variant(g.is_short_deck);
                 let opponents = g
                     .players
@@ -323,7 +404,11 @@ impl OnlineClient {
                                     self.view.set_server_url(self.url.clone());
                                     self.send(OnlineCommand::Connect {
                                         url: self.url.clone(),
-                                        session: self.view.session.clone(),
+                                        session: self
+                                            .view
+                                            .session
+                                            .clone()
+                                            .filter(|s| s.server_url == self.url),
                                     });
                                 }
                             } else if self.view.room.is_none() {
@@ -502,5 +587,89 @@ impl OnlineClient {
             tier: WindowTier::Normal,
             theme: settings.theme,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_transport_drops_old_room_and_close_events() {
+        use crate::online::events::WorkerEvent;
+        use poker_client::ClientEvent;
+        let text = include_str!("../../../../tests/golden/protocol/s2c-messages.jsonl");
+        let room = text
+            .lines()
+            .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
+            .map(|v| v["message"].clone())
+            .find(|v| v["type"] == "room_joined")
+            .unwrap();
+        let room = poker_protocol::parse_server_message(&room.to_string()).unwrap();
+        let mut client = OnlineClient::new(egui::Context::default());
+        let (old_worker, old_events) = Worker::test_channel();
+        client.worker = old_worker;
+        old_events
+            .send(WorkerEvent::Client(ClientEvent::Message(room.clone())))
+            .unwrap();
+        old_events
+            .send(WorkerEvent::Client(ClientEvent::Closed))
+            .unwrap();
+        client.prepare_connection("ws://new-server:4000".into(), None);
+        assert!(
+            old_events
+                .send(WorkerEvent::Client(ClientEvent::Message(room)))
+                .is_err(),
+            "late old events have no receiver"
+        );
+        client.poll();
+        assert_eq!(
+            client.view.status,
+            ConnStatus::Connecting,
+            "old Closed must not close the new connection"
+        );
+        assert!(client.view.room.is_none());
+        assert!(
+            client.view.session.is_none(),
+            "old resume token must not bind to the new server"
+        );
+        assert_eq!(client.view.server_url(), Some("ws://new-server:4000"));
+    }
+
+    #[test]
+    fn raise_panel_closes_when_authoritative_decision_changes() {
+        let text = include_str!("../../../../tests/golden/protocol/s2c-messages.jsonl");
+        let state = text
+            .lines()
+            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .map(|v| v["message"].clone())
+            .find(|v| v["type"] == "game_state")
+            .unwrap();
+        let poker_protocol::ServerMessage::GameState(mut state) =
+            poker_protocol::parse_server_message(&state.to_string()).unwrap()
+        else {
+            panic!("game state")
+        };
+        state.is_your_turn = true;
+        state.legal_actions.actions = vec![poker_protocol::ActionType::Raise];
+        let mut client = OnlineClient::new(egui::Context::default());
+        client.view.status = ConnStatus::Connected;
+        client.view.game = Some(state);
+        client.sync_raise();
+        client.raise = RaisePanel::open_for(&mapping::legal_from_wire(
+            &client.view.game.as_ref().unwrap().legal_actions,
+            &client.view.game.as_ref().unwrap().room_config,
+        ));
+        assert!(client.raise.open);
+        client.view.game.as_mut().unwrap().turn_id += 1;
+        client.sync_raise();
+        assert!(
+            !client.raise.open,
+            "an old raise must never carry into the next decision"
+        );
+        client.raise.open = true;
+        client.view.status = ConnStatus::Closed;
+        client.sync_raise();
+        assert!(!client.raise.open);
     }
 }

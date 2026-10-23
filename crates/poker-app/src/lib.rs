@@ -49,6 +49,11 @@ pub fn run() -> eframe::Result {
     init_logging();
     let cli = CliOptions::parse(std::env::args().skip(1));
 
+    if cli.version {
+        println!("texas-holdem-rs {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
     if cli.help {
         println!("{}", CliOptions::usage());
         return Ok(());
@@ -81,7 +86,7 @@ pub fn run() -> eframe::Result {
     let icon = window_icon();
     let initial_size = cli.window_size.unwrap_or((1280.0, 860.0));
     let mut viewport = eframe::egui::ViewportBuilder::default()
-        .with_title("德州扑克 Rust 重制版")
+        .with_title(concat!("德州扑克 Rust ", env!("CARGO_PKG_VERSION")))
         .with_inner_size([initial_size.0, initial_size.1])
         .with_min_inner_size([900.0, 600.0])
         .with_decorations(!frameless)

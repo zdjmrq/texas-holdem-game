@@ -137,6 +137,12 @@ impl PokerApp {
             server_info: None,
             server_error: None,
         };
+        if app.cli.low_memory {
+            app.analysis.set_cache_limit(4);
+            app.online.set_low_memory();
+            cc.egui_ctx
+                .all_styles_mut(|style| style.animation_time = 0.0);
+        }
         app.sync_audio_settings();
         app.setup_scenario();
         if app.cli.hide_cards {
@@ -329,11 +335,29 @@ impl PokerApp {
             });
     }
 
+    fn close_settings(&mut self) {
+        self.screen = if self.session.is_some() {
+            Screen::Table
+        } else {
+            Screen::Home
+        };
+        if let Some(session) = &mut self.session {
+            session.set_ai_delay(self.settings.ai_delay());
+        }
+    }
+
     fn settings_ui(&mut self, ui: &mut egui::Ui) {
         egui::Panel::top("settings_top").show(ui, |ui| {
             ui.horizontal(|ui| {
-                if ui.button("← 返回主页").clicked() {
-                    self.screen = Screen::Home;
+                if ui
+                    .button(if self.session.is_some() {
+                        "← 返回牌桌"
+                    } else {
+                        "← 返回主页"
+                    })
+                    .clicked()
+                {
+                    self.close_settings();
                 }
                 ui.heading("设置");
             });
@@ -472,6 +496,7 @@ impl PokerApp {
             }
             if ui.button("恢复默认设置").clicked() {
                 self.settings = Settings::default();
+                self.settings.theme.apply(ui.ctx());
                 self.sync_audio_settings();
                 ui.ctx()
                     .send_viewport_cmd(egui::ViewportCommand::Decorations(true));
@@ -807,7 +832,8 @@ impl PokerApp {
     fn apply_primary(&mut self) {
         match self.screen {
             Screen::Home => self.start_local_game(),
-            Screen::Settings | Screen::Online => self.screen = Screen::Home,
+            Screen::Settings => {}
+            Screen::Online => {}
             Screen::Table => {
                 if self.raise_panel.open {
                     let action = self.raise_panel.action();
@@ -882,7 +908,11 @@ impl PokerApp {
     fn apply_command(&mut self, command: TableCommand) {
         if self.screen != Screen::Table {
             if matches!(command, TableCommand::DismissOverlay | TableCommand::Back) {
-                self.screen = Screen::Home;
+                if self.screen == Screen::Settings {
+                    self.close_settings();
+                } else {
+                    self.screen = Screen::Home;
+                }
             }
             return;
         }
@@ -951,6 +981,9 @@ impl PokerApp {
     }
 
     fn tick_session(&mut self) {
+        if self.screen != Screen::Table {
+            return;
+        }
         if let Some(session) = &mut self.session {
             session.tick(Instant::now());
         }
@@ -1156,7 +1189,11 @@ impl eframe::App for PokerApp {
         }
         self.handle_attention_timeout(&ctx);
         self.persist_if_changed();
-        ctx.request_repaint_after(Duration::from_millis(16));
+        ctx.request_repaint_after(Duration::from_millis(if self.cli.low_memory {
+            100
+        } else {
+            16
+        }));
     }
 
     fn on_exit(&mut self) {

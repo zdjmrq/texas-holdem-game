@@ -135,6 +135,7 @@ pub fn next_track_index(
 /// Background music + prompt-tone manager. The device is opened lazily so a
 /// missing device or disabled music never blocks application startup.
 pub struct AudioManager {
+    no_audio: bool,
     music_player: Option<rodio::Player>,
     prompt_player: Option<rodio::Player>,
     sink: Option<rodio::MixerDeviceSink>,
@@ -157,6 +158,7 @@ impl AudioManager {
         };
         let current = if tracks.is_empty() { None } else { Some(0) };
         Self {
+            no_audio,
             music_player: None,
             prompt_player: None,
             sink: None,
@@ -225,6 +227,9 @@ impl AudioManager {
     }
 
     pub fn set_enabled(&mut self, enabled: bool) {
+        if self.no_audio {
+            return;
+        }
         if enabled == self.enabled {
             return;
         }
@@ -297,14 +302,14 @@ impl AudioManager {
     }
 
     pub fn play_turn_prompt(&mut self) {
-        if !self.sound_enabled {
+        if self.no_audio || !self.sound_enabled {
             return;
         }
         self.play_tones(&[(880.0, 120)]);
     }
 
     pub fn play_settlement_prompt(&mut self) {
-        if !self.sound_enabled {
+        if self.no_audio || !self.sound_enabled {
             return;
         }
         self.play_tones(&[(660.0, 120), (880.0, 160)]);
@@ -455,6 +460,18 @@ pub fn play_headless_probe(seconds: f32) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn no_audio_never_opens_a_device_even_if_settings_enable_it() {
+        let mut audio = AudioManager::new(true);
+        audio.set_sound_enabled(true);
+        audio.set_enabled(true);
+        audio.play_turn_prompt();
+        audio.play_settlement_prompt();
+        assert!(audio.sink.is_none());
+        assert!(!audio.is_enabled());
+        assert!(audio.last_error().is_none());
+    }
 
     #[test]
     fn playlist_modes_pick_expected_indices() {

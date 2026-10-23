@@ -57,7 +57,7 @@ pub struct CliOptions {
     pub screenshot_frame: u64,
     /// Start with an undecorated window (custom title bar).
     pub frameless: bool,
-    /// Low-memory mode placeholder (Phase 7 will reduce animations / preloads).
+    /// Reduce analysis cache, animations and idle frame rate.
     pub low_memory: bool,
     /// Do not initialise audio at all.
     pub no_audio: bool,
@@ -82,6 +82,7 @@ pub struct CliOptions {
     /// Headless: play the bundled mp3 for N seconds on the default device, then exit.
     pub audio_play_secs: Option<f32>,
     pub help: bool,
+    pub version: bool,
 }
 
 impl Default for CliOptions {
@@ -103,6 +104,7 @@ impl Default for CliOptions {
             audio_probe: false,
             audio_play_secs: None,
             help: false,
+            version: false,
         }
     }
 }
@@ -152,10 +154,11 @@ OPTIONS:
     --hide-cards              Start with the human hole cards hidden
     --open-raise              Open the raise panel once it is the human's turn
     --frameless               Start with the custom title bar (undecorated window)
-    --low-memory              Low-memory mode placeholder (Phase 7)
+    --low-memory              Smaller analysis cache and fewer UI refreshes
     --no-audio                Do not initialise audio
     --audio-test              Headless: decode mp3 + audio device info, then exit
     --audio-play [SECONDS]    Headless: play the bundled mp3 for N seconds (default: 2)
+    -V, --version             Print application version and exit
     -h, --help                Print this help"
     }
 
@@ -209,6 +212,7 @@ OPTIONS:
                     }
                 }
                 "--help" | "-h" => options.help = true,
+                "--version" | "-V" => options.version = true,
                 other => {
                     if let Some(value) = other.strip_prefix("--screenshot=") {
                         options.screenshot = Some(PathBuf::from(value));

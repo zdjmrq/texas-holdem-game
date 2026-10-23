@@ -72,7 +72,8 @@ impl Prepared {
 /// # Errors
 ///
 /// Returns [`ProbError::WrongHoleCardCount`],
-/// [`ProbError::TooManyCommunityCards`], [`ProbError::DuplicateKnownCard`] or
+/// [`ProbError::TooManyCommunityCards`], [`ProbError::DuplicateKnownCard`],
+/// [`ProbError::CardOutsideVariant`] or
 /// [`ProbError::TooManyOpponents`] when the inputs cannot be analysed.
 pub fn prepare(
     player: &[Card],
@@ -93,6 +94,9 @@ pub fn prepare(
 
     let mut known_mask = 0u64;
     for card in player.iter().chain(board) {
+        if variant.is_short_deck() && card.rank_value() < 6 {
+            return Err(ProbError::CardOutsideVariant);
+        }
         known_mask |= card.bit();
     }
     if known_mask.count_ones() as usize != player.len() + board.len() {
@@ -204,5 +208,16 @@ mod tests {
                 .iter()
                 .all(|card| card.rank_value() >= 6)
         );
+    }
+
+    #[test]
+    fn short_deck_rejects_impossible_hole_and_board_cards() {
+        for (hole, board) in [("As 2h", ""), ("As Kh", "2c 6h 7s")] {
+            assert_eq!(
+                prepare(&cards(hole), &cards(board), 1, Variant::ShortDeck),
+                Err(ProbError::CardOutsideVariant)
+            );
+            assert!(prepare(&cards(hole), &cards(board), 1, Variant::Standard).is_ok());
+        }
     }
 }

@@ -20,6 +20,21 @@ pub(crate) const HUMAN_AVATAR: &str = "👤";
 /// Capacity of the per-player player_action dedupe cache (reference: 64).
 pub(crate) const DEDUPE_CAPACITY: usize = 64;
 
+/// Evidence arriving while a brain is owned by its blocking decision worker.
+pub(crate) enum BrainEvent {
+    Action(Box<poker_ai::input::ObservedAction>),
+    Showdown(usize, poker_ai::ShowdownResult),
+}
+
+impl BrainEvent {
+    pub(crate) fn deliver(self, brain: &mut dyn ServerAi) {
+        match self {
+            Self::Action(event) => brain.observe(&event),
+            Self::Showdown(seat, result) => brain.showdown(seat, &result),
+        }
+    }
+}
+
 /// FIFO cache of the most recent action_ack replies per player.
 ///
 /// Duplicate request ids replay the cached reply instead of executing the
@@ -81,6 +96,7 @@ pub(crate) struct Seat {
     pub(crate) resume_token: String,
     pub(crate) joined_at: u64,
     pub(crate) ai: Option<Box<dyn ServerAi>>,
+    pub(crate) pending_evidence: Vec<BrainEvent>,
     pub(crate) processed: DedupeCache,
     pub(crate) conn_id: Option<u64>,
     pub(crate) disconnect_token: Option<u64>,
@@ -116,6 +132,7 @@ impl Seat {
             resume_token,
             joined_at,
             ai: None,
+            pending_evidence: Vec::new(),
             processed: DedupeCache::default(),
             conn_id: Some(conn_id),
             disconnect_token: None,
@@ -144,6 +161,7 @@ impl Seat {
             resume_token: String::new(),
             joined_at: 0,
             ai: Some(factory.create(seat_id, starting_stack)),
+            pending_evidence: Vec::new(),
             processed: DedupeCache::default(),
             conn_id: None,
             disconnect_token: None,

@@ -210,6 +210,72 @@ fn pending_action_clears_on_ack_and_on_newer_state() {
 }
 
 #[test]
+fn reservation_blocks_duplicate_input_and_send_failure_unlocks_it() {
+    let (mut view, _) = view_with_room();
+    view.status = ConnStatus::Connected;
+    view.reduce(
+        WorkerEvent::Client(ClientEvent::Message(game_state_message())),
+        Instant::now(),
+    );
+    let game = view.game.as_mut().unwrap();
+    game.is_your_turn = true;
+    game.legal_actions.actions = vec![poker_protocol::ActionType::Check];
+    assert!(view.can_act());
+    view.reserve_command(PendingKind::Action, Instant::now());
+    assert!(!view.can_act(), "block before worker receipt arrives");
+    view.reduce(
+        WorkerEvent::CommandFailed {
+            kind: PendingKind::Action,
+            message: "closed".into(),
+        },
+        Instant::now(),
+    );
+    assert!(view.can_act(), "retry immediately after transport failure");
+    assert_eq!(view.error_line.as_deref(), Some("closed"));
+}
+
+#[test]
+fn matching_server_error_unlocks_pending_command() {
+    let mut view = OnlineView::default();
+    let ServerMessage::Error(mut error) = golden("error") else {
+        panic!("error")
+    };
+    error.code = poker_protocol::ErrorCode::InvalidRequest;
+    error.request_id = Some("rejected".into());
+    view.reduce(
+        WorkerEvent::CommandSent(receipt(PendingKind::Action, "rejected")),
+        Instant::now(),
+    );
+    view.reduce(
+        WorkerEvent::Client(ClientEvent::Message(ServerMessage::Error(error))),
+        Instant::now(),
+    );
+    assert!(view.pending.is_none());
+    assert!(view.error_line.is_some());
+}
+
+#[test]
+fn switching_servers_discards_old_room_game_and_resume_credentials() {
+    let (mut view, _) = view_with_room();
+    view.reduce(
+        WorkerEvent::Client(ClientEvent::Message(game_state_message())),
+        Instant::now(),
+    );
+    let old_session = view.session.clone();
+    assert!(old_session.is_some());
+    view.prepare_connection("ws://other:4000".into(), old_session);
+    assert!(view.session.is_none());
+    assert!(view.room.is_none());
+    assert!(view.game.is_none());
+    assert!(!view.can_act());
+    assert_eq!(view.stage, OnlineStage::Connect);
+    assert_eq!(view.status, ConnStatus::Connecting);
+    let session = SessionCredentials::new("ws://other:4000", "2", "resume");
+    view.prepare_connection("ws://other:4000".into(), Some(session.clone()));
+    assert_eq!(view.session, Some(session));
+}
+
+#[test]
 fn kicked_connection_returns_to_connect_screen() {
     let mut view = OnlineView::new(Some("ws://127.0.0.1:3000".to_owned()));
     view.session = Some(SessionCredentials::new("ws://x", "1", "token"));

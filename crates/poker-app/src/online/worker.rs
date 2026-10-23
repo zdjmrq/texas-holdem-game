@@ -12,6 +12,12 @@ pub struct Worker {
     pub rx: mpsc::Receiver<WorkerEvent>,
 }
 impl Worker {
+    #[cfg(test)]
+    pub(crate) fn test_channel() -> (Self, mpsc::Sender<WorkerEvent>) {
+        let (tx, _) = tokio::sync::mpsc::unbounded_channel();
+        let (events, rx) = mpsc::channel();
+        (Self { tx, rx }, events)
+    }
     pub fn new(ctx: eframe::egui::Context) -> Self {
         let (tx, mut commands) = tokio::sync::mpsc::unbounded_channel();
         let (events, rx) = mpsc::channel();
@@ -45,7 +51,16 @@ impl Worker {
                         }
                         Step::Command(Some(OnlineCommand::Disconnect))=>{if let Some(mut c)=client.take(){c.clear_session();c.disconnect().await;}emit(WorkerEvent::Client(ClientEvent::Closed));}
                         Step::Command(Some(cmd))=>{
-                            let Some(c)=client.as_mut() else {emit(WorkerEvent::CommandFailed{kind:PendingKind::Action,message:"尚未连接服务器".into()});continue;};
+                            let Some(c)=client.as_mut() else {
+                                let kind = match cmd {
+                                    OnlineCommand::CreateRoom { .. } | OnlineCommand::JoinRoom { .. } => PendingKind::CreateOrJoin,
+                                    OnlineCommand::StartGame { .. } => PendingKind::StartGame,
+                                    OnlineCommand::LeaveRoom { .. } => PendingKind::LeaveRoom,
+                                    OnlineCommand::ReadyNext { .. } => PendingKind::ReadyNext,
+                                    _ => PendingKind::Action,
+                                };
+                                emit(WorkerEvent::CommandFailed{kind,message:"尚未连接服务器".into()});continue;
+                            };
                             let mut hand_id=0;let mut turn_id=0;let mut version=-1;
                             let (kind,result)=match cmd {
                                 OnlineCommand::CreateRoom{name,options}=>(PendingKind::CreateOrJoin,c.create_room(name,options).await),

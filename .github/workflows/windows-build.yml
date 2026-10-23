@@ -23,11 +23,15 @@ jobs:
         run: |
           $dist = "dist/texas-holdem-rs-current"
           $exe = "$dist/texas-holdem-rs.exe"
-          $process = Start-Process -FilePath $exe -ArgumentList '--help' -PassThru -Wait -WindowStyle Hidden
+          $process = Start-Process -FilePath $exe -ArgumentList '--help' -PassThru -WindowStyle Hidden
+          if (-not $process.WaitForExit(30000)) { throw 'Executable --help did not terminate' }
           if ($process.ExitCode -ne 0) { throw "Executable failed to start: $($process.ExitCode)" }
           if (-not (Test-Path "$dist/assets/fonts/NotoSansSC-Regular.otf")) { throw 'Missing font' }
           if ((Get-ChildItem "$dist/assets/music/*.mp3").Count -ne 4) { throw 'Missing music' }
-          "Commit: ${{ github.sha }}" | Set-Content "$dist/VERSION.txt" -Encoding ascii
+          $version = Start-Process -FilePath $exe -ArgumentList '--version' -PassThru -WindowStyle Hidden -RedirectStandardOutput "$dist/cli-version.txt"
+          if (-not $version.WaitForExit(30000) -or $version.ExitCode -ne 0) { throw 'Executable --version failed' }
+          if ((Get-Content "$dist/cli-version.txt" -Raw).Trim() -notmatch '2\.0\.0$') { throw 'Incorrect product version' }
+          @("Version: 2.0.0", "Commit: ${{ github.sha }}") | Set-Content "$dist/VERSION.txt" -Encoding ascii
           Compress-Archive -Path $dist -DestinationPath "dist/texas-holdem-rs-windows-x64.zip" -Force
           $exeHash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           $zipHash = (Get-FileHash "dist/texas-holdem-rs-windows-x64.zip" -Algorithm SHA256).Hash.ToLowerInvariant()

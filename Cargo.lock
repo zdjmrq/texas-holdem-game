@@ -3715,7 +3715,7 @@ dependencies = [
 
 [[package]]
 name = "poker-ai"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "poker-core",
  "poker-engine",
@@ -3725,7 +3725,7 @@ dependencies = [
 
 [[package]]
 name = "poker-app"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "eframe",
  "env_logger",
@@ -3749,7 +3749,7 @@ dependencies = [
 
 [[package]]
 name = "poker-cli"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "clap",
  "poker-ai",
@@ -3762,7 +3762,7 @@ dependencies = [
 
 [[package]]
 name = "poker-client"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "futures-util",
  "poker-core",
@@ -3775,7 +3775,7 @@ dependencies = [
 
 [[package]]
 name = "poker-core"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "criterion",
  "proptest",
@@ -3787,7 +3787,7 @@ dependencies = [
 
 [[package]]
 name = "poker-engine"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "poker-core",
  "proptest",
@@ -3797,7 +3797,7 @@ dependencies = [
 
 [[package]]
 name = "poker-prob"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "criterion",
  "poker-core",
@@ -3810,7 +3810,7 @@ dependencies = [
 
 [[package]]
 name = "poker-protocol"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3819,7 +3819,7 @@ dependencies = [
 
 [[package]]
 name = "poker-server"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "axum",
  "futures-util",

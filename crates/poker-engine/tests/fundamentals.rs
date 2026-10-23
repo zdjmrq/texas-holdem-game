@@ -206,3 +206,130 @@ fn short_all_in_does_not_reopen_raising_for_player_who_already_acted() {
     game.act(0, Action::Call).unwrap();
     assert_eq!(game.phase(), Phase::Flop);
 }
+
+#[test]
+fn short_opening_all_in_does_not_reopen_betting_for_a_player_who_checked() {
+    let mut game = Game::new(
+        GameConfig::standard(1_000, 50, 100),
+        players(&[1_000, 1_000, 140]),
+    );
+    assert!(game.start_hand_with_deck(Deck::standard(), Some(0)));
+    game.act(0, Action::Call).unwrap();
+    game.act(1, Action::Call).unwrap();
+    game.act(2, Action::Check).unwrap();
+    assert_eq!(game.phase(), Phase::Flop);
+    game.act(1, Action::Check).unwrap();
+    game.act(2, Action::AllIn).unwrap();
+    game.act(0, Action::Call).unwrap();
+    let legal = game.legal_actions(1);
+    assert_eq!(legal.to_call, 40);
+    assert_eq!(legal.actions, [ActionType::Fold, ActionType::Call]);
+    game.act(1, Action::Call).unwrap();
+    while game.phase().is_active() {
+        let actor = game.current_player_idx() as usize;
+        game.act(actor, Action::Check).unwrap();
+    }
+    invariants(&game, 2_140);
+}
+
+#[test]
+fn repeated_settlement_and_delayed_progress_events_do_not_pay_twice() {
+    let mut game = Game::new(GameConfig::standard(100, 50, 100), players(&[100, 100]));
+    assert!(game.start_hand_with_deck(Deck::standard(), Some(0)));
+    game.act(0, Action::Call).unwrap();
+    let settled = state(&game);
+    game.showdown();
+    assert_eq!(state(&game), settled);
+    game.advance_after_action();
+    assert_eq!(state(&game), settled);
+    game.advance_street();
+    assert_eq!(state(&game), settled);
+    invariants(&game, 200);
+}
+
+#[test]
+fn invalid_replay_decks_and_dealers_are_rejected_atomically() {
+    let mut game = Game::new(GameConfig::standard(100, 50, 100), players(&[100, 100]));
+    let before = state(&game);
+    assert!(!game.start_hand_with_deck(Deck::from_cards(Vec::new()).unwrap(), Some(0)));
+    assert_eq!(state(&game), before);
+    assert!(!game.start_hand_with_deck(Deck::standard(), Some(2)));
+    assert_eq!(state(&game), before);
+    let mut short = Game::new(GameConfig::short_deck(100, 40, 80), players(&[100, 100]));
+    assert!(!short.start_hand_with_deck(Deck::standard(), Some(0)));
+    assert_eq!(short.phase(), Phase::Idle);
+    assert_eq!(short.hand_id(), 0);
+}
+
+fn raised_heads_up_flop() -> Game {
+    let mut game = Game::new(
+        GameConfig::standard(2_000, 50, 100),
+        players(&[2_000, 2_000]),
+    );
+    assert!(game.start_hand_with_deck(Deck::standard(), Some(0)));
+    game.act(0, Action::Raise { to: 200 }).unwrap();
+    game.act(1, Action::Call).unwrap();
+    assert_eq!(game.phase(), Phase::Flop);
+    game
+}
+
+#[test]
+fn continuation_bet_metadata_uses_the_previous_aggressor() {
+    let mut game = raised_heads_up_flop();
+    let check = game.act(1, Action::Check).unwrap();
+    assert!(!check.is_cbet_opportunity);
+    assert!(!check.faced_cbet);
+    let cbet = game.act(0, Action::Raise { to: 100 }).unwrap();
+    assert!(cbet.is_cbet_opportunity);
+    assert!(!cbet.faced_cbet);
+    // The check-raise faces a c-bet, even though it becomes the new aggression.
+    let check_raise = game.act(1, Action::Raise { to: 300 }).unwrap();
+    assert!(check_raise.faced_cbet);
+    assert!(!check_raise.is_cbet_opportunity);
+    // A later re-raise is neither facing the original c-bet nor a fresh chance.
+    let reraise = game.act(0, Action::Raise { to: 500 }).unwrap();
+    assert!(!reraise.is_cbet_opportunity);
+    assert!(!reraise.faced_cbet);
+    let call = game.act(1, Action::Call).unwrap();
+    assert!(call.faced_cbet);
+    assert_eq!(game.phase(), Phase::Turn);
+    assert!(!game.act(1, Action::Check).unwrap().is_cbet_opportunity);
+}
+
+#[test]
+fn checking_away_a_cbet_opportunity_resets_on_the_next_hand_and_table_reset() {
+    let mut game = raised_heads_up_flop();
+    game.act(1, Action::Check).unwrap();
+    assert!(game.act(0, Action::Check).unwrap().is_cbet_opportunity);
+    while game.phase().is_active() {
+        let actor = game.current_player_idx() as usize;
+        let meta = game.act(actor, Action::Check).unwrap();
+        assert!(!meta.is_cbet_opportunity);
+        assert!(!meta.faced_cbet);
+    }
+    for reset in [false, true] {
+        if reset {
+            game.reset();
+        }
+        assert!(game.start_hand_with_deck(Deck::standard(), Some(0)));
+        game.act(0, Action::Raise { to: 200 }).unwrap();
+        game.act(1, Action::Call).unwrap();
+        game.act(1, Action::Check).unwrap();
+        assert!(
+            game.act(0, Action::Raise { to: 100 })
+                .unwrap()
+                .is_cbet_opportunity
+        );
+        assert!(game.act(1, Action::Call).unwrap().faced_cbet);
+        while game.phase().is_active() {
+            let actor = game.current_player_idx() as usize;
+            game.act(actor, Action::Check).unwrap();
+        }
+    }
+    let mut donk = raised_heads_up_flop();
+    // A donk lead prevents the preflop raiser's c-bet opportunity.
+    donk.act(1, Action::Raise { to: 100 }).unwrap();
+    let response = donk.act(0, Action::Call).unwrap();
+    assert!(!response.is_cbet_opportunity);
+    assert!(!response.faced_cbet);
+}

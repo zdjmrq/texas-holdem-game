@@ -134,7 +134,9 @@ impl RaisePanel {
     /// Move the amount by whole grid steps (1/2 and arrow keys, slider).
     pub fn step(&mut self, units: i64) {
         let delta = units.saturating_mul(i64::try_from(self.unit).unwrap_or(i64::MAX));
-        let next = i64::try_from(self.amount).unwrap_or(i64::MAX) + delta;
+        let next = i64::try_from(self.amount)
+            .unwrap_or(i64::MAX)
+            .saturating_add(delta);
         let next = u64::try_from(next.max(0)).unwrap_or(0);
         self.amount = snap_to_grid(next, self.min, self.max, self.unit);
     }
@@ -200,6 +202,10 @@ pub fn analysis_mask(hide_hole_cards: bool, show_analysis: bool) -> AnalysisMask
     } else {
         AnalysisMask::Visible
     }
+}
+
+pub fn visible_hand_name(hidden: bool, name: Option<&'static str>) -> Option<&'static str> {
+    if hidden { None } else { name }
 }
 
 /// Format a chip amount together with its big-blind equivalent.
@@ -310,6 +316,24 @@ mod tests {
         assert_eq!(analysis_mask(true, true), AnalysisMask::HiddenCards);
         assert_eq!(analysis_mask(false, false), AnalysisMask::Disabled);
         assert_eq!(analysis_mask(true, false), AnalysisMask::HiddenCards);
+    }
+
+    #[test]
+    fn hidden_cards_also_mask_action_bar_hand_type() {
+        assert_eq!(visible_hand_name(true, Some("皇家同花顺")), None);
+        assert_eq!(
+            visible_hand_name(false, Some("皇家同花顺")),
+            Some("皇家同花顺")
+        );
+    }
+
+    #[test]
+    fn extreme_keyboard_steps_do_not_overflow() {
+        let mut panel = RaisePanel::open_for(&legal(300, 1200, 100));
+        panel.step(i64::MAX);
+        assert_eq!(panel.amount, 1200);
+        panel.step(i64::MIN);
+        assert_eq!(panel.amount, 300);
     }
 
     #[test]

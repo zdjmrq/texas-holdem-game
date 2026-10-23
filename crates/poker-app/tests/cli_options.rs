@@ -19,6 +19,13 @@ fn defaults_are_interactive() {
 }
 
 #[test]
+fn version_is_an_explicit_headless_command() {
+    assert!(parse(&["--version"]).version);
+    assert!(parse(&["-V"]).version);
+    assert!(!parse(&[]).version);
+}
+
+#[test]
 fn parses_screenshot_and_scenario() {
     let options = parse(&[
         "--screenshot",

@@ -9,11 +9,11 @@
 | --- | --- |
 | `main` | **原 JS/Electron 版本 v1.5.8**（保持不动，作为迁移对照与黄金语料 oracle） |
 | `rust-rewrite` | **Rust 全量重写版（当前分支）**：9 个 crate + egui 桌面应用 + 联机服务端/客户端 |
-| 标签 `v2.0.0-rust-preview.1` | Windows 测试基线：附带在 Linux 上交叉构建的 x86_64 便携包（冒烟用）；正式构建用 Windows 原生 MSVC |
+| 标签 `v2.0.0` | Rust 正式版：Windows 原生 MSVC 构建，下载 Releases 的便携 zip，解压后运行 |
 
 ## 本轮原生界面与核心收尾
 
-工作已推送到 `rust-rewrite`，继续使用 Rust + egui。原版源码仅作只读参考，不作为运行时依赖。当前进展及 Windows 原生验证见 [docs/RESTORATION_REPORT.md](docs/RESTORATION_REPORT.md)。正常开局使用系统随机数；`--seed` 和 `--scenario` 用于可复现测试。
+工作已推送到 `rust-rewrite`，继续使用 Rust + egui。原版源码仅作只读参考，不作为运行时依赖。正式版审查见 [docs/STABLE_AUDIT.md](docs/STABLE_AUDIT.md)，界面还原记录见 [docs/RESTORATION_REPORT.md](docs/RESTORATION_REPORT.md)。正常开局使用系统随机数；`--seed` 和 `--scenario` 用于可复现测试。
 
 ## 当前状态
 
@@ -60,7 +60,7 @@ cargo run -p poker-cli -- sim --players 6 --hands 500 --policy aggressive --refi
 
 ## Windows 测试
 
-1. **快速冒烟**：从本仓库 Release 标签 `v2.0.0-rust-preview.1` 下载便携包，或在 Actions 的 `windows-build` 工作流里下载产物；解压后双击 `texas-holdem-rs.exe`（assets 必须同目录）。
+1. **直接运行**：从 [v2.0.0 正式版](https://github.com/zdjmrq/texas-holdem-game/releases/tag/v2.0.0) 下载便携 zip；解压后双击 `texas-holdem-rs.exe`（assets 必须同目录）。Source code 下载项不是游戏成品。
 2. **原生构建**：Windows 安装 VS Build Tools（C++ 工作负载）+ rustup（msvc host），运行 `scripts\build-windows.cmd`，产出 `dist/texas-holdem-rs-current/texas-holdem-rs.exe` 及同目录资源。默认不生成 zip。
 3. **验收清单**：按 [docs/windows-smoke.md](docs/windows-smoke.md) 15 节逐项实测（中文 IME、托盘闪红、无边框缩放、DX12 帧率、DPI、音频、启动/内存），结果填入模板。
    WSLg 的渲染/IME/托盘数据不作为验收依据；IME 若不达标请暂停 UI 铺开并反馈。

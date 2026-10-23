@@ -59,6 +59,7 @@ pub struct AnalysisService {
     result_rx: Receiver<(u64, Result<AnalysisSummary, String>)>,
     worker: Option<std::thread::JoinHandle<()>>,
     cache: HashMap<u64, Arc<AnalysisSummary>>,
+    cache_limit: usize,
     pending: Option<u64>,
     last_error: Option<String>,
 }
@@ -89,6 +90,7 @@ impl AnalysisService {
             result_rx,
             worker,
             cache: HashMap::new(),
+            cache_limit: MAX_CACHE_ENTRIES,
             pending: None,
             last_error: None,
         }
@@ -130,7 +132,7 @@ impl AnalysisService {
                     }
                     match outcome {
                         Ok(summary) => {
-                            if self.cache.len() >= MAX_CACHE_ENTRIES
+                            if self.cache.len() >= self.cache_limit
                                 && let Some(first) = self.cache.keys().next().copied()
                             {
                                 self.cache.remove(&first);
@@ -148,6 +150,15 @@ impl AnalysisService {
 
     pub fn get(&self, key: u64) -> Option<Arc<AnalysisSummary>> {
         self.cache.get(&key).cloned()
+    }
+
+    pub fn set_cache_limit(&mut self, limit: usize) {
+        self.cache_limit = limit.max(1);
+        while self.cache.len() > self.cache_limit {
+            if let Some(key) = self.cache.keys().next().copied() {
+                self.cache.remove(&key);
+            }
+        }
     }
 
     pub fn is_pending(&self, key: u64) -> bool {

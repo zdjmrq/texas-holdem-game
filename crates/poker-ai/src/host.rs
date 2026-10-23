@@ -53,28 +53,67 @@ pub fn showdown(game: &poker_engine::Game) -> Vec<(usize, crate::ShowdownResult)
         .results
         .iter()
         .filter(|p| !p.cards.is_empty())
-        .map(|p| {
+        .filter_map(|p| {
+            let index = game
+                .players()
+                .iter()
+                .position(|player| player.id == p.identity.id)?;
             let won = result
                 .winner_amounts
                 .iter()
                 .any(|(id, amount)| *id == p.identity.id && *amount > 0);
-            let aggressive = game.players()[p.identity.seat_id]
-                .last_action
-                .is_some_and(|a| {
-                    matches!(
-                        a.action,
-                        poker_engine::ActionLabel::Raise | poker_engine::ActionLabel::AllIn
-                    )
-                });
-            (
-                p.identity.seat_id,
+            let aggressive = game.players()[index].last_action.is_some_and(|a| {
+                matches!(
+                    a.action,
+                    poker_engine::ActionLabel::Raise | poker_engine::ActionLabel::AllIn
+                )
+            });
+            Some((
+                index,
                 crate::ShowdownResult {
                     won,
                     hand_rank: p.hand_rank,
                     was_bluff: aggressive && !won && p.hand_rank <= 2,
                     was_trap: !aggressive && won && p.hand_rank >= 4,
                 },
-            )
+            ))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use poker_core::Deck;
+    use poker_engine::{Action, Game, GameConfig, Player};
+
+    #[test]
+    fn showdown_routes_sparse_seat_ids_by_player_identity() {
+        let players = vec![
+            Player::new("a", 8, "A", 100),
+            Player::new("b", 42, "B", 100),
+        ];
+        let mut game = Game::new(GameConfig::standard(100, 50, 100), players);
+        assert!(game.start_hand_with_deck(Deck::standard(), Some(0)));
+        game.act(0, Action::AllIn).unwrap();
+        let observations = super::showdown(&game);
+        assert_eq!(
+            observations
+                .iter()
+                .map(|(seat, _)| *seat)
+                .collect::<Vec<_>>(),
+            [0, 1]
+        );
+    }
+
+    #[test]
+    fn fold_win_does_not_invent_private_showdown_evidence() {
+        let players = vec![
+            Player::new("a", 0, "A", 1000),
+            Player::new("b", 1, "B", 1000),
+        ];
+        let mut game = Game::new(GameConfig::standard(1000, 50, 100), players);
+        assert!(game.start_hand_with_deck(Deck::standard(), Some(0)));
+        super::act(&mut game, 0, Action::Fold).unwrap();
+        assert!(super::showdown(&game).is_empty());
+    }
 }

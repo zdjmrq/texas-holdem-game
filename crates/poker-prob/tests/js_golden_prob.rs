@@ -254,6 +254,20 @@ fn js_golden_monte_carlo_matches() {
             simulations: case.simulations,
             min_samples: case.min_samples,
         };
+        if case.id == "shortdeck-turn-three-way" {
+            // The historical JS corpus supplied 2c on a short-deck board.
+            // Preserve that evidence, but reject the impossible deal rather
+            // than reproducing the oracle's meaningless equity estimate.
+            assert_eq!(
+                prepare(&player, &board, case.num_opponents, variant),
+                Err(poker_prob::ProbError::CardOutsideVariant)
+            );
+            assert_eq!(
+                calculate(&player, &board, case.num_opponents, variant, &options),
+                Err(poker_prob::ProbError::CardOutsideVariant)
+            );
+            continue;
+        }
         let got = calculate(&player, &board, case.num_opponents, variant, &options)
             .unwrap_or_else(|error| panic!("{}: calculate failed: {error}", case.id));
         assert_result(&case.id, &got, &case.result);
