@@ -515,7 +515,10 @@ impl OnlineClient {
                 is_big_blind: g.bb_idx == i as i64,
                 is_actor: g.current_player_idx == i as i64,
                 is_winner: false,
-                last_action: p.last_action.as_ref().map(|a| format!("{:?}", a.action)),
+                last_action: p
+                    .last_action
+                    .as_ref()
+                    .map(|a| table::action_text(&a.action, mapping::chips(a.amount))),
                 cards: if my == Some(&p.id) {
                     mapping::cards_from_dtos(&g.your_cards)
                 } else {
@@ -582,6 +585,10 @@ impl OnlineClient {
             ai_name: "Rust AI".into(),
             hide_cards: self.hidden.unwrap_or(settings.hide_hole_cards),
             music_enabled: settings.music_enabled,
+            music_title: String::new(),
+            music_volume: (settings.music_volume * 100.0).round() as u8,
+            play_mode: settings.play_mode,
+            sound_enabled: settings.sound_enabled,
             show_analysis: settings.show_analysis,
             event_line: self.view.status_line.clone(),
             tier: WindowTier::Normal,

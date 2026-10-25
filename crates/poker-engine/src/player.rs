@@ -86,6 +86,9 @@ pub struct Player {
     pub dealt_in: bool,
     /// Most recent action within this hand.
     pub last_action: Option<LastAction>,
+    /// Most recent action on the current street; cleared when the street changes.
+    /// The hand-wide record above remains available for opponent modeling.
+    pub round_action: Option<LastAction>,
 }
 
 impl Player {
@@ -107,6 +110,7 @@ impl Player {
             is_all_in: false,
             dealt_in: false,
             last_action: None,
+            round_action: None,
         }
     }
 

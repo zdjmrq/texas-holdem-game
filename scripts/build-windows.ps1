@@ -87,6 +87,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $RepoRoot 'docs\windows-smoke.md') -Destination (Join-Path $StageDir 'WINDOWS-SMOKE.md')
     Copy-Item -LiteralPath (Join-Path $RepoRoot 'docs\RESTORATION_REPORT.md') -Destination (Join-Path $StageDir 'RESTORATION_REPORT.md')
     Copy-Item -LiteralPath (Join-Path $RepoRoot 'docs\STABLE_AUDIT.md') -Destination (Join-Path $StageDir 'STABLE_AUDIT.md')
+    Copy-Item -LiteralPath (Join-Path $RepoRoot 'docs\GAMEPLAY_AUDIT_2.0.1.md') -Destination (Join-Path $StageDir 'GAMEPLAY_AUDIT_2.0.1.md')
     @'
 德州扑克 Rust 重制版 - Windows x64
 

@@ -12,6 +12,7 @@ use poker_engine::{Action, ActionType, LegalActions, Phase};
 /// Commands produced by the global keyboard handler or the action bar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TableCommand {
+    Primary,
     Fold,
     Check,
     Call,
@@ -35,6 +36,7 @@ pub fn shortcut_for(key: egui::Key, text_input_focused: bool) -> Option<TableCom
         return None;
     }
     match key {
+        egui::Key::Space | egui::Key::Enter => Some(TableCommand::Primary),
         egui::Key::F => Some(TableCommand::Fold),
         egui::Key::C => Some(TableCommand::Call),
         egui::Key::R => Some(TableCommand::OpenRaise),
@@ -49,6 +51,32 @@ pub fn shortcut_for(key: egui::Key, text_input_focused: bool) -> Option<TableCom
         }
         _ => None,
     }
+}
+
+/// Take one fresh table key and consume table-key events before egui buttons
+/// see them. Held-key repeats cannot silently act on a later turn or street.
+pub fn take_shortcut(ctx: &egui::Context, raise_open: bool) -> Option<TableCommand> {
+    if ctx.text_edit_focused() {
+        return None;
+    }
+    let command_for = |key| {
+        shortcut_for(key, false)
+            .filter(|command| raise_open || !matches!(command, TableCommand::RaiseStep(_)))
+    };
+    ctx.input_mut(|input| {
+        let command = input.events.iter().find_map(|event| {
+            if let egui::Event::Key { key, pressed: true, repeat: false, modifiers, .. } = event
+                && !modifiers.ctrl && !modifiers.alt && !modifiers.command
+            {
+                command_for(*key)
+            } else { None }
+        });
+        input.events.retain(|event| {
+            !matches!(event, egui::Event::Key { key, modifiers, .. }
+                if !modifiers.ctrl && !modifiers.alt && !modifiers.command && command_for(*key).is_some())
+        });
+        command
+    })
 }
 
 /// The Space/Enter action: check when possible, otherwise call.
@@ -220,6 +248,62 @@ pub fn format_bb(chips: u64, big_blind: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn table_keys_are_consumed_once_and_held_keys_cannot_act_again() {
+        let ctx = egui::Context::default();
+        let key = |key, repeat| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                events: vec![key(egui::Key::Space, false)],
+                ..Default::default()
+            },
+            |ui| {
+                let ctx = ui.ctx();
+                assert_eq!(take_shortcut(ctx, false), Some(TableCommand::Primary));
+                assert_eq!(take_shortcut(ctx, false), None);
+                assert!(
+                    !ctx.input(|i| i.key_pressed(egui::Key::Space)),
+                    "focused buttons must not activate too"
+                );
+            },
+        );
+        output.textures_delta.clear();
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                events: vec![key(egui::Key::Space, true)],
+                ..Default::default()
+            },
+            |ui| {
+                let ctx = ui.ctx();
+                assert_eq!(take_shortcut(ctx, false), None);
+                assert!(!ctx.input(|i| i.key_pressed(egui::Key::Space)));
+            },
+        );
+        output.textures_delta.clear();
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                events: vec![key(egui::Key::F, false), key(egui::Key::Enter, false)],
+                ..Default::default()
+            },
+            |ui| {
+                let ctx = ui.ctx();
+                assert_eq!(take_shortcut(ctx, false), Some(TableCommand::Fold));
+                assert_eq!(
+                    take_shortcut(ctx, false),
+                    None,
+                    "a frame may submit only one keyboard command"
+                );
+            },
+        );
+        output.textures_delta.clear();
+    }
 
     fn legal(min: u64, max: u64, unit: u64) -> LegalActions {
         LegalActions {

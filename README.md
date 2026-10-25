@@ -1,7 +1,13 @@
 # 德州扑克 Rust 重写版
 
 用 Rust 从零重写的德州扑克桌面游戏：标准德州（52 张）+ 短牌（6+，36 张），本地 AI 对局与 WebSocket 联机房间。
-原项目为 JS/Electron v1.5.8；Rust 版从原实现导出黄金语料做逐项行为验收（规则/牌力/底池/协议精确一致，概率与 AI 统计等价）。
+原项目为 JS/Electron v1.5.8；Rust 版从原实现导出黄金语料做逐项行为验收，并用独立规则测试纠正原版的规则缺陷。
+
+## v2.0.1：出手顺序、每轮行动与音乐条
+
+翻牌后按庄家左侧顺时针行动，跳过弃牌和全下玩家；顶部直接显示本轮顺序和当前行动者。每轮头像行动及投入独立清零。只剩一名有筹码玩家面对全下对手时禁止再加注。快捷键消费一次物理按键，避免聚焦按钮重复触发和长按跨轮行动。牌桌顶部可直接播放/停止、切歌、调音量和播放模式。
+
+出手顺序的独立引擎、正常对局节奏、联机换轮回归与审查边界见 [v2.0.1 核心审查](docs/GAMEPLAY_AUDIT_2.0.1.md)。
 
 ## 分支说明
 
@@ -9,7 +15,7 @@
 | --- | --- |
 | `main` | **原 JS/Electron 版本 v1.5.8**（保持不动，作为迁移对照与黄金语料 oracle） |
 | `rust-rewrite` | **Rust 全量重写版（当前分支）**：9 个 crate + egui 桌面应用 + 联机服务端/客户端 |
-| 标签 `v2.0.0` | Rust 正式版：Windows 原生 MSVC 构建，下载 Releases 的便携 zip，解压后运行 |
+| 标签 `v2.0.1` | Rust 修复版：Windows 原生 MSVC 构建，下载 Releases 的便携 zip，解压后运行 |
 
 ## 本轮原生界面与核心收尾
 
@@ -60,7 +66,7 @@ cargo run -p poker-cli -- sim --players 6 --hands 500 --policy aggressive --refi
 
 ## Windows 测试
 
-1. **直接运行**：从 [v2.0.0 正式版](https://github.com/zdjmrq/texas-holdem-game/releases/tag/v2.0.0) 下载便携 zip；解压后双击 `texas-holdem-rs.exe`（assets 必须同目录）。Source code 下载项不是游戏成品。
+1. **直接运行**：从 [v2.0.1 修复版](https://github.com/zdjmrq/texas-holdem-game/releases/tag/v2.0.1) 下载便携 zip；解压后双击 `texas-holdem-rs.exe`（assets 必须同目录）。Source code 下载项不是游戏成品。
 2. **原生构建**：Windows 安装 VS Build Tools（C++ 工作负载）+ rustup（msvc host），运行 `scripts\build-windows.cmd`，产出 `dist/texas-holdem-rs-current/texas-holdem-rs.exe` 及同目录资源。默认不生成 zip。
 3. **验收清单**：按 [docs/windows-smoke.md](docs/windows-smoke.md) 15 节逐项实测（中文 IME、托盘闪红、无边框缩放、DX12 帧率、DPI、音频、启动/内存），结果填入模板。
    WSLg 的渲染/IME/托盘数据不作为验收依据；IME 若不达标请暂停 UI 铺开并反馈。

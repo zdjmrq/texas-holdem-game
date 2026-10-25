@@ -192,7 +192,7 @@ impl Seat {
         self.folded = player.folded;
         self.is_all_in = player.is_all_in;
         self.dealt_in = player.dealt_in;
-        self.last_action = player.last_action;
+        self.last_action = player.round_action;
     }
 }
 

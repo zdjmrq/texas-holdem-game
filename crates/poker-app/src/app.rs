@@ -539,34 +539,8 @@ impl PokerApp {
                                 bottom: 10,
                             })
                             .show(ui, |ui| {
-                                if !self.window_tier.toolbar_detached() || self.cli.toolbar_pinned {
-                                    if let Some(a) = table::top_bar(ui, &snapshot) {
-                                        pending = Some(a);
-                                    }
-                                } else {
-                                    ui.label(&snapshot.event_line);
-                                    if ui.ctx().input(|i| {
-                                        i.pointer.hover_pos().is_some_and(|p| p.y < 80.0)
-                                    }) {
-                                        egui::Area::new(egui::Id::unique("detached-table-header"))
-                                            .order(egui::Order::Foreground)
-                                            .fixed_pos(egui::pos2(10.0, 0.0))
-                                            .show(ui.ctx(), |ui| {
-                                                ui.set_width(
-                                                    ui.ctx().content_rect().width() - 20.0,
-                                                );
-                                                egui::Frame::new()
-                                                    .fill(snapshot.theme.palette().panel_bg)
-                                                    .inner_margin(8)
-                                                    .show(ui, |ui| {
-                                                        if let Some(a) =
-                                                            table::top_bar(ui, &snapshot)
-                                                        {
-                                                            pending = Some(a);
-                                                        }
-                                                    });
-                                            });
-                                    }
+                                if let Some(a) = table::top_bar(ui, &snapshot) {
+                                    pending = Some(a);
                                 }
                                 ui.add_space(10.0);
                                 let height = if self.window_tier == WindowTier::Normal {
@@ -672,8 +646,8 @@ impl PokerApp {
                     is_actor: game.current_player_idx() == seat as i32,
                     is_winner: winners.contains(&player.id),
                     last_action: player
-                        .last_action
-                        .map(|last| format!("{} {}", label_for_action(last.action), last.amount)),
+                        .round_action
+                        .map(|last| table::action_text(last.action.as_str(), last.amount)),
                     cards,
                     cards_visible,
                     bet: player.round_bet,
@@ -724,6 +698,10 @@ impl PokerApp {
             ai_name: session.ai_name().to_owned(),
             hide_cards: self.settings.hide_hole_cards,
             music_enabled: self.audio.is_enabled(),
+            music_title: self.audio.current_title(),
+            music_volume: (self.settings.music_volume * 100.0).round() as u8,
+            play_mode: self.settings.play_mode,
+            sound_enabled: self.settings.sound_enabled,
             show_analysis: self.settings.show_analysis,
             event_line,
             tier: self.window_tier,
@@ -761,6 +739,25 @@ impl PokerApp {
                 self.settings.show_analysis = !self.settings.show_analysis;
             }
             TableUiAction::ToggleMusic => self.toggle_music(),
+            TableUiAction::PreviousTrack => self.audio.previous_track(),
+            TableUiAction::NextTrack => self.audio.next_track(),
+            TableUiAction::SetMusicVolume(volume) => {
+                self.settings.music_volume = f32::from(volume) / 100.0;
+                self.audio.set_volume(self.settings.music_volume);
+            }
+            TableUiAction::CyclePlayMode => {
+                use crate::settings::PlayMode;
+                self.settings.play_mode = match self.settings.play_mode {
+                    PlayMode::Sequential => PlayMode::Shuffle,
+                    PlayMode::Shuffle => PlayMode::RepeatOne,
+                    PlayMode::RepeatOne => PlayMode::Sequential,
+                };
+                self.audio.set_mode(self.settings.play_mode);
+            }
+            TableUiAction::ToggleSound => {
+                self.settings.sound_enabled = !self.settings.sound_enabled;
+                self.audio.set_sound_enabled(self.settings.sound_enabled);
+            }
         }
     }
 
@@ -861,32 +858,6 @@ impl PokerApp {
         }
     }
 
-    fn pressed_table_command(ctx: &egui::Context) -> Option<TableCommand> {
-        if ctx.text_edit_focused() {
-            return None;
-        }
-        let keys = [
-            egui::Key::F,
-            egui::Key::C,
-            egui::Key::R,
-            egui::Key::A,
-            egui::Key::N,
-            egui::Key::Escape,
-            egui::Key::Num1,
-            egui::Key::Num2,
-            egui::Key::ArrowUp,
-            egui::Key::ArrowDown,
-            egui::Key::ArrowLeft,
-            egui::Key::ArrowRight,
-        ];
-        for key in keys {
-            if ctx.input(|input| input.key_pressed(key)) {
-                return table_ctrl::shortcut_for(key, false);
-            }
-        }
-        None
-    }
-
     fn handle_keyboard(&mut self, ctx: &egui::Context) {
         if self.screen == Screen::Online {
             self.online.handle_keys(ctx);
@@ -895,13 +866,18 @@ impl PokerApp {
         if ctx.text_edit_focused() {
             return;
         }
-        if let Some(command) = Self::pressed_table_command(ctx) {
-            self.apply_command(command);
+        if self.screen == Screen::Settings {
+            if ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+                self.close_settings();
+            }
+            return;
         }
-        if ctx.input(|input| {
-            input.key_pressed(egui::Key::Space) || input.key_pressed(egui::Key::Enter)
-        }) {
-            self.apply_primary();
+        if let Some(command) = table_ctrl::take_shortcut(ctx, self.raise_panel.open) {
+            if command == TableCommand::Primary {
+                self.apply_primary();
+            } else {
+                self.apply_command(command);
+            }
         }
     }
 
@@ -917,6 +893,7 @@ impl PokerApp {
             return;
         }
         match command {
+            TableCommand::Primary => self.apply_primary(),
             TableCommand::Fold => {
                 if self.is_human_turn() {
                     self.human_action(Action::Fold);
@@ -1228,19 +1205,5 @@ fn empty_legal() -> poker_engine::LegalActions {
         min_raise_to: 0,
         max_raise_to: 0,
         wager_unit: 1,
-    }
-}
-
-fn label_for_action(action: poker_engine::ActionLabel) -> &'static str {
-    match action {
-        poker_engine::ActionLabel::Fold => "弃牌",
-        poker_engine::ActionLabel::Check => "过牌",
-        poker_engine::ActionLabel::Call => "跟注",
-        poker_engine::ActionLabel::Raise => "加注",
-        poker_engine::ActionLabel::AllIn => "全下",
-        poker_engine::ActionLabel::SmallBlind => "小盲",
-        poker_engine::ActionLabel::BigBlind => "大盲",
-        poker_engine::ActionLabel::Ante => "前注",
-        poker_engine::ActionLabel::DealerAnte => "庄家前注",
     }
 }

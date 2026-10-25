@@ -267,8 +267,10 @@ impl TableSession {
             .map_err(|error: ActError| error.to_string())?;
         self.ai.observe(&event);
         self.push_event(format!(
-            "你：{}",
-            action_label(&action, self.game.config().variant)
+            "{} · 你：{}（本轮共 {}）",
+            street_name(event.street),
+            crate::ui::table::action_text(&event.action, event.meta.additional_paid as u64),
+            event.meta.raise_to as u64,
         ));
         self.after_action(Instant::now());
         Ok(())
@@ -313,22 +315,24 @@ impl TableSession {
         } else {
             crate::ai::fallback_action(&self.game.legal_actions(actor))
         };
-        let (action, event) = match poker_ai::host::act(&mut self.game, actor, action) {
-            Ok(event) => (action, event),
+        let event = match poker_ai::host::act(&mut self.game, actor, action) {
+            Ok(event) => event,
             Err(_) => {
                 // Safety net: never let a policy error wedge the table.
                 let fallback = crate::ai::fallback_action(&self.game.legal_actions(actor));
                 match poker_ai::host::act(&mut self.game, actor, fallback) {
-                    Ok(event) => (fallback, event),
+                    Ok(event) => event,
                     Err(_) => return false,
                 }
             }
         };
         self.ai.observe(&event);
         self.push_event(format!(
-            "{}：{}",
+            "{} · {}：{}（本轮共 {}）",
+            street_name(event.street),
             self.game.players()[actor].name,
-            action_label(&action, self.game.config().variant)
+            crate::ui::table::action_text(&event.action, event.meta.additional_paid as u64),
+            event.meta.raise_to as u64,
         ));
         self.after_action(now);
         true
@@ -495,6 +499,16 @@ impl TableSession {
         if self.events.len() > 60 {
             self.events.remove(0);
         }
+    }
+}
+
+/// Human readable action description for the status/log lines.
+fn street_name(street: poker_ai::input::Street) -> &'static str {
+    match street {
+        poker_ai::input::Street::Preflop => "翻牌前",
+        poker_ai::input::Street::Flop => "翻牌",
+        poker_ai::input::Street::Turn => "转牌",
+        poker_ai::input::Street::River => "河牌",
     }
 }
 
@@ -701,13 +715,22 @@ mod tests {
                 .contains(ActionType::Raise)
         );
         let fallback = crate::ai::fallback_action(&table.game().legal_actions(actor));
+        let phase = if table.game().phase() == Phase::Preflop {
+            "翻牌前"
+        } else {
+            "翻牌"
+        };
+        let paid = table.game().legal_actions(actor).to_call;
+        let total = table.game().players()[actor].round_bet + paid;
         assert!(table.advance_ai_immediately());
         assert_eq!(
             table.events().last().unwrap(),
             &format!(
-                "{}：{}",
+                "{} · {}：{}（本轮共 {}）",
+                phase,
                 table.game().players()[actor].name,
-                action_label(&fallback, config.variant)
+                crate::ui::table::action_text(fallback.action_type().as_str(), paid),
+                total,
             )
         );
         assert_eq!(

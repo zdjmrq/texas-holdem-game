@@ -1780,6 +1780,7 @@ impl ServerState {
                     action: poker_engine::ActionLabel::Fold,
                     amount: 0,
                 });
+                player.round_action = player.last_action;
             }
             // Decided after the engine fold: as in server-game.js, finishing by
             // fold happens when one seat remains, and advancing happens when the

@@ -62,11 +62,28 @@ async fn next_message(
 /// Drives one client through the current hand with check/call until settlement.
 async fn drive_to_settlement(client: &mut Client, hand_id: i64) -> poker_protocol::GameState {
     let deadline = tokio::time::Instant::now() + WAIT_HAND;
+    let mut previous_phase = None;
     loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         assert!(!remaining.is_zero(), "hand {hand_id} did not settle");
         match next_event(client, remaining).await {
             ClientEvent::Message(ServerMessage::GameState(state)) => {
+                if matches!(state.phase, Phase::Flop | Phase::Turn | Phase::River)
+                    && previous_phase != Some(state.phase)
+                {
+                    assert_eq!(
+                        state.current_player_idx, state.bb_idx,
+                        "heads-up: BB opens postflop"
+                    );
+                    assert!(
+                        state
+                            .players
+                            .iter()
+                            .all(|p| p.round_bet == 0 && p.last_action.is_none()),
+                        "new street must not publish previous-street actions"
+                    );
+                }
+                previous_phase = Some(state.phase);
                 if state.phase == Phase::Idle
                     && state.last_hand_result.is_some()
                     && state.hand_id == hand_id

@@ -368,6 +368,7 @@ impl Game {
         self.actions_this_round = 0;
         for player in &mut self.players {
             player.round_bet = 0;
+            player.round_action = None;
         }
     }
 
@@ -423,6 +424,7 @@ impl Game {
             player.dealt_in = dealt;
             player.is_all_in = false;
             player.last_action = None;
+            player.round_action = None;
         }
         if eligible.len() < 2 {
             self.phase = Phase::Idle;
@@ -522,6 +524,7 @@ impl Game {
             action: label,
             amount: paid,
         });
+        self.players[seat].round_action = self.players[seat].last_action;
         paid
     }
 
@@ -585,7 +588,12 @@ impl Game {
         let Some(player) = self.players.get(seat) else {
             return false;
         };
-        if player.folded || player.is_all_in || player.stack == 0 {
+        if !player.dealt_in
+            || player.folded
+            || player.is_all_in
+            || player.stack == 0
+            || self.live_to_act().len() < 2
+        {
             return false;
         }
         if !self.players_acted[seat] {
@@ -766,6 +774,7 @@ impl Game {
             }
         }
 
+        self.players[seat].round_action = self.players[seat].last_action;
         let aggressive = self.current_bet > current_bet_before;
         if aggressive {
             self.last_aggressor = seat as i32;

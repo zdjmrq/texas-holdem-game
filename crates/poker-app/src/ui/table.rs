@@ -62,6 +62,10 @@ pub struct TableSnapshot {
     pub ai_name: String,
     pub hide_cards: bool,
     pub music_enabled: bool,
+    pub music_title: String,
+    pub music_volume: u8,
+    pub play_mode: crate::settings::PlayMode,
+    pub sound_enabled: bool,
     pub show_analysis: bool,
     pub event_line: String,
     /// Window size tier (normal / compact / tiny) for responsive layout.
@@ -87,49 +91,148 @@ pub enum TableUiAction {
     ToggleHideCards,
     ToggleAnalysis,
     ToggleMusic,
+    PreviousTrack,
+    NextTrack,
+    SetMusicVolume(u8),
+    CyclePlayMode,
+    ToggleSound,
 }
 
 /// Top toolbar: navigation, hand info and quick toggles.
 pub fn top_bar(ui: &mut Ui, snapshot: &TableSnapshot) -> Option<TableUiAction> {
     let mut action = None;
-    crate::ui::original::header(ui, snapshot.hand_id, &snapshot.stakes_label);
-    ui.add_space(6.0);
-    ui.horizontal(|ui| {
-        if ui.button("← 主页").clicked() {
-            action = Some(TableUiAction::BackHome);
-        }
-        ui.separator();
-        ui.label(egui::RichText::new(format!("第 {} 手", snapshot.hand_id)).strong());
-        ui.label(format!("· {} ·", snapshot.variant_label));
-        ui.label(egui::RichText::new(snapshot.phase).strong());
-        ui.label(format!("底池 {}", snapshot.pot));
-        ui.separator();
-        ui.label(snapshot.stakes_label.as_str());
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui
-                .selectable_label(snapshot.hide_cards, "隐藏手牌")
-                .clicked()
-            {
-                action = Some(TableUiAction::ToggleHideCards);
-            }
-            if ui
-                .selectable_label(snapshot.music_enabled, "音乐")
-                .clicked()
-            {
-                action = Some(TableUiAction::ToggleMusic);
-            }
-            if ui
-                .selectable_label(snapshot.show_analysis, "分析")
-                .clicked()
-            {
-                action = Some(TableUiAction::ToggleAnalysis);
-            }
-            if ui.button("设置").clicked() {
-                action = Some(TableUiAction::OpenSettings);
-            }
+    egui::Frame::new()
+        .fill(snapshot.theme.palette().panel_bg)
+        .corner_radius(12)
+        .inner_margin(10)
+        .show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.label(
+                    egui::RichText::new("♠ Texas Hold'em")
+                        .strong()
+                        .color(snapshot.theme.palette().gold),
+                );
+                if ui.button("← 主页").clicked() {
+                    action = Some(TableUiAction::BackHome);
+                }
+                ui.separator();
+                ui.label(egui::RichText::new(format!("第 {} 手", snapshot.hand_id)).strong());
+                ui.label(format!("· {} ·", snapshot.variant_label));
+                ui.label(egui::RichText::new(snapshot.phase).strong());
+                ui.label(format!("底池 {}", snapshot.pot));
+                ui.separator();
+                ui.label(snapshot.stakes_label.as_str());
+                ui.separator();
+                if ui
+                    .selectable_label(snapshot.hide_cards, "隐藏手牌")
+                    .clicked()
+                {
+                    action = Some(TableUiAction::ToggleHideCards);
+                }
+                if ui
+                    .selectable_label(snapshot.show_analysis, "分析")
+                    .clicked()
+                {
+                    action = Some(TableUiAction::ToggleAnalysis);
+                }
+                if ui.button("设置").clicked() {
+                    action = Some(TableUiAction::OpenSettings);
+                }
+            });
+            ui.horizontal_wrapped(|ui| {
+                ui.label("背景音乐");
+                if ui.button("上一首").clicked() {
+                    action = Some(TableUiAction::PreviousTrack);
+                }
+                if ui
+                    .button(if snapshot.music_enabled {
+                        "停止"
+                    } else {
+                        "播放"
+                    })
+                    .clicked()
+                {
+                    action = Some(TableUiAction::ToggleMusic);
+                }
+                if ui.button("下一首").clicked() {
+                    action = Some(TableUiAction::NextTrack);
+                }
+                ui.add(
+                    egui::Label::new(egui::RichText::new(&snapshot.music_title).weak()).truncate(),
+                )
+                .on_hover_text(&snapshot.music_title);
+                ui.label("音量");
+                let mut volume = snapshot.music_volume;
+                ui.scope(|ui| {
+                    ui.spacing_mut().slider_width = 90.0;
+                    if ui
+                        .add(egui::Slider::new(&mut volume, 0..=100).suffix("%"))
+                        .changed()
+                    {
+                        action = Some(TableUiAction::SetMusicVolume(volume));
+                    }
+                });
+                if ui.button(snapshot.play_mode.label()).clicked() {
+                    action = Some(TableUiAction::CyclePlayMode);
+                }
+                if ui
+                    .selectable_label(snapshot.sound_enabled, "提示音")
+                    .clicked()
+                {
+                    action = Some(TableUiAction::ToggleSound);
+                }
+            });
+            ui.horizontal_wrapped(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("本轮顺序：{}", round_order_text(snapshot)))
+                        .small()
+                        .weak(),
+                );
+                if let Some(name) = &snapshot.current_actor_name {
+                    ui.label(
+                        egui::RichText::new(format!("当前行动：{name}"))
+                            .strong()
+                            .color(snapshot.theme.palette().gold),
+                    );
+                }
+            });
         });
-    });
     action
+}
+
+fn round_order_text(snapshot: &TableSnapshot) -> String {
+    if snapshot.settlement.is_some() {
+        return "本手已结束".into();
+    }
+    let preflop_blinds = snapshot.phase == "翻牌前" && !snapshot.variant.is_short_deck();
+    let anchor = snapshot.seats.iter().position(|s| {
+        if preflop_blinds {
+            s.is_big_blind
+        } else {
+            s.is_dealer
+        }
+    });
+    let Some(anchor) = anchor else {
+        return "等待开始".into();
+    };
+    let count = snapshot.seats.len();
+    let order: Vec<_> = (1..=count)
+        .map(|n| &snapshot.seats[(anchor + n) % count])
+        .filter(|s| !s.folded && !s.all_in)
+        .map(|s| {
+            let badge = position_badges(s);
+            if badge.is_empty() {
+                s.name.clone()
+            } else {
+                format!("{}({badge})", s.name)
+            }
+        })
+        .collect();
+    if order.is_empty() {
+        "等待结算".into()
+    } else {
+        order.join(" → ")
+    }
 }
 
 /// Bottom action bar: legal actions, raise panel, waiting state and status line.
@@ -151,6 +254,7 @@ pub fn action_bar(
             }
             ui.vertical(|ui| {
                 ui.label(egui::RichText::new(&human.name).strong());
+                ui.label(position_badges(human));
                 ui.label(
                     egui::RichText::new(format!("$ {}", human.stack))
                         .size(22.0)
@@ -589,15 +693,7 @@ fn draw_seat(
             );
         }
     }
-    let badge = if seat.is_dealer {
-        "D"
-    } else if seat.is_small_blind {
-        "SB"
-    } else if seat.is_big_blind {
-        "BB"
-    } else {
-        ""
-    };
+    let badge = position_badges(seat);
     if !badge.is_empty() {
         let c = box_rect.left_top() + egui::vec2(10.0, 10.0);
         painter.circle_filled(c, 10.0, palette.gold);
@@ -629,10 +725,45 @@ fn draw_seat(
         painter.text(
             egui::pos2(center_x, box_rect.bottom() - 45.0 * scale),
             Align2::CENTER_CENTER,
-            format!("● $ {}", seat.bet),
+            format!("本轮 $ {}", seat.bet),
             FontId::proportional(12.0 * scale),
             palette.gold,
         );
+    }
+}
+
+fn position_badges(seat: &SeatView) -> &'static str {
+    if seat.is_dealer && seat.is_small_blind {
+        "D/SB"
+    } else if seat.is_small_blind {
+        "SB"
+    } else if seat.is_big_blind {
+        "BB"
+    } else if seat.is_dealer {
+        "D"
+    } else {
+        ""
+    }
+}
+
+/// Current-street action text. Chip totals are shown separately as 本轮投入.
+pub fn action_text(action: &str, amount: u64) -> String {
+    let label = match action {
+        "fold" => "弃牌",
+        "check" => "过牌",
+        "call" => "跟注",
+        "raise" => "加注",
+        "allin" => "全下",
+        "small blind" => "小盲",
+        "big blind" => "大盲",
+        "ante" => "前注",
+        "dealer ante" => "庄家前注",
+        _ => "行动",
+    };
+    if amount == 0 {
+        label.to_owned()
+    } else {
+        format!("{label} +{amount}")
     }
 }
 
